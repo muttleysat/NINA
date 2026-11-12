@@ -133,7 +133,7 @@ Normalizzazione: calcolata al caricamento/modifica di start/end sul thread di ca
 | **2 – Effetti** (primo passo fatto) | Catena per cella e globale con ordine fisso Saturation > LoFi > Filter > Compressor > Delay > Reverb, ciascuna con on/off. Coda di delay/riverbero dopo la fine della nota. Fatto: delay sincronizzato al BPM (DAW o interno, 17 valori musicali, tempo smussato). Da fare: EQ, effetti creativi (chorus, flanger, phaser, stutter…), ordine modificabile, send, uscite multiple per cella | – (usa `juce_dsp`) |
 | **3 – Loop e stretch** | BPM, sync, Key Lock, normalizzazione | Rubber Band, libsamplerate |
 | **4 – Slicing** | Slice automatici/manuali, distribuzione su celle | Essentia / aubio |
-| **5 – Sequencer** | Lane, step, parameter lock, quantizzazione, export MIDI/audio | – |
+| **5 – Sequencer** (primo passo fatto) | Fatto: pattern (16 slot), lane per cella aggiunte con il tasto destro, fino a 64 step con lunghezza e risoluzione per lane (incluse terzine), swing, nudge, ratchet, probabilità con seme ripetibile, gate, pitch per step, parameter lock sugli effetti, mute/solo, trasporto (DAW o interno), editor degli step, esportazione MIDI e bounce audio WAV 24 bit. Da fare: quantizzazione, drag & drop della clip verso la DAW, AIFF/FLAC e stem, record da tastiera, slide dei lock, selezione multipla di lane, modalità di riproduzione per step (reverse, slice) | – |
 | **6 – Standalone completo** | Trasporto interno, impostazioni audio/MIDI, record | – |
 | **7 – Rifinitura** | Layer, gruppi, undo, ottimizzazione, test Cubase 16 | – |
 

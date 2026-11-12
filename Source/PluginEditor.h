@@ -7,6 +7,7 @@
 #include "ui/ModulesBar.h"
 #include "ui/CellPanel.h"
 #include "ui/FxPanel.h"
+#include "ui/SeqPanel.h"
 #include "ui/SampleBrowser.h"
 
 class SampleLabEditor final : public juce::AudioProcessorEditor,
@@ -57,7 +58,8 @@ private:
     CellPanel cellPanel;
     ModulesBar modules;
     FxPanel fxPanel;
-    int currentTab = 0;                 // 0 = Main, 3 = FX (le altre schede arriveranno con le fasi successive)
+    SeqPanel seqPanel;
+    int currentTab = 0;                 // 0 = Main, 1 = Seq, 3 = FX (Mixer e Macros arriveranno con le fasi successive)
     std::unique_ptr<juce::FileChooser> chooser;
 
     juce::Rectangle<int> topBar, tabBar;

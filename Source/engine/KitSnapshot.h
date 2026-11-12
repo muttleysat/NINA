@@ -25,21 +25,24 @@ struct KitSnapshot
 
 using KitSnapshotPtr = std::shared_ptr<const KitSnapshot>;
 
-// Passaggio di snapshot dal thread UI al thread audio, senza lock bloccanti e senza
-// allocazioni/deallocazioni nel thread audio.
-class SnapshotExchange
+// Passaggio di dati immutabili dal thread UI al thread audio, senza lock bloccanti e senza
+// allocazioni/deallocazioni nel thread audio. Usato per lo snapshot del kit e per il pattern attivo.
+template <typename T>
+class SharedExchange
 {
 public:
+    using Ptr = std::shared_ptr<const T>;
+
     // Thread UI
-    void publish (KitSnapshotPtr p)
+    void publish (Ptr p)
     {
         const juce::SpinLock::ScopedLockType l (lock);
-        retired.reset();                // gli snapshot ritirati dal thread audio si liberano qui
+        retired.reset();                // i dati ritirati dal thread audio si liberano qui
         pending = std::move (p);
     }
 
     // Thread audio: ritorna true se current e' stato aggiornato
-    bool tryAcquire (KitSnapshotPtr& current) noexcept
+    bool tryAcquire (Ptr& current) noexcept
     {
         const juce::SpinLock::ScopedTryLockType l (lock);
         if (! l.isLocked() || pending == nullptr)
@@ -53,6 +56,8 @@ public:
 
 private:
     juce::SpinLock lock;
-    KitSnapshotPtr pending, retired;
+    Ptr pending, retired;
 };
+
+using SnapshotExchange = SharedExchange<KitSnapshot>;
 }

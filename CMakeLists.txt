@@ -45,6 +45,7 @@ set(SAMPLELAB_CORE_SOURCES
     Source/engine/FxChain.cpp
     Source/params/ParamSet.cpp
     Source/params/MidiLearn.cpp
+    Source/sequencer/SequencerExport.cpp
     Source/engine/Engine.cpp
     Source/kit/KitIO.cpp
 )
@@ -57,6 +58,7 @@ target_sources(SampleLab PRIVATE
     Source/ui/WaveformView.cpp
     Source/ui/KnobBox.cpp
     Source/ui/FxPanel.cpp
+    Source/ui/SeqPanel.cpp
     Source/ui/ModulesBar.cpp
     Source/ui/WaveStrip.cpp
     Source/ui/CellPanel.cpp

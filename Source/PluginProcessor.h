@@ -41,6 +41,25 @@ public:
     // ---- Parametri automatizzabili (fonte di verita' dei valori) ----
     const sl::ParamSet& getParams() const { return params; }
 
+    // ---- Sequencer (thread messaggi, tranne dove indicato) ----
+    sl::Pattern& activePattern() { return kit.patterns[(size_t) kit.activePattern]; }
+    const sl::Pattern& activePattern() const { return kit.patterns[(size_t) kit.activePattern]; }
+    int getActivePatternIndex() const { return kit.activePattern; }
+    void setActivePattern (int index);
+    void patternEdited();                                   // dopo ogni modifica del pattern: pubblica al thread audio
+    bool addLaneForCell (int cell);                         // "Aggiungi al sequencer" (tasto destro sulla cella)
+    void removeLaneForCell (int cell);
+
+    // Trasporto: nello standalone e' interno (Play/Stop del plugin), nel plugin segue la DAW
+    void setSequencerRunning (bool run);
+    bool isSequencerRunning() const { return seqRunning.load(); }
+    bool isSequencerPlaying() const { return seqPlaying.load(); }     // in riproduzione ora (DAW o interno)
+    double getSequencerPpq() const { return seqPpq.load(); }         // posizione corrente in quarti (per l'indicatore degli step)
+
+    // Esportazione del pattern attivo: clip MIDI e audio (WAV 24 bit con effetti, lock e tail)
+    bool exportPatternMidi (const juce::File& file, int bars, juce::String& error);
+    bool bouncePatternWav (const juce::File& file, int bars, juce::String& error);
+
     // ---- MIDI learn dei parametri ----
     sl::MidiLearn& getMidiLearn() { return midiLearn; }
     const sl::MidiLearn& getMidiLearn() const { return midiLearn; }
@@ -92,6 +111,8 @@ public:
 
 private:
     void publishKit (bool newGeneration);
+    void publishPattern();
+    std::shared_ptr<sl::KitSnapshot> buildSnapshot() const;
     void loadKitSamples();
     void addRecentKit (const juce::File& file);
     juce::PropertiesFile& getSettings() const;
@@ -108,6 +129,16 @@ private:
     sl::ParamSet params;
     sl::MidiLearn midiLearn { params };
     sl::Engine engine;
+
+    // Sequencer: pattern attivo pubblicato al thread audio, generatore di eventi e trasporto interno
+    sl::SharedExchange<sl::Pattern> patternExchange;
+    std::shared_ptr<const sl::Pattern> audioPattern;        // solo thread audio
+    sl::SequencerRunner seqRunner;
+    std::atomic<bool> seqRunning { false }, seqPlaying { false };
+    std::atomic<double> seqPpq { 0.0 };
+    double internalPpq = 0.0;                               // solo thread audio
+    bool wasRunning = false;                                // solo thread audio
+    double currentSampleRate = 44100.0;
     juce::MidiKeyboardState keyboardState;
     juce::AudioFormatManager formats;
 

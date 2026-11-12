@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <limits>
 
 namespace sl
 {
@@ -122,7 +123,9 @@ public:
     SequencerRunner() { events.reserve (4096); }
 
     // pattern puo' essere nullptr (nessun pattern). ppq0 = posizione all'inizio del blocco, in quarti.
-    void runBlock (const Pattern* pattern, bool playing, double ppq0, double bpm, double sampleRate, int numSamples) noexcept
+    // endPpq: oltre questa posizione non si generano eventi (esportazione di un numero esatto di battute).
+    void runBlock (const Pattern* pattern, bool playing, double ppq0, double bpm, double sampleRate, int numSamples,
+                   double endPpq = std::numeric_limits<double>::infinity()) noexcept
     {
         events.clear();
 
@@ -136,7 +139,7 @@ public:
         const double ppq1 = ppq0 + (double) numSamples * bpm / (60.0 * sampleRate);
         const double samplesPerBeat = 60.0 * sampleRate / bpm;
 
-        Sequencer::generate (*pattern, ppq0, ppq1, [&] (const TimedEvent& e)
+        Sequencer::generate (*pattern, ppq0, std::min (ppq1, endPpq), [&] (const TimedEvent& e)
         {
             if (events.size() >= events.capacity())
                 return;                                  // oltre il limite si scartano gli eventi (mai allocare)

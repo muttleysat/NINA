@@ -201,6 +201,13 @@ void PadGrid::paint (juce::Graphics& g)
             g.setFont (juce::FontOptions (juce::jmax (8.0f, 10.0f * s), juce::Font::bold));
             g.drawText ("MISSING", textArea, juce::Justification::bottomLeft);
         }
+
+        // Pallino arancione: la cella e' nel sequencer
+        if (processor.activePattern().findLane (i) != nullptr)
+        {
+            g.setColour (theme::accent);
+            g.fillEllipse (b.getRight() - 12.0f * s, b.getBottom() - 12.0f * s, 7.0f * s, 7.0f * s);
+        }
     }
 }
 
@@ -240,18 +247,28 @@ void PadGrid::showContextMenu (int cell)
 {
     juce::PopupMenu m;
     const bool filled = processor.getKit().cells[(size_t) cell].hasSample();
+    const bool inSequencer = processor.activePattern().findLane (cell) != nullptr;
+    m.addItem (4, inSequencer ? "Remove from sequencer" : "Add to sequencer", filled || inSequencer);
+    m.addSeparator();
     m.addItem (1, "Load sample...");
     m.addItem (2, "Rename...", filled);
     m.addItem (3, "Clear cell", filled);
 
     m.showMenuAsync (juce::PopupMenu::Options().withTargetScreenArea (localAreaToGlobal (cellBounds (cell).toNearestInt())),
-                     [this, cell] (int r)
+                     [this, cell, inSequencer] (int r)
                      {
                          if (r == 1 && onLoadRequested) onLoadRequested (cell);
                          else if (r == 2) renameCell (cell);
                          else if (r == 3)
                          {
                              processor.clearCell (cell);
+                             if (onKitChanged) onKitChanged();
+                         }
+                         else if (r == 4)
+                         {
+                             if (inSequencer) processor.removeLaneForCell (cell);
+                             else processor.addLaneForCell (cell);
+                             repaint();
                              if (onKitChanged) onKitChanged();
                          }
                      });

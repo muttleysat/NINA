@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "sequencer/SequencerExport.h"
 
 SampleLabProcessor::SampleLabProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Main", juce::AudioChannelSet::stereo(), true))
@@ -26,6 +27,8 @@ SampleLabProcessor::~SampleLabProcessor()
 
 void SampleLabProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
+    currentSampleRate = sampleRate;
+    seqRunner.reset();
     engine.prepare (sampleRate, juce::jmax (512, samplesPerBlock));
     keyboardState.reset();
 }
@@ -62,8 +65,38 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     currentBpm.store (bpm, std::memory_order_relaxed);
     hostTempo.store (fromHost, std::memory_order_relaxed);
 
+    // Sequencer: pattern attivo (pubblicato dal thread UI) e trasporto. Nel plugin si segue la DAW (play/stop e posizione),
+    // nello standalone il trasporto e' interno.
+    patternExchange.tryAcquire (audioPattern);
+
+    const int numSamples = buffer.getNumSamples();
+    bool playing = seqRunning.load();
+    double ppq0 = internalPpq;
+    bool useHostPpq = false;
+    if (auto* ph = getPlayHead())
+        if (auto pos = ph->getPosition())
+            if (auto hostPpq = pos->getPpqPosition(); hostPpq.hasValue())
+            {
+                useHostPpq = true;
+                playing = pos->getIsPlaying();
+                ppq0 = *hostPpq;
+            }
+
+    if (! useHostPpq)
+    {
+        if (playing && ! wasRunning)
+            internalPpq = ppq0 = 0.0;                       // Play dall'inizio
+        wasRunning = playing;
+        if (playing)
+            internalPpq += (double) numSamples * bpm / (60.0 * currentSampleRate);
+    }
+
+    seqRunner.runBlock (audioPattern.get(), playing, ppq0, bpm, currentSampleRate, numSamples);
+    seqPlaying.store (playing, std::memory_order_relaxed);
+    seqPpq.store (ppq0, std::memory_order_relaxed);
+
     buffer.clear();
-    engine.process (buffer, midi);
+    engine.process (buffer, midi, &seqRunner.getEvents());
 }
 
 juce::AudioProcessorEditor* SampleLabProcessor::createEditor()
@@ -104,11 +137,8 @@ void SampleLabProcessor::stopAudition()
 
 // ---------------------------------------------------------------- Kit
 
-void SampleLabProcessor::publishKit (bool newGeneration)
+std::shared_ptr<sl::KitSnapshot> SampleLabProcessor::buildSnapshot() const
 {
-    if (newGeneration)
-        ++generation;
-
     auto snap = std::make_shared<sl::KitSnapshot>();
     snap->generation = generation;
     snap->cells.reserve (kit.cells.size());
@@ -124,7 +154,113 @@ void SampleLabProcessor::publishKit (bool newGeneration)
         r.highNote = c.highNote;
         snap->cells.push_back (r);
     }
-    engine.publish (std::move (snap));
+    return snap;
+}
+
+void SampleLabProcessor::publishKit (bool newGeneration)
+{
+    if (newGeneration)
+        ++generation;
+
+    engine.publish (buildSnapshot());
+    publishPattern();
+}
+
+// ------------------------------------------------------------- Sequencer
+
+void SampleLabProcessor::publishPattern()
+{
+    patternExchange.publish (std::make_shared<const sl::Pattern> (activePattern()));
+}
+
+void SampleLabProcessor::patternEdited()
+{
+    dirty = true;
+    publishPattern();
+}
+
+void SampleLabProcessor::setActivePattern (int index)
+{
+    kit.activePattern = juce::jlimit (0, sl::kNumPatterns - 1, index);
+    dirty = true;
+    publishPattern();
+}
+
+bool SampleLabProcessor::addLaneForCell (int cell)
+{
+    if (cell < 0 || cell >= kit.numCells() || activePattern().findLane (cell) != nullptr)
+        return false;
+
+    sl::Lane lane;
+    lane.cell = cell;
+    activePattern().lanes.push_back (lane);
+    patternEdited();
+    return true;
+}
+
+void SampleLabProcessor::removeLaneForCell (int cell)
+{
+    auto& lanes = activePattern().lanes;
+    lanes.erase (std::remove_if (lanes.begin(), lanes.end(), [cell] (const sl::Lane& l) { return l.cell == cell; }), lanes.end());
+    patternEdited();
+}
+
+void SampleLabProcessor::setSequencerRunning (bool run)
+{
+    seqRunning.store (run);
+}
+
+bool SampleLabProcessor::exportPatternMidi (const juce::File& file, int bars, juce::String& error)
+{
+    auto midi = sl::SequencerExport::toMidiFile (activePattern(), kit, bars, currentBpm.load());
+    if (! sl::SequencerExport::writeMidiFile (midi, file))
+    {
+        error = "Impossibile scrivere " + file.getFullPathName();
+        return false;
+    }
+    return true;
+}
+
+// Rendering offline del pattern attivo: stesso motore, stessi parametri correnti (inclusi effetti, lock, tail).
+// L'automazione della DAW non e' inclusa: si usano i valori correnti dei parametri.
+bool SampleLabProcessor::bouncePatternWav (const juce::File& file, int bars, juce::String& error)
+{
+    const double sr = currentSampleRate > 0.0 ? currentSampleRate : 44100.0;
+    const double bpm = currentBpm.load();
+    constexpr int block = 512;
+
+    auto eng = std::make_unique<sl::Engine>();
+    eng->prepare (sr, block);
+    eng->publish (buildSnapshot());
+    params.fillLive (eng->live);
+    eng->live.bpm = bpm;
+
+    auto out = sl::SequencerExport::renderOffline (*eng, activePattern(), bars, bpm, sr);
+    const int totalSamples = out.getNumSamples();
+
+    file.deleteFile();
+    juce::WavAudioFormat wav;
+    std::unique_ptr<juce::FileOutputStream> stream (file.createOutputStream());
+    if (stream == nullptr)
+    {
+        error = "Impossibile creare " + file.getFullPathName();
+        return false;
+    }
+    std::unique_ptr<juce::AudioFormatWriter> writer (wav.createWriterFor (stream.get(), sr, 2, 24, {}, 0));
+    if (writer == nullptr)
+    {
+        error = "Formato WAV non disponibile";
+        return false;
+    }
+    stream.release();                                                  // il writer ne e' proprietario
+
+    // Si taglia il silenzio finale oltre la coda
+    int lastAudible = totalSamples;
+    while (lastAudible > 0 && out.getMagnitude (0, lastAudible - 1, 1) < 1.0e-5f && out.getMagnitude (1, lastAudible - 1, 1) < 1.0e-5f)
+        --lastAudible;
+    lastAudible = juce::jmin (totalSamples, lastAudible + (int) (0.05 * sr));
+
+    return writer->writeFromAudioSampleBuffer (out, 0, lastAudible);
 }
 
 sl::SampleDataPtr SampleLabProcessor::getCellData (int cell) const

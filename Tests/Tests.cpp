@@ -3,6 +3,7 @@
 #include "params/ParamSet.h"
 #include "params/MidiLearn.h"
 #include "sequencer/Sequencer.h"
+#include "sequencer/SequencerExport.h"
 #include <set>
 
 namespace
@@ -956,6 +957,109 @@ public:
             expectWithinAbsoluteError (ls.lockValues[(size_t) FxF::Cutoff], 1500.0f, 0.01f);
             expect (ll.steps[7].on && ! ll.steps[8].on);
             expect (loaded.patterns[3].lanes.empty());
+        }
+
+        beginTest ("Export: pattern becomes a standard MIDI clip with the right notes, velocities and tempo");
+        {
+            auto kit = Kit::makeDefault();
+            kit.cells[0].lowNote = kit.cells[0].highNote = 36;
+            kit.cells[1].lowNote = kit.cells[1].highNote = 38;
+
+            Pattern p;
+            p.name = "Beat";
+            Lane kick; kick.cell = 0; kick.division = 4; kick.length = 4;           // 1/4: un colpo a beat sugli step accesi
+            kick.steps[0].on = true; kick.steps[0].velocity = 110;
+            kick.steps[2].on = true;
+            Lane snare; snare.cell = 1; snare.division = 4; snare.length = 4;
+            snare.steps[1].on = true; snare.steps[1].velocity = 80; snare.steps[1].ratchet = 2;
+            p.lanes = { kick, snare };
+
+            auto midi = SequencerExport::toMidiFile (p, kit, 2, 100.0);              // 2 battute = 8 beat
+            auto tmp = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("samplelab_exp_" + juce::String (juce::Random::getSystemRandom().nextInt (1000000)) + ".mid");
+            expect (SequencerExport::writeMidiFile (midi, tmp));
+
+            juce::MidiFile back;
+            juce::FileInputStream in (tmp);
+            expect (in.openedOk() && back.readFrom (in));
+            expectEquals ((int) back.getTimeFormat(), 960);
+            expectEquals (back.getNumTracks(), 2);
+
+            auto* notes = back.getTrack (1);
+            int kicks = 0, snares = 0;
+            double firstKickTick = -1, secondSnareHit = -1;
+            for (int i = 0; i < notes->getNumEvents(); ++i)
+            {
+                auto& m = notes->getEventPointer (i)->message;
+                if (! m.isNoteOn()) continue;
+                if (m.getNoteNumber() == 36) { ++kicks; if (firstKickTick < 0) { firstKickTick = m.getTimeStamp(); expectEquals ((int) m.getVelocity(), 110); } }
+                if (m.getNoteNumber() == 38) { if (++snares == 2) secondSnareHit = m.getTimeStamp(); }
+            }
+            expectEquals (kicks, 4);                                 // step 0 e 2, ripetuti nelle 2 battute (8 beat)
+            expectEquals (snares, 4);                                // step 1 con ratchet 2, due volte
+            expectWithinAbsoluteError (firstKickTick, 0.0, 0.5);
+            expectWithinAbsoluteError (secondSnareHit, 1.5 * 960.0, 1.0);   // 2o colpo del ratchet: beat 1 + mezzo beat
+
+            int noteOns = 0, noteOffs = 0;
+            for (int i = 0; i < notes->getNumEvents(); ++i)
+            {
+                auto& m = notes->getEventPointer (i)->message;
+                if (m.isNoteOn()) ++noteOns;
+                if (m.isNoteOff()) ++noteOffs;
+            }
+            expectEquals (noteOns, noteOffs);                        // nessuna nota rimasta aperta
+
+            // Il tempo e' nel file
+            bool foundTempo = false;
+            auto* conductor = back.getTrack (0);
+            for (int i = 0; i < conductor->getNumEvents(); ++i)
+                if (conductor->getEventPointer (i)->message.isTempoMetaEvent())
+                {
+                    foundTempo = true;
+                    expectWithinAbsoluteError (60.0 / conductor->getEventPointer (i)->message.getTempoSecondsPerQuarterNote(), 100.0, 0.01);
+                }
+            expect (foundTempo);
+            tmp.deleteFile();
+        }
+
+        beginTest ("Export: offline render plays the pattern, keeps the effect tail, and is repeatable");
+        {
+            Pattern p;
+            Lane l; l.cell = 0; l.division = 4; l.length = 4; l.steps[0].on = true;   // un colpo all'inizio della battuta
+            l.steps[0].gate = 0.2f;
+            p.lanes.push_back (l);
+
+            auto make = [&] (bool delay)
+            {
+                auto c = cell (36, TriggerMode::OneShot);
+                if (delay)
+                {
+                    c.fx.delayOn = true; c.fx.delaySync = true; c.fx.delayDivision = 4;   // 1/4
+                    c.fx.delayFeedback = 0.0f; c.fx.delayMix = 1.0f;
+                }
+                auto r = std::make_unique<Rig>();
+                r->setCells ({ { c, impulse() } });
+                r->engine.live.bpm = 120.0;
+                return r;
+            };
+
+            auto dry = make (false);
+            auto a = SequencerExport::renderOffline (dry->engine, p, 1, 120.0, kSR, 2.0);
+            // La battuta dura 2 s; con tempo 120 BPM il colpo e' al campione 0
+            // la velocity predefinita dello step e' 100/127 = 0.787
+            expect (peak (a, 0, 50) > 0.7f, "hit at the start");
+            expect (peak (a, 1000, a.getNumSamples()) < 0.001f, "no tail without effects");
+
+            auto wet = make (true);
+            auto b = SequencerExport::renderOffline (wet->engine, p, 1, 120.0, kSR, 2.0);
+            expect (peak (b, 22000, 22100) > 0.7f, "delayed echo one beat (500 ms) later, still rendered");
+
+            auto wet2 = make (true);
+            auto b2 = SequencerExport::renderOffline (wet2->engine, p, 1, 120.0, kSR, 2.0);
+            expectEquals (b.getNumSamples(), b2.getNumSamples());
+            float maxDiff = 0.0f;
+            for (int i = 0; i < b.getNumSamples(); ++i)
+                maxDiff = juce::jmax (maxDiff, std::abs (b.getSample (0, i) - b2.getSample (0, i)));
+            expectEquals (maxDiff, 0.0f);                            // render identico a ogni esecuzione
         }
 
         // ------------------------------------------------------- MIDI learn

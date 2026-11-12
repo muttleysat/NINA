@@ -1,7 +1,7 @@
 #include "PluginEditor.h"
 
 SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
-    : AudioProcessorEditor (&p), processor (p), grid (p), waveStrip (p), cellPanel (p), modules (p), fxPanel (p)
+    : AudioProcessorEditor (&p), processor (p), grid (p), waveStrip (p), cellPanel (p), modules (p), fxPanel (p), seqPanel (p)
 {
     juce::LookAndFeel::setDefaultLookAndFeel (&lnf);
 
@@ -33,6 +33,7 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     addAndMakeVisible (cellPanel);
     addAndMakeVisible (modules);
     addChildComponent (fxPanel);
+    addChildComponent (seqPanel);
 
     browser.onFileActivated = [this] (const juce::File& f) { loadIntoCell (grid.getSelected(), f); };
     browser.onPreview = [this] (const juce::File& f) { processor.auditionFile (f, browser.getPreviewGainDb()); };
@@ -50,6 +51,7 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     grid.onKitChanged = [this]
     {
         refreshCellViews();
+        seqPanel.refresh();                 // lane aggiunte/rimosse o celle svuotate
         refreshTopBar();
     };
 
@@ -152,15 +154,23 @@ juce::Rectangle<int> SampleLabEditor::tabRect (int index) const
 void SampleLabEditor::showTab (int tab)
 {
     currentTab = tab;
+    const bool seq = tab == 1;
+
+    // La scheda Seq occupa lo spazio di griglia, forma d'onda e moduli
+    grid.setVisible (! seq);
+    waveStrip.setVisible (! seq);
+    seqPanel.setVisible (seq);
     modules.setVisible (tab == 0);
     fxPanel.setVisible (tab == 3);
+    if (seq)
+        seqPanel.refresh();
     repaint (tabBar);
 }
 
 void SampleLabEditor::mouseDown (const juce::MouseEvent& e)
 {
-    // Schede attive: Main (0) e FX (3)
-    for (int tab : { 0, 3 })
+    // Schede attive: Main (0), Seq (1) e FX (3)
+    for (int tab : { 0, 1, 3 })
         if (tabRect (tab).contains (e.getPosition()))
             showTab (tab);
 }
@@ -170,6 +180,7 @@ void SampleLabEditor::refreshAll()
     refreshTopBar();
     grid.setSelected (juce::jmin (grid.getSelected(), processor.getKit().numCells() - 1));
     refreshCellViews();
+    seqPanel.refresh();
     grid.repaint();
 }
 
@@ -411,7 +422,7 @@ void SampleLabEditor::paint (juce::Graphics& g)
             g.setColour (juce::Colour (0xff1a1006));
         }
         else
-            g.setColour (i == 0 || i == 3 ? theme::text.withAlpha (0.85f) : theme::textDim.withAlpha (0.45f));   // le altre arriveranno
+            g.setColour (i == 0 || i == 1 || i == 3 ? theme::text.withAlpha (0.85f) : theme::textDim.withAlpha (0.45f));   // Mixer e Macros arriveranno
         g.drawText (tabs[i], tab, juce::Justification::centred);
     }
 }
@@ -453,6 +464,7 @@ void SampleLabEditor::resized()
     modules.setBounds (bottomArea);
     fxPanel.setBounds (bottomArea);
     area.removeFromBottom (m);
+    const int bottomAreaTop = bottomArea.getY();
 
     // Colonne: browser | centro | pannello della cella
     browser.setBounds (area.removeFromLeft (juce::jlimit (190, 330, getWidth() * 19 / 100)));
@@ -464,4 +476,8 @@ void SampleLabEditor::resized()
     waveStrip.setBounds (area.removeFromBottom (waveH));
     area.removeFromBottom (m);
     grid.setBounds (area);
+
+    // Scheda Seq: da sopra la griglia fino al fondo dei moduli
+    seqPanel.setBounds (area.getX(), area.getY(), area.getWidth(), bottomArea.getBottom() - area.getY());
+    juce::ignoreUnused (bottomAreaTop);
 }
