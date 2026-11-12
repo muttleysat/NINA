@@ -223,6 +223,9 @@ ParamSet::ParamSet()
     master->addChild (std::move (level));
     buildFx (*master, masterFxRefs, "master", "Master ");
     groups.push_back (std::move (master));
+
+    for (auto* p : allParams)
+        byId[p->getParameterID()] = p;
 }
 
 std::vector<std::unique_ptr<juce::AudioProcessorParameterGroup>> ParamSet::releaseGroups()

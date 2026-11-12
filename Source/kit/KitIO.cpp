@@ -130,6 +130,16 @@ juce::String toJson (const Kit& kit, bool relativePaths)
     root->setProperty ("masterDb", kit.masterDb);
     root->setProperty ("masterFx", fxToVar (kit.masterFx));
 
+    juce::Array<juce::var> midi;
+    for (const auto& m : kit.midiMap)
+    {
+        auto* o = new juce::DynamicObject();
+        o->setProperty ("cc", m.cc);
+        o->setProperty ("param", m.paramId);
+        midi.add (juce::var (o));
+    }
+    root->setProperty ("midiMap", midi);
+
     juce::Array<juce::var> cells;
     for (const auto& c : kit.cells)
     {
@@ -167,6 +177,16 @@ bool fromJson (const juce::String& text, const juce::File& baseDir, Kit& kit, ju
     k.cols = juce::jlimit (1, 64, getI (root, "cols", 12));
     k.masterDb = getF (root, "masterDb", 0.0f);
     k.masterFx = fxFromVar (root["masterFx"]);
+
+    if (const auto* mm = root["midiMap"].getArray())
+        for (const auto& o : *mm)
+        {
+            MidiMapping m;
+            m.cc = juce::jlimit (0, 127, getI (o, "cc", 0));
+            m.paramId = o["param"].toString();
+            if (m.paramId.isNotEmpty())
+                k.midiMap.push_back (m);
+        }
 
     const auto folder = root["samplesFolder"].toString().isEmpty() ? k.name : root["samplesFolder"].toString();
 

@@ -2,6 +2,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <array>
+#include <map>
 #include <memory>
 #include <vector>
 #include "engine/Engine.h"
@@ -70,7 +71,15 @@ public:
     // Tutti i parametri (per registrare i listener)
     std::vector<juce::RangedAudioParameter*> all() const { return allParams; }
 
+    // Parametro dal suo ID stabile (nullptr se non esiste)
+    juce::RangedAudioParameter* find (const juce::String& id) const
+    {
+        const auto it = byId.find (id);
+        return it != byId.end() ? it->second : nullptr;
+    }
+
 private:
+    std::map<juce::String, juce::RangedAudioParameter*> byId;
     std::array<CellRefs, (size_t) kNumCells> cells;
     FxRefs masterFxRefs;
     juce::AudioParameterFloat* masterLevelParam = nullptr;

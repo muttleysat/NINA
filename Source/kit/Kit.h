@@ -11,6 +11,13 @@ inline juce::String cellLabel (int cell, int cols)
     return juce::String::charToString ((juce::juce_wchar) ('A' + cell / cols)) + juce::String (cell % cols + 1);
 }
 
+// Assegnazione MIDI learn: un controller MIDI (CC) controlla un parametro (identificato dal suo ID stabile)
+struct MidiMapping
+{
+    int cc = 0;
+    juce::String paramId;
+};
+
 struct Kit
 {
     static constexpr int kSchemaVersion = 1;
@@ -21,6 +28,7 @@ struct Kit
     int rows = 4, cols = 12;
     float masterDb = 0.0f;
     FxParams masterFx;                       // effetti globali del kit
+    std::vector<MidiMapping> midiMap;        // assegnazioni MIDI learn (salvate nel kit)
     std::vector<CellParams> cells;
     juce::File file;                         // file .slkit (vuoto se il kit non e' stato ancora salvato)
 

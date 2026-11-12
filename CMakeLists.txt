@@ -44,6 +44,7 @@ set(SAMPLELAB_CORE_SOURCES
     Source/engine/Voice.cpp
     Source/engine/FxChain.cpp
     Source/params/ParamSet.cpp
+    Source/params/MidiLearn.cpp
     Source/engine/Engine.cpp
     Source/kit/KitIO.cpp
 )

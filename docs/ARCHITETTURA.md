@@ -102,7 +102,8 @@ Tutti i valori automatizzabili sono parametri JUCE/VST3 raccolti in `ParamSet` (
 - **Fonte di verità**: i parametri, non il `Kit`. Il thread audio li legge a ogni blocco (`ParamSet::fillLive` → `Engine::LiveParams`), quindi l'automazione funziona anche nell'export offline. Il `Kit` conserva i valori solo per il salvataggio (`writeToKit` prima di salvare, `readFromKit` dopo il caricamento).
 - **Interfaccia**: le manopole usano `SliderParameterAttachment` (e i corrispondenti per bottoni e combo): seguono l'automazione e aprono/chiudono i gesti verso la DAW (Write/Touch/Latch). I marker Start/End della forma d'onda aprono un gesto al trascinamento.
 - **Parti non automatizzabili**: campioni e mapping delle note (root/low/high) restano nello snapshot pubblicato dal thread UI.
-- Il sequencer (lock per step) e il MIDI learn scriveranno sugli stessi parametri (AU-9, AU-10).
+- Il sequencer (lock per step) scriverà sugli stessi parametri (AU-9).
+- **MIDI learn** (`params/MidiLearn`): tasto destro su un controllo > "MIDI Learn", poi si muove un controller; l'assegnazione CC > parametro si salva nel `.slkit` (`midiMap`) e nello stato della DAW. Il thread audio legge una tabella di atomici (128 CC × 4 parametri) e muove i parametri, quindi funziona anche con i CC di una clip MIDI nell'export offline. Interruttori: acceso da 64 in su. **Non ancora**: pitch bend/aftertouch, filtro per canale MIDI, modalità relativa, soft takeover, pannello con l'elenco delle mappature.
 
 ## 6. Interfaccia e ridimensionamento
 

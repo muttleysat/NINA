@@ -28,6 +28,13 @@ CellPanel::CellPanel (SampleLabProcessor& p) : processor (p)
     reverseButton.setColour (juce::ToggleButton::textColourId, theme::text);
     addAndMakeVisible (reverseButton);
 
+    // MIDI learn su Reverse e sulla modalita' di trigger (parametri della cella selezionata)
+    learnMenus.push_back (std::make_unique<LearnMenu> (processor, reverseButton,
+        [this] { return (juce::RangedAudioParameter*) processor.getParams().cell (cell).reverse; }));
+    for (auto& b : modeButtons)
+        learnMenus.push_back (std::make_unique<LearnMenu> (processor, b,
+            [this] { return (juce::RangedAudioParameter*) processor.getParams().cell (cell).mode; }));
+
     // Selettori delle note (nome nota in stile Cubase: C3 = 60)
     struct NoteSetup { juce::Slider* slider; int sl::CellParams::*member; const char* tip; };
     for (auto [slider, member, tip] : { NoteSetup { &rootSlider, &sl::CellParams::rootNote, "Note at which the sample plays at its original pitch" },

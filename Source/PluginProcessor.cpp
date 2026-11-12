@@ -41,6 +41,9 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
 
     keyboardState.processNextMidiBuffer (midi, 0, buffer.getNumSamples(), true);
 
+    // MIDI learn: i CC assegnati muovono i parametri (prima della lettura dei valori, nello stesso blocco)
+    midiLearn.process (midi);
+
     // Valori correnti dei parametri (manopole, automazione della DAW) letti a ogni blocco: l'automazione
     // e' quindi applicata anche nell'export offline, senza passare dal thread dell'interfaccia.
     params.fillLive (engine.live);
@@ -220,6 +223,7 @@ void SampleLabProcessor::newKit()
     cellData.assign (kit.cells.size(), nullptr);
     publishKit (true);
     params.readFromKit (kit);
+    midiLearn.setMappings (kit.midiMap);
     dirty = false;          // dopo readFromKit: impostare i parametri li marca come modificati
 }
 
@@ -233,6 +237,7 @@ bool SampleLabProcessor::openKit (const juce::File& file, juce::String& error)
     loadKitSamples();
     publishKit (true);
     params.readFromKit (kit);
+    midiLearn.setMappings (kit.midiMap);
     dirty = false;
     addRecentKit (file);
     return true;
@@ -241,6 +246,7 @@ bool SampleLabProcessor::openKit (const juce::File& file, juce::String& error)
 bool SampleLabProcessor::saveKit (const juce::File& file, juce::String& error)
 {
     params.writeToKit (kit);        // i valori automatizzabili vivono nei parametri: si copiano nel kit prima di scrivere
+    kit.midiMap = midiLearn.mappings();
     if (! sl::KitIO::save (kit, file, error))
         return false;
 
@@ -315,6 +321,7 @@ void SampleLabProcessor::clearRecentKits()
 void SampleLabProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     params.writeToKit (kit);
+    kit.midiMap = midiLearn.mappings();
     juce::ValueTree state ("SampleLabState");
     state.setProperty ("uiWidth", uiWidth, nullptr);
     state.setProperty ("uiHeight", uiHeight, nullptr);
@@ -351,6 +358,7 @@ void SampleLabProcessor::setStateInformation (const void* data, int sizeInBytes)
             loadKitSamples();
             publishKit (true);
             params.readFromKit (kit);
+            midiLearn.setMappings (kit.midiMap);
             dirty = (bool) state.getProperty ("dirty", false);
         }
     }

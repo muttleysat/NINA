@@ -71,6 +71,7 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
 // Il nome del kit mostra l'asterisco anche quando un parametro cambia dall'automazione o dal MIDI
 void SampleLabEditor::timerCallback()
 {
+    processor.pollMidiLearn();      // completa l'assegnazione se e' arrivato un CC durante il MIDI learn
     refreshTopBar();
 
     // BPM: dalla DAW (non modificabile) oppure interno (si modifica con doppio clic)

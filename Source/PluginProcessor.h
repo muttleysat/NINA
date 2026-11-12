@@ -7,6 +7,7 @@
 #include "engine/Engine.h"
 #include "kit/KitIO.h"
 #include "params/ParamSet.h"
+#include "params/MidiLearn.h"
 
 class SampleLabProcessor final : public juce::AudioProcessor
 {
@@ -39,6 +40,12 @@ public:
 
     // ---- Parametri automatizzabili (fonte di verita' dei valori) ----
     const sl::ParamSet& getParams() const { return params; }
+
+    // ---- MIDI learn dei parametri ----
+    sl::MidiLearn& getMidiLearn() { return midiLearn; }
+    const sl::MidiLearn& getMidiLearn() const { return midiLearn; }
+    void markDirty() { dirty = true; }
+    void pollMidiLearn() { if (midiLearn.poll()) dirty = true; }     // chiamato dal timer dell'interfaccia
 
     // ---- Kit (da usare solo dal thread messaggi) ----
     // Attenzione: i valori automatizzabili (level, pan, inviluppo, effetti...) stanno nei parametri;
@@ -99,6 +106,7 @@ private:
     };
 
     sl::ParamSet params;
+    sl::MidiLearn midiLearn { params };
     sl::Engine engine;
     juce::MidiKeyboardState keyboardState;
     juce::AudioFormatManager formats;

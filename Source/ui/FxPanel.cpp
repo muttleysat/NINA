@@ -27,6 +27,8 @@ FxPanel::FxPanel (SampleLabProcessor& p) : processor (p)
     auto& filter = addCard ("Filter", 3.2f, B::Filter);
     filter.combo = std::make_unique<juce::ComboBox>();
     addAndMakeVisible (*filter.combo);
+    learnMenus.push_back (std::make_unique<LearnMenu> (processor, *filter.combo,
+        [this] { return (juce::RangedAudioParameter*) refs().filterType; }));
     addKnob (filter, "Cutoff", F::Cutoff);
     addKnob (filter, "Reso", F::Resonance);
 
@@ -43,6 +45,10 @@ FxPanel::FxPanel (SampleLabProcessor& p) : processor (p)
     delay.divisionCombo = std::make_unique<juce::ComboBox>();
     addAndMakeVisible (*delay.syncButton);
     addAndMakeVisible (*delay.divisionCombo);
+    learnMenus.push_back (std::make_unique<LearnMenu> (processor, *delay.syncButton,
+        [this] { return (juce::RangedAudioParameter*) refs().delaySync; }));
+    learnMenus.push_back (std::make_unique<LearnMenu> (processor, *delay.divisionCombo,
+        [this] { return (juce::RangedAudioParameter*) refs().delayDivision; }));
     addKnob (delay, "Time", F::DelayTime);
     addKnob (delay, "Feedback", F::DelayFeedback);
     addKnob (delay, "Mix", F::DelayMix);
@@ -59,6 +65,9 @@ FxPanel::FxPanel (SampleLabProcessor& p) : processor (p)
 void FxPanel::timerCallback()
 {
     updateSyncState();
+    for (auto& c : cards)
+        for (auto& k : c->knobs)
+            k.box->refreshIndicator();
     unsigned mask = 0;
     const auto& r = refs();
     for (size_t i = 0; i < cards.size(); ++i)
@@ -80,6 +89,12 @@ FxPanel::Card& FxPanel::addCard (const juce::String& title, float units, sl::FxB
     c->effect = effect;
     c->power = std::make_unique<juce::ToggleButton>();
     addAndMakeVisible (*c->power);
+
+    // MIDI learn sull'interruttore dell'effetto
+    const auto effect_ = effect;
+    learnMenus.push_back (std::make_unique<LearnMenu> (processor, *c->power,
+        [this, effect_] { return (juce::RangedAudioParameter*) refs().power (effect_); }));
+
     cards.push_back (std::move (c));
     return *cards.back();
 }
@@ -90,6 +105,12 @@ void FxPanel::addKnob (Card& card, const juce::String& title, sl::FxF which)
     k.box = std::make_unique<KnobBox> (title);
     k.which = which;
     addAndMakeVisible (*k.box);
+
+    auto param = [this, which] { return (juce::RangedAudioParameter*) refs().at (which); };
+    k.box->ccQuery = [this, param] { return processor.getMidiLearn().ccFor (param()); };
+    k.box->learningQuery = [this, param] { return processor.getMidiLearn().isLearning (param()); };
+    learnMenus.push_back (std::make_unique<LearnMenu> (processor, *k.box, param));
+
     card.knobs.push_back (std::move (k));
 }
 

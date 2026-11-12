@@ -18,6 +18,12 @@ ModulesBar::ModulesBar (SampleLabProcessor& p)
     addAndMakeVisible (masterKnob);
     addAndMakeVisible (meter);
 
+    // MIDI learn sul volume master
+    auto masterParam = [this] { return (juce::RangedAudioParameter*) processor.getParams().masterLevel(); };
+    masterKnob.ccQuery = [this, masterParam] { return processor.getMidiLearn().ccFor (masterParam()); };
+    masterKnob.learningQuery = [this, masterParam] { return processor.getMidiLearn().isLearning (masterParam()); };
+    learnMenus.push_back (std::make_unique<LearnMenu> (processor, masterKnob, masterParam));
+
     setCell (0);
     startTimerHz (15);
 }
@@ -29,6 +35,13 @@ void ModulesBar::addKnob (int module, const juce::String& title, sl::CellF which
     p.module = module;
     p.which = which;
     addAndMakeVisible (*p.box);
+
+    // MIDI learn: il parametro dipende dalla cella selezionata, quindi si risolve al momento dell'uso
+    auto param = [this, which] { return (juce::RangedAudioParameter*) processor.getParams().cell (cell).at (which); };
+    p.box->ccQuery = [this, param] { return processor.getMidiLearn().ccFor (param()); };
+    p.box->learningQuery = [this, param] { return processor.getMidiLearn().isLearning (param()); };
+    learnMenus.push_back (std::make_unique<LearnMenu> (processor, *p.box, param));
+
     params.push_back (std::move (p));
 }
 
@@ -59,6 +72,9 @@ void ModulesBar::refresh()
 void ModulesBar::timerCallback()
 {
     updateEnvelope();       // il disegno dell'inviluppo segue anche i valori automatizzati
+    for (auto& p : params)
+        p.box->refreshIndicator();
+    masterKnob.refreshIndicator();
 }
 
 void ModulesBar::updateEnvelope()

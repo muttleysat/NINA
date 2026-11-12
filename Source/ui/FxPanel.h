@@ -3,6 +3,7 @@
 #include "../PluginProcessor.h"
 #include "Theme.h"
 #include "KnobBox.h"
+#include "LearnMenu.h"
 #include "Widgets.h"
 
 // Scheda FX: catena di effetti (Saturation > LoFi > Filter > Compressor > Delay > Reverb) della cella
@@ -58,5 +59,6 @@ private:
 
     juce::TextButton cellButton, masterButton { "Master" };
     std::vector<std::unique_ptr<Card>> cards;
+    std::vector<std::unique_ptr<LearnMenu>> learnMenus;      // tasto destro: MIDI learn
     juce::Rectangle<int> header;
 };

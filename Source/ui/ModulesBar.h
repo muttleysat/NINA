@@ -3,6 +3,7 @@
 #include "../PluginProcessor.h"
 #include "Theme.h"
 #include "KnobBox.h"
+#include "LearnMenu.h"
 #include "Widgets.h"
 
 // Fila di moduli della scheda Main: AMP (inviluppo, level, pan), PITCH (tune, pitch) e MASTER (volume + meter).
@@ -37,6 +38,7 @@ private:
     int cell = 0;
 
     std::vector<Param> params;
+    std::vector<std::unique_ptr<LearnMenu>> learnMenus;      // tasto destro: MIDI learn
     EnvelopeView envelope;
     KnobBox masterKnob { "Volume" };
     std::unique_ptr<juce::SliderParameterAttachment> masterAttachment;

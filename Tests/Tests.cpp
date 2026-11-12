@@ -1,6 +1,7 @@
 #include "engine/Engine.h"
 #include "kit/KitIO.h"
 #include "params/ParamSet.h"
+#include "params/MidiLearn.h"
 #include <set>
 
 namespace
@@ -654,6 +655,144 @@ public:
             expect (fresh.masterFx.compOn);
             expectWithinAbsoluteError (fresh.masterFx.compRatio, 8.0f, 0.06f);
             expect (! fresh.cells[6].fx.anyOn());
+        }
+
+        // ------------------------------------------------------- MIDI learn
+
+        auto ccBuffer = [] (int cc, int value)
+        {
+            juce::MidiBuffer b;
+            b.addEvent (juce::MidiMessage::controllerEvent (1, cc, value), 0);
+            return b;
+        };
+
+        beginTest ("MIDI learn: the next CC is assigned to the learning parameter");
+        {
+            ParamRig pr;
+            MidiLearn ml (pr.set);
+            auto* cutoff = pr.byId ("c00.filter.cutoff");
+
+            expectEquals (ml.ccFor (cutoff), -1);
+            ml.startLearn (cutoff);
+            expect (ml.isLearning (cutoff));
+
+            ml.process (ccBuffer (74, 10));                    // il CC viene catturato, non muove il parametro
+            expectWithinAbsoluteError (cutoff->getValue(), cutoff->convertTo0to1 (8000.0f), 0.0001f);
+
+            expect (ml.poll());
+            expectEquals (ml.ccFor (cutoff), 74);
+            expect (! ml.isLearning (cutoff));
+            expect (! ml.poll());                              // niente da fare la seconda volta
+        }
+
+        beginTest ("MIDI learn: CC drives the parameter over its whole range");
+        {
+            ParamRig pr;
+            MidiLearn ml (pr.set);
+            auto* level = pr.byId ("c01.level");               // -60..+12 dB
+            ml.startLearn (level);
+            ml.process (ccBuffer (7, 1));
+            ml.poll();
+
+            ml.process (ccBuffer (7, 0));
+            expectWithinAbsoluteError (static_cast<juce::AudioParameterFloat*> (level)->get(), -60.0f, 0.1f);
+            ml.process (ccBuffer (7, 127));
+            expectWithinAbsoluteError (static_cast<juce::AudioParameterFloat*> (level)->get(), 12.0f, 0.1f);
+            ml.process (ccBuffer (7, 64));
+            const float mid = static_cast<juce::AudioParameterFloat*> (level)->get();
+            expect (mid > -25.0f && mid < -23.0f, "mid value: " + juce::String (mid));
+
+            // I messaggi che non sono CC (note) non muovono nulla
+            juce::MidiBuffer notes;
+            notes.addEvent (juce::MidiMessage::noteOn (1, 60, 1.0f), 0);
+            ml.process (notes);
+            expectWithinAbsoluteError (static_cast<juce::AudioParameterFloat*> (level)->get(), mid, 0.001f);
+        }
+
+        beginTest ("MIDI learn: toggles switch at 64, choices follow the CC");
+        {
+            ParamRig pr;
+            MidiLearn ml (pr.set);
+            auto* power = static_cast<juce::AudioParameterBool*> (pr.byId ("c00.delay.on"));
+            auto* mode = static_cast<juce::AudioParameterChoice*> (pr.byId ("c00.mode"));
+
+            ml.startLearn (power); ml.process (ccBuffer (20, 0)); ml.poll();
+            ml.startLearn (mode);  ml.process (ccBuffer (21, 0)); ml.poll();
+
+            ml.process (ccBuffer (20, 63)); expect (! power->get());
+            ml.process (ccBuffer (20, 64)); expect (power->get());
+            ml.process (ccBuffer (20, 0));  expect (! power->get());
+
+            ml.process (ccBuffer (21, 0));   expectEquals (mode->getIndex(), 0);
+            ml.process (ccBuffer (21, 64));  expectEquals (mode->getIndex(), 1);
+            ml.process (ccBuffer (21, 127)); expectEquals (mode->getIndex(), 2);
+        }
+
+        beginTest ("MIDI learn: one parameter has one CC, one CC can drive several parameters");
+        {
+            ParamRig pr;
+            MidiLearn ml (pr.set);
+            auto* a = pr.byId ("c00.level");
+            auto* b = pr.byId ("c01.level");
+
+            ml.startLearn (a); ml.process (ccBuffer (11, 0)); ml.poll();
+            ml.startLearn (b); ml.process (ccBuffer (11, 0)); ml.poll();       // stesso CC su due parametri
+            ml.process (ccBuffer (11, 127));
+            expectWithinAbsoluteError (static_cast<juce::AudioParameterFloat*> (a)->get(), 12.0f, 0.1f);
+            expectWithinAbsoluteError (static_cast<juce::AudioParameterFloat*> (b)->get(), 12.0f, 0.1f);
+
+            ml.startLearn (a); ml.process (ccBuffer (12, 0)); ml.poll();       // riassegnazione di a: ora CC 12
+            expectEquals (ml.ccFor (a), 12);
+            ml.process (ccBuffer (11, 0));
+            expectWithinAbsoluteError (static_cast<juce::AudioParameterFloat*> (a)->get(), 12.0f, 0.1f);   // a non segue piu' il CC 11
+            expectWithinAbsoluteError (static_cast<juce::AudioParameterFloat*> (b)->get(), -60.0f, 0.1f);
+
+            ml.clear (b);
+            expectEquals (ml.ccFor (b), -1);
+            ml.process (ccBuffer (11, 127));
+            expectWithinAbsoluteError (static_cast<juce::AudioParameterFloat*> (b)->get(), -60.0f, 0.1f);
+
+            ml.clearAll();
+            expectEquals (ml.ccFor (a), -1);
+        }
+
+        beginTest ("MIDI learn: learning can be cancelled; mappings round-trip through the kit file");
+        {
+            ParamRig pr;
+            MidiLearn ml (pr.set);
+            auto* cutoff = pr.byId ("c00.filter.cutoff");
+            ml.startLearn (cutoff);
+            ml.cancelLearn();
+            ml.process (ccBuffer (30, 100));
+            expect (! ml.poll());
+            expectEquals (ml.ccFor (cutoff), -1);
+
+            ml.startLearn (cutoff); ml.process (ccBuffer (74, 0)); ml.poll();
+            ml.startLearn (pr.byId ("master.level")); ml.process (ccBuffer (7, 0)); ml.poll();
+
+            auto kit = Kit::makeDefault();
+            kit.midiMap = ml.mappings();
+            expectEquals ((int) kit.midiMap.size(), 2);
+
+            auto tmp = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("samplelab_ml_" + juce::String (juce::Random::getSystemRandom().nextInt (1000000)));
+            tmp.createDirectory();
+            juce::String err;
+            auto f = tmp.getChildFile ("Learn.slkit");
+            expect (KitIO::save (kit, f, err), err);
+            Kit loaded;
+            expect (KitIO::load (f, loaded, err), err);
+            expectEquals ((int) loaded.midiMap.size(), 2);
+
+            MidiLearn other (pr.set);                          // nuova sessione: le assegnazioni tornano dal kit
+            other.setMappings (loaded.midiMap);
+            expectEquals (other.ccFor (cutoff), 74);
+            expectEquals (other.ccFor (pr.byId ("master.level")), 7);
+
+            // ID non piu' esistenti (kit di un'altra versione) vengono ignorati senza errori
+            other.setMappings ({ { 5, "c99.does.not.exist" }, { 6, "c00.pan" } });
+            expectEquals (other.ccFor (pr.byId ("c00.pan")), 6);
+            expectEquals ((int) other.mappings().size(), 1);
+            tmp.deleteRecursively();
         }
 
         beginTest ("Default kit maps C1 upwards in order");

@@ -2,6 +2,7 @@
 
 #include "../PluginProcessor.h"
 #include "Theme.h"
+#include "LearnMenu.h"
 
 // Pannello destro: titolo della cella con frecce, campione assegnato, modalita' di trigger, reverse e informazioni.
 class CellPanel final : public juce::Component
@@ -31,6 +32,7 @@ private:
     juce::ToggleButton reverseButton { "Reverse" };
     std::unique_ptr<juce::ParameterAttachment> modeAttachment;            // modalita' e reverse sono parametri automatizzabili
     std::unique_ptr<juce::ButtonParameterAttachment> reverseAttachment;
+    std::vector<std::unique_ptr<LearnMenu>> learnMenus;                   // tasto destro: MIDI learn
 
     // Mapping MIDI della cella: nota originale del campione e intervallo di tasti che la fanno suonare
     juce::Slider rootSlider, lowSlider, highSlider;
