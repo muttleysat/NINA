@@ -516,6 +516,75 @@ private:
     std::vector<std::unique_ptr<LaneRow>> rows;
 };
 
+// ------------------------------------------------------- Drag verso la DAW
+
+// Maniglia da trascinare fuori dalla finestra: al primo movimento prepara i file (clip MIDI o audio renderizzato) in una
+// cartella temporanea e avvia il trascinamento di file del sistema, come fa EZdrummer. Si lascia su una traccia di Cubase.
+class SeqPanel::DragHandle final : public juce::Component, public juce::SettableTooltipClient
+{
+public:
+    DragHandle (juce::String text, juce::String tooltip, std::function<juce::StringArray()> prepareFiles)
+        : label (std::move (text)), prepare (std::move (prepareFiles))
+    {
+        setTooltip (tooltip);
+        setMouseCursor (juce::MouseCursor::DraggingHandCursor);
+    }
+
+    void paint (juce::Graphics& g) override
+    {
+        const float s = theme::scaleFor (*this);
+        const auto b = getLocalBounds().toFloat().reduced (0.5f);
+        g.setColour (hover ? theme::panelHi.brighter (0.18f) : theme::panelHi);
+        g.fillRoundedRectangle (b, 7.0f * s);
+        g.setColour (hover ? theme::accent : theme::border);
+        g.drawRoundedRectangle (b, 7.0f * s, 1.2f);
+
+        // Impugnatura a puntini
+        g.setColour (theme::accent);
+        const float cx = b.getX() + 12.0f * s, cy = b.getCentreY();
+        for (int r = -1; r <= 1; ++r)
+            for (int c = 0; c < 2; ++c)
+                g.fillEllipse (cx + (float) c * 5.0f * s - 1.5f, cy + (float) r * 5.0f * s - 1.5f, 3.0f, 3.0f);
+
+        g.setColour (theme::text);
+        g.setFont (juce::FontOptions (juce::jmax (9.0f, 12.0f * s), juce::Font::bold));
+        g.drawText (label, getLocalBounds().withTrimmedLeft ((int) (26 * s)), juce::Justification::centredLeft, true);
+    }
+
+    void mouseEnter (const juce::MouseEvent&) override { hover = true; repaint(); }
+    void mouseExit (const juce::MouseEvent&) override { hover = false; repaint(); }
+    void mouseDown (const juce::MouseEvent&) override { started = false; }
+    void mouseUp (const juce::MouseEvent&) override { started = false; }
+
+    void mouseDrag (const juce::MouseEvent& e) override
+    {
+        if (started || e.getDistanceFromDragStart() < 6)
+            return;
+        started = true;
+
+        const auto files = prepare();
+        if (! files.isEmpty())
+            juce::DragAndDropContainer::performExternalDragDropOfFiles (files, false, this);
+    }
+
+private:
+    juce::String label;
+    std::function<juce::StringArray()> prepare;
+    bool hover = false, started = false;
+};
+
+juce::File SeqPanel::dragFolder() const
+{
+    return juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("SampleLab_drag");
+}
+
+juce::String SeqPanel::dragBaseName() const
+{
+    const auto& kit = processor.getKit();
+    return sl::KitIO::sanitiseName (kit.name + "_" + pat().name + "_" + juce::String (juce::roundToInt (processor.getCurrentBpm()))
+                                    + "bpm_" + juce::String (bars()) + "bar");
+}
+
 // ----------------------------------------------------------- Carte effetti dello step
 
 struct SeqPanel::FxKnob
@@ -569,6 +638,46 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     wavButton.setTooltip ("The whole sequence as ONE audio file: cell effects, step locks, tempo-synced delay, tails and master effects included");
     midiButton.setTooltip ("The notes as a MIDI clip (effects are not part of MIDI: use Bounce WAV or Export lanes for those)");
     stemsButton.onClick = [this] { exportStems(); };
+
+    // Drag to DAW: i file si generano al momento del trascinamento (cartella temporanea) con il tempo e la lunghezza correnti
+    dragMidi = std::make_unique<DragHandle> ("Drag MIDI", "Drag this onto a MIDI or instrument track in your DAW: the pattern notes as a MIDI clip",
+        [this] () -> juce::StringArray
+        {
+            const auto dir = dragFolder();
+            dir.deleteRecursively();
+            dir.createDirectory();
+            const auto file = dir.getChildFile (dragBaseName() + ".mid");
+            juce::String err;
+            return processor.exportPatternMidi (file, bars(), err) ? juce::StringArray (file.getFullPathName()) : juce::StringArray();
+        });
+    dragAudio = std::make_unique<DragHandle> ("Drag audio", "Drag this onto an audio track: the whole sequence as one file, with all effects",
+        [this] () -> juce::StringArray
+        {
+            const auto dir = dragFolder();
+            dir.deleteRecursively();
+            dir.createDirectory();
+            const auto file = dir.getChildFile (dragBaseName() + ".wav");
+            juce::String err;
+            return processor.bouncePatternWav (file, bars(), err) ? juce::StringArray (file.getFullPathName()) : juce::StringArray();
+        });
+    dragLanes = std::make_unique<DragHandle> ("Drag lanes", "Drag this into the DAW: one audio file per lane (same length), each with its own effects",
+        [this] () -> juce::StringArray
+        {
+            const auto dir = dragFolder();
+            dir.deleteRecursively();
+            dir.createDirectory();
+            juce::String err;
+            if (processor.exportPatternStems (dir, bars(), err) <= 0)
+                return {};
+            juce::StringArray files;
+            for (const auto& f : dir.findChildFiles (juce::File::findFiles, false, "*.wav"))
+                files.add (f.getFullPathName());
+            files.sort (true);
+            return files;
+        });
+    addAndMakeVisible (*dragMidi);
+    addAndMakeVisible (*dragAudio);
+    addAndMakeVisible (*dragLanes);
 
     addButton.onClick = [this] { showAddMenu(); };
     midiButton.onClick = [this] { exportMidi(); };
@@ -1147,6 +1256,10 @@ void SeqPanel::paint (juce::Graphics& g)
     g.setColour (theme::border);
     g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (0.5f), 10.0f * s, 1.0f);
 
+    g.setColour (theme::textDim);
+    g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.0f * s), juce::Font::bold));
+    g.drawText ("DRAG TO DAW", dragRow.withWidth ((int) (92 * s)), juce::Justification::centredLeft);
+
     // Righello dei beat: numero dello step ogni 4, allineato alle colonne
     g.setColour (theme::textDim);
     g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.0f * s), juce::Font::bold));
@@ -1247,6 +1360,20 @@ void SeqPanel::resized()
     auto pages = row2.removeFromRight (pw * 4);
     for (auto& b : pageButtons)
         b.setBounds (pages.removeFromLeft (pw).reduced ((int) (2 * s), 0));
+    area.removeFromTop (gap);
+
+    // Riga 3: maniglie per trascinare i file direttamente nella DAW
+    dragRow = area.removeFromTop ((int) (26 * s));
+    {
+        auto d = dragRow;
+        d.removeFromLeft ((int) (96 * s));                                 // spazio per l'etichetta "DRAG TO DAW"
+        const int w = (int) (112 * s);
+        dragMidi->setBounds (d.removeFromLeft (w));
+        d.removeFromLeft (gap);
+        dragAudio->setBounds (d.removeFromLeft (w));
+        d.removeFromLeft (gap);
+        dragLanes->setBounds (d.removeFromLeft (w));
+    }
     area.removeFromTop (gap);
 
     // Righello dei beat sopra le righe (il testo e' disegnato in paint)

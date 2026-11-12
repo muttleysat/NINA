@@ -26,6 +26,7 @@ private:
     class StepButton;
     class LaneRow;
     class LaneList;
+    class DragHandle;
     struct FxKnob;
     struct CellKnob;
     struct FxCard;
@@ -49,6 +50,8 @@ private:
     void exportMidi();
     void bounceWav();
     void exportStems();
+    juce::File dragFolder() const;                       // cartella temporanea dei file trascinati verso la DAW
+    juce::String dragBaseName() const;
     juce::File defaultExportFile (const juce::String& extension) const;
     int bars() const { return 1 << juce::jmax (0, barsBox.getSelectedId() - 1); }   // 1, 2, 4, 8
     void showMessage (const juce::String& text);
@@ -77,6 +80,10 @@ private:
     juce::ToggleButton reverseToggle { "Reverse" };
     juce::TextButton clearLocksButton { "Clear locks" };
     std::vector<std::unique_ptr<FxCard>> fxCards;
+
+    // Maniglie "Drag to DAW": trascinandole fuori dalla finestra si lascia il file su una traccia della DAW
+    std::unique_ptr<DragHandle> dragMidi, dragAudio, dragLanes;
+    juce::Rectangle<int> dragRow;
 
     juce::Rectangle<int> editorRect, headerRect, rulerRect, fxLabelRect, stepsArea;
     std::unique_ptr<juce::FileChooser> chooser;
