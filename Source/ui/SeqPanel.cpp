@@ -3,7 +3,6 @@
 
 namespace
 {
-constexpr int kPageSize = 16;
 
 // Picchi assoluti (0..1) del campione, uno per colonna: per le mini forme d'onda
 std::vector<float> computePeaks (const sl::SampleData* data, int width)
@@ -223,44 +222,71 @@ public:
     }
 
     // Clic: accende/seleziona (vedi SeqPanel::stepClicked). Trascinamento verticale su uno step acceso: cambia la velocity.
+    // Trascinamento orizzontale col tasto premuto: "pennello". Partendo da uno step vuoto accende tutti gli step toccati
+    // (anche su altre righe); partendo da uno acceso li spegne.
     void mouseDown (const juce::MouseEvent& e) override
     {
-        dragged = false;
+        dragged = erasing = painting = false;
         if (state.beyond)
             return;
+        pressX = e.x;
         pressY = e.y;
         pressVelocity = state.velocity;
+        startedOn = state.on;
         rightOrShift = e.mods.isPopupMenu() || e.mods.isShiftDown();
         if (rightOrShift)
-            owner.stepClicked (lane, owner.page * kPageSize + column, true);
+            owner.stepClicked (lane, column, true);
+        else if (! startedOn)
+        {
+            owner.stepClicked (lane, column, false);          // step vuoto: si accende subito, e si puo' continuare a "dipingere"
+            painting = true;
+        }
     }
 
     void mouseDrag (const juce::MouseEvent& e) override
     {
-        if (state.beyond || rightOrShift || ! state.on)
+        if (state.beyond || rightOrShift)
             return;
+
+        if (painting)
+        {
+            owner.paintStepAt (e, true);
+            return;
+        }
+
+        if (! dragged && ! erasing && std::abs (e.x - pressX) > 4 && std::abs (e.x - pressX) > std::abs (e.y - pressY))
+        {
+            erasing = true;
+            owner.paintStepAt (e.withNewPosition (juce::Point<int> (getWidth() / 2, getHeight() / 2)), false);   // anche lo step di partenza
+        }
+        if (erasing)
+        {
+            owner.paintStepAt (e, false);
+            return;
+        }
+
         if (std::abs (e.y - pressY) > 3)
             dragged = true;
         if (dragged)
         {
             const int v = juce::jlimit (1, 127, pressVelocity + (int) std::lround ((double) (pressY - e.y) * 127.0 / juce::jmax (20, getHeight() * 2)));
-            owner.stepVelocity (lane, owner.page * kPageSize + column, v);
+            owner.stepVelocity (lane, column, v);
         }
     }
 
     void mouseUp (const juce::MouseEvent&) override
     {
-        if (! state.beyond && ! dragged && ! rightOrShift)
-            owner.stepClicked (lane, owner.page * kPageSize + column, false);
-        dragged = false;
+        if (! state.beyond && ! dragged && ! rightOrShift && ! painting && ! erasing)
+            owner.stepClicked (lane, column, false);
+        dragged = erasing = painting = false;
     }
 
 private:
     SeqPanel& owner;
     int lane;
     State state;
-    int pressY = 0, pressVelocity = 100;
-    bool dragged = false, rightOrShift = false;
+    int pressX = 0, pressY = 0, pressVelocity = 100;
+    bool dragged = false, rightOrShift = false, startedOn = false, erasing = false, painting = false;
 };
 
 // ------------------------------------------------------------------------ Lane
@@ -304,13 +330,13 @@ public:
 
         lengthSlider.setSliderStyle (juce::Slider::IncDecButtons);
         lengthSlider.setIncDecButtonsMode (juce::Slider::incDecButtonsDraggable_Horizontal);
-        lengthSlider.setRange (1, sl::kMaxSteps, 1);
+        lengthSlider.setRange (8, sl::kMaxSteps, 1);
         lengthSlider.setValue (l.length, juce::dontSendNotification);
         lengthSlider.setTooltip ("Number of steps of this lane (each lane can have its own length)");
-        lengthSlider.onValueChange = [this] { owner.pat().lanes[(size_t) lane].length = (int) lengthSlider.getValue(); owner.edited(); };
+        lengthSlider.onValueChange = [this] { owner.pat().lanes[(size_t) lane].length = (int) lengthSlider.getValue(); owner.edited(); owner.relayoutLanes(); };
         addAndMakeVisible (lengthSlider);
 
-        for (int i = 0; i < kPageSize; ++i)
+        for (int i = 0; i < sl::kMaxSteps; ++i)
         {
             auto b = std::make_unique<StepButton> (owner, lane);
             b->column = i;
@@ -331,9 +357,9 @@ public:
     void update (int currentStep)
     {
         const auto& l = owner.pat().lanes[(size_t) lane];
-        for (int c = 0; c < kPageSize; ++c)
+        for (int c = 0; c < sl::kMaxSteps; ++c)
         {
-            const int idx = owner.page * kPageSize + c;
+            const int idx = c;
             StepButton::State st;
             st.beyond = idx >= l.length;
             if (idx < sl::kMaxSteps)
@@ -385,10 +411,11 @@ public:
     void resized() override
     {
         const float s = theme::scaleFor (*this);
-        auto area = getLocalBounds().reduced (0, (int) (2 * s));
+        auto full = getLocalBounds().reduced (0, (int) (2 * s));
         const int bw = (int) (24 * s);
 
-        auto header = area.removeFromLeft (headerWidth());
+        // L'intestazione resta ferma a sinistra anche quando le colonne scorrono (stickyX = posizione di scroll)
+        auto header = full.withX (stickyX).withWidth (headerWidth());
         muteButton.setBounds (header.removeFromLeft (bw));
         header.removeFromLeft ((int) (2 * s));
         soloButton.setBounds (header.removeFromLeft (bw));
@@ -403,16 +430,26 @@ public:
         header.removeFromRight ((int) (6 * s));
         labelRect = header;
 
-        // Colonne di step con uno spazio ogni 4 (si leggono i beat)
-        area.removeFromLeft ((int) (8 * s));
-        const int gap = (int) (7 * s);
-        const int w = (area.getWidth() - 3 * gap) / kPageSize;
-        for (int i = 0; i < kPageSize; ++i)
+        // Colonne di step con uno spazio ogni 4 (si leggono i beat); quelle sotto l'intestazione fissa si nascondono
+        const int x0 = headerWidth() + (int) (8 * s);
+        const int minX = stickyX + x0;
+        for (int i = 0; i < sl::kMaxSteps; ++i)
         {
-            steps[(size_t) i]->setBounds (area.removeFromLeft (w));
-            if (i % 4 == 3 && i < kPageSize - 1)
-                area.removeFromLeft (gap);
+            const int x = x0 + i * stepW + (i / 4) * stepGap;
+            steps[(size_t) i]->setBounds (x, full.getY(), stepW, full.getHeight());
+            steps[(size_t) i]->setVisible (i < numSteps && x >= minX - 1);
         }
+    }
+
+    // Parametri di disposizione decisi dalla lista (numero di colonne, larghezza, scroll orizzontale)
+    void applyLayout (int n, int w, int gap, int sticky)
+    {
+        numSteps = n;
+        stepW = w;
+        stepGap = gap;
+        stickyX = sticky;
+        resized();
+        repaint();
     }
 
     int headerWidth() const { return (int) (368 * theme::scaleFor (*this)); }
@@ -445,6 +482,18 @@ public:
     }
 
     juce::Rectangle<int> getStepColumn (int c) const { return steps[(size_t) c]->getBounds(); }
+    int stepAt (int x) const
+    {
+        for (int i = 0; i < numSteps; ++i)
+        {
+            const auto b = steps[(size_t) i]->getBounds();
+            if (steps[(size_t) i]->isVisible() && x >= b.getX() - stepGap / 2 && x < b.getRight() + (stepGap + 1) / 2)
+                return i;
+        }
+        return -1;
+    }
+
+    int numSteps = 16, stepW = 40, stepGap = 7, stickyX = 0;
 
 private:
     SeqPanel& owner;
@@ -499,21 +548,72 @@ public:
     }
 
     // Posizione orizzontale della colonna c (nel sistema di coordinate della lista), per il righello dei beat
-    juce::Rectangle<int> columnBounds (int c) const
+    int columnX (int c) const
     {
-        return rows.empty() ? juce::Rectangle<int>() : rows.front()->getStepColumn (c);
+        return headerW() + c * stepW + (c / 4) * stepGap;
+    }
+
+    // Colonne visibili = la riga piu' lunga (minimo 8). Si adattano alla larghezza; sotto la larghezza minima compare lo scroll orizzontale.
+    int numColumns() const
+    {
+        int n = 8;
+        for (const auto& l : owner.pat().lanes)
+            n = juce::jmax (n, juce::jmin (sl::kMaxSteps, l.length));
+        return n;
+    }
+
+    int headerW() const { return (int) (368 * theme::scaleFor (*this)) + (int) (8 * theme::scaleFor (*this)); }
+
+    void computeLayout (int viewWidth)
+    {
+        const float s = theme::scaleFor (*this);
+        const int n = numColumns();
+        stepGap = (int) (7 * s);
+        const int groups = (n - 1) / 4;
+        const int avail = viewWidth - headerW() - (int) (4 * s);
+        stepW = juce::jmax ((int) (16 * s), (avail - groups * stepGap) / n);
+        contentW = headerW() + n * stepW + groups * stepGap + (int) (4 * s);
+    }
+
+    int desiredWidth (int viewWidth)
+    {
+        computeLayout (viewWidth);
+        return juce::jmax (viewWidth, contentW);
+    }
+
+    void setSticky (int x)
+    {
+        sticky = x;
+        for (auto& r : rows)
+            r->applyLayout (numColumns(), stepW, stepGap, sticky);
     }
 
     void resized() override
     {
         const int rh = rowHeight();
         for (size_t i = 0; i < rows.size(); ++i)
+        {
             rows[i]->setBounds (0, (int) i * rh, getWidth(), rh);
+            rows[i]->applyLayout (numColumns(), stepW, stepGap, sticky);
+        }
     }
+
+    bool hitStep (juce::Point<int> p, int& lane, int& step) const
+    {
+        lane = p.y / juce::jmax (1, rowHeight());
+        if (lane < 0 || lane >= (int) rows.size())
+            return false;
+        step = rows[(size_t) lane]->stepAt (p.x);
+        return step >= 0;
+    }
+
+    int stepWidth() const { return stepW; }
+    int gapWidth() const { return stepGap; }
 
 private:
     SeqPanel& owner;
     std::vector<std::unique_ptr<LaneRow>> rows;
+    int stepW = 40, stepGap = 7, contentW = 0, sticky = 0;
 };
 
 // ------------------------------------------------------- Drag verso la DAW
@@ -627,7 +727,7 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
 {
     lanes = std::make_unique<LaneList> (*this);
     viewport.setViewedComponent (lanes.get(), false);
-    viewport.setScrollBarsShown (true, false);
+    viewport.setScrollBarsShown (true, true);
     addAndMakeVisible (viewport);
 
     // Il Play/Stop e' nella barra in alto dell'applicazione (e con la barra spaziatrice)
@@ -697,10 +797,10 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     prevPattern.onClick = [this] { patternBox.setSelectedId (juce::jmax (1, patternBox.getSelectedId() - 1)); };
     nextPattern.onClick = [this] { patternBox.setSelectedId (juce::jmin (sl::kNumPatterns, patternBox.getSelectedId() + 1)); };
 
-    for (const char* t : { "1 bar", "2 bars", "4 bars", "8 bars" })
+    for (const char* t : { "Export 1 bar", "Export 2 bars", "Export 4 bars", "Export 8 bars" })
         barsBox.addItem (t, barsBox.getNumItems() + 1);
     barsBox.setSelectedId (2, juce::dontSendNotification);
-    barsBox.setTooltip ("Length used by Export MIDI and Bounce WAV");
+    barsBox.setTooltip ("How many bars the exports contain (Export MIDI, Bounce WAV, Export lanes and the Drag handles). It does not change playback: the pattern simply repeats for that many bars.");
     addAndMakeVisible (barsBox);
 
     swingSlider.setSliderStyle (juce::Slider::LinearHorizontal);
@@ -709,18 +809,6 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     swingSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 90, 20);
     swingSlider.onValueChange = [this] { pat().swing = (float) swingSlider.getValue() / 100.0f; edited(); };
     addAndMakeVisible (swingSlider);
-
-    const char* pageNames[4] = { "1-16", "17-32", "33-48", "49-64" };
-    for (int i = 0; i < 4; ++i)
-    {
-        auto& b = pageButtons[i];
-        b.setButtonText (pageNames[i]);
-        b.setClickingTogglesState (true);
-        b.setRadioGroupId (4713);
-        b.onClick = [this, i] { page = i; lanes->updateAll(); repaint (rulerRect); };
-        addAndMakeVisible (b);
-    }
-    pageButtons[0].setToggleState (true, juce::dontSendNotification);
 
     // ---- Editor dello step: manopole ----
     auto knob = [this] (KnobBox& k, double lo, double hi, const juce::String& suffix, std::function<void (sl::Step&, float)> apply)
@@ -974,11 +1062,18 @@ void SeqPanel::refresh()
         selLane = selStep = -1;
 
     lanes->rebuild();
-    lanes->setSize (juce::jmax (1, viewport.getMaximumVisibleWidth()), lanes->desiredHeight());
+    relayoutLanes();
     refreshEditor();
     lanes->updateAll();
     resized();
     theme::noButtonFocus (*this);       // i pulsanti delle nuove righe non rubano la barra spaziatrice
+}
+
+void SeqPanel::relayoutLanes()
+{
+    lanes->setSize (lanes->desiredWidth (juce::jmax (1, viewport.getMaximumVisibleWidth())), juce::jmax (lanes->desiredHeight(), 1));
+    lanes->resized();
+    repaint (rulerRect);
 }
 
 void SeqPanel::stepClicked (int lane, int step, bool selectOnly)
@@ -1004,6 +1099,21 @@ void SeqPanel::stepClicked (int lane, int step, bool selectOnly)
         }
     }
     selectStep (lane, step);
+}
+
+void SeqPanel::paintStepAt (const juce::MouseEvent& e, bool on)
+{
+    int lane = 0, step = 0;
+    if (! lanes->hitStep (e.getEventRelativeTo (lanes.get()).getPosition(), lane, step)
+        || lane >= (int) pat().lanes.size() || step >= pat().lanes[(size_t) lane].length)
+        return;
+    auto& st = pat().lanes[(size_t) lane].steps[(size_t) step];
+    if (st.on != on)
+    {
+        st.on = on;
+        edited();
+        lanes->updateAll();
+    }
 }
 
 void SeqPanel::stepVelocity (int lane, int step, int velocity)
@@ -1247,6 +1357,12 @@ void SeqPanel::exportStems()
 void SeqPanel::timerCallback()
 {
     lanes->updateAll();
+    if (viewport.getViewPositionX() != lastViewX)
+    {
+        lastViewX = viewport.getViewPositionX();
+        lanes->setSticky (lastViewX);
+        repaint (rulerRect.expanded (0, 2));
+    }
 
     // I valori "grigi" delle manopole seguono la cella (per esempio quando la si regola nella scheda FX)
     if (++tick % 15 == 0 && selectedStep() != nullptr)
@@ -1276,14 +1392,16 @@ void SeqPanel::paint (juce::Graphics& g)
     // Righello dei beat: numero dello step ogni 4, allineato alle colonne
     g.setColour (theme::textDim);
     g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.0f * s), juce::Font::bold));
-    for (int c = 0; c < kPageSize; c += 4)
     {
-        const auto col = lanes->columnBounds (c);
-        if (col.isEmpty())
-            continue;
-        g.drawText (juce::String (page * kPageSize + c + 1),
-                    juce::Rectangle<int> (viewport.getX() + col.getX(), rulerRect.getY(), col.getWidth() * 4, rulerRect.getHeight()),
-                    juce::Justification::centredLeft);
+        const juce::Graphics::ScopedSaveState save (g);
+        g.reduceClipRegion (juce::Rectangle<int> (viewport.getX() + lanes->headerW(), rulerRect.getY(),
+                                                  viewport.getMaximumVisibleWidth() - lanes->headerW(), rulerRect.getHeight()));
+        const int n = lanes->numColumns();
+        for (int c = 0; c < n; c += 4)
+            g.drawText (juce::String (c + 1),
+                        juce::Rectangle<int> (viewport.getX() + lanes->columnX (c) - viewport.getViewPositionX(), rulerRect.getY(),
+                                              lanes->stepWidth() * 4, rulerRect.getHeight()),
+                        juce::Justification::centredLeft);
     }
 
     if (pat().lanes.empty())
@@ -1360,19 +1478,15 @@ void SeqPanel::resized()
     swingSlider.setBounds (top);
     area.removeFromTop (gap);
 
-    // Riga 2: esportazione (battute, MIDI, audio) e pagine di step
+    // Riga 2: esportazione (battute, MIDI, audio)
     auto row2 = area.removeFromTop ((int) (26 * s));
-    barsBox.setBounds (row2.removeFromLeft ((int) (96 * s)));
+    barsBox.setBounds (row2.removeFromLeft ((int) (130 * s)));
     row2.removeFromLeft (gap);
     midiButton.setBounds (row2.removeFromLeft ((int) (104 * s)));
     row2.removeFromLeft (gap);
     wavButton.setBounds (row2.removeFromLeft ((int) (104 * s)));
     row2.removeFromLeft (gap);
     stemsButton.setBounds (row2.removeFromLeft ((int) (104 * s)));
-    const int pw = juce::jmin ((int) (58 * s), juce::jmax (30, row2.getWidth() / 4));
-    auto pages = row2.removeFromRight (pw * 4);
-    for (auto& b : pageButtons)
-        b.setBounds (pages.removeFromLeft (pw).reduced ((int) (2 * s), 0));
     area.removeFromTop (gap);
 
     // Riga 3: maniglie per trascinare i file direttamente nella DAW
@@ -1399,7 +1513,7 @@ void SeqPanel::resized()
     editorRect = area.removeFromBottom (editorH);
     area.removeFromBottom (gap);
     viewport.setBounds (area);
-    lanes->setSize (juce::jmax (1, viewport.getMaximumVisibleWidth()), juce::jmax (lanes->desiredHeight(), 1));
+    relayoutLanes();
 
     auto ed = editorRect.reduced ((int) (10 * s), (int) (8 * s));
     headerRect = ed.removeFromTop ((int) (24 * s));

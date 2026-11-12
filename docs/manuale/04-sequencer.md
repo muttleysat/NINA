@@ -32,9 +32,11 @@ Da sinistra a destra:
 
 Le righe sono **sincronizzate al tempo**: righe con risoluzioni diverse (per esempio una a 1/16 e una a 1/32) restano allineate.
 
-### Pagine
+### Lunghezza e colonne
 
-Gli step si vedono **16 alla volta**: i pulsanti **1-16, 17-32, 33-48, 49-64** cambiano pagina. Un righello sopra numera gli step ogni 4, e gli step sono raggruppati a 4 a 4. Gli step oltre la lunghezza della riga sono spenti e non cliccabili. Un contorno bianco segue lo step che sta suonando.
+La lunghezza di ogni riga si imposta da **8 a 64** con **+** e **−** (o trascinando il numero). Le colonne visibili sono quelle della riga più lunga: si vedono sempre **tutti gli step su una riga, senza pagine**, e si restringono con la lunghezza. Se la finestra è troppo stretta per 64 step compare lo scroll orizzontale e l'intestazione delle righe resta ferma. Un righello numera gli step ogni 4 e gli step sono raggruppati a 4 a 4. Gli step oltre la lunghezza di una riga sono spenti e non cliccabili. Un contorno bianco segue lo step che sta suonando.
+
+La scheda Seq usa tutta la larghezza della finestra (browser e pannello della cella sono nella scheda Main). Scorri in verticale se hai molte righe.
 
 ## Gli step
 
@@ -45,6 +47,8 @@ Gli step si vedono **16 alla volta**: i pulsanti **1-16, 17-32, 33-48, 49-64** c
 | Clic su uno step acceso **già selezionato** | Lo spegne |
 | **Tasto destro** o **Maiusc+clic** | Solo selezione, non cambia l'accensione |
 | **Trascinare su/giù** uno step acceso | Cambia la **velocity** (l'altezza della barra dello step) |
+| **Trascinare in orizzontale** partendo da uno step vuoto | "Pennello": accende tutti gli step toccati (anche su altre righe) |
+| **Trascinare in orizzontale** partendo da uno step acceso | "Gomma": spegne tutti gli step toccati |
 
 Sullo step acceso, piccoli segni indicano: un **pallino** = ha dei lock sugli effetti; **x2/x3/x4** = ratchet; **%** = probabilità sotto il 100%.
 
@@ -101,7 +105,7 @@ In alto nella scheda:
 - **< Pattern 1 >**: i **16 pattern** del kit. Ogni pattern è indipendente.
 - **Swing**: ritarda gli step dispari di una frazione dello step (0–50%).
 - **Reset seed**: vedi sopra.
-- **1/2/4/8 bars**: la lunghezza usata quando **esporti** (capitolo 7).
+- **Export 1/2/4/8 bars**: quante battute contengono le esportazioni (capitolo 7); non cambia la riproduzione.
 
 ## Cose da sapere
 

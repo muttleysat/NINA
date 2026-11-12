@@ -34,6 +34,7 @@ private:
     void timerCallback() override;
     void stepClicked (int lane, int step, bool selectOnly);
     void stepVelocity (int lane, int step, int velocity);
+    void paintStepAt (const juce::MouseEvent&, bool on);   // pennello: accende/spegne lo step sotto il mouse (anche su altre righe)
     sl::Pattern& pat() { return processor.activePattern(); }
     const sl::Pattern& pat() const { return processor.activePattern(); }
     void edited();                     // pubblica il pattern al thread audio
@@ -47,6 +48,7 @@ private:
     void onFxPower (FxCard&);
     void clearKnobLock (FxCard&, size_t knob);
     void showAddMenu();
+    void relayoutLanes();              // ricalcola colonne e larghezze (cambio lunghezza righe, ridimensionamento)
     void exportMidi();
     void bounceWav();
     void exportStems();
@@ -63,8 +65,7 @@ private:
                      stemsButton { "Export lanes" }, reseedButton { "Reset seed" }, prevPattern { "<" }, nextPattern { ">" };
     juce::ComboBox patternBox, barsBox;
     juce::Slider swingSlider;
-    juce::TextButton pageButtons[4];
-    int page = 0;                      // pagina di 16 step visualizzata (0..3)
+    int lastViewX = 0;                 // scroll orizzontale corrente (l'intestazione delle righe resta ferma)
 
     // Righe
     std::unique_ptr<LaneList> lanes;

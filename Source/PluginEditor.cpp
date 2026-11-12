@@ -212,6 +212,8 @@ void SampleLabEditor::showTab (int tab)
     const bool seq = tab == 1;
 
     // La scheda Seq occupa lo spazio di griglia, forma d'onda e moduli
+    browser.setVisible (! seq);
+    cellPanel.setVisible (! seq);
     grid.setVisible (! seq);
     waveStrip.setVisible (! seq);
     seqPanel.setVisible (seq);
@@ -541,7 +543,8 @@ void SampleLabEditor::resized()
     area.removeFromBottom (m);
     const int bottomAreaTop = bottomArea.getY();
 
-    // Colonne: browser | centro | pannello della cella
+    // Colonne: browser | centro | pannello della cella (la scheda Seq usa tutta la larghezza, per vedere fino a 64 step)
+    const auto fullArea = area;
     browser.setBounds (area.removeFromLeft (juce::jlimit (190, 330, getWidth() * 19 / 100)));
     area.removeFromLeft (m);
     cellPanel.setBounds (area.removeFromRight (juce::jlimit (210, 340, getWidth() * 21 / 100)));
@@ -553,6 +556,6 @@ void SampleLabEditor::resized()
     grid.setBounds (area);
 
     // Scheda Seq: da sopra la griglia fino al fondo dei moduli
-    seqPanel.setBounds (area.getX(), area.getY(), area.getWidth(), bottomArea.getBottom() - area.getY());
+    seqPanel.setBounds (fullArea.getX(), fullArea.getY(), fullArea.getWidth(), bottomArea.getBottom() - fullArea.getY());
     juce::ignoreUnused (bottomAreaTop);
 }
