@@ -2,6 +2,7 @@
 
 Sampler/drum machine VST3 + standalone (Windows e macOS), ispirato a Native Instruments Battery, con sequencer a step. Uso personale.
 
+- **Manuale d'uso:** [docs/manuale/README.md](docs/manuale/README.md) (primi passi, celle, effetti, sequencer, kit, automazione, esportazione)
 - Requisiti: [docs/REQUISITI.md](docs/REQUISITI.md)
 - Architettura: [docs/ARCHITETTURA.md](docs/ARCHITETTURA.md)
 

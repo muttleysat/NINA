@@ -1,0 +1,110 @@
+# 4. Sequencer
+
+Il sequencer è nella scheda **Seq**. Ogni **riga** suona una cella; ogni riga ha i suoi **step** (fino a 64), la sua lunghezza e la sua risoluzione.
+
+## Avviare e fermare
+
+- **Play/Stop** nella barra in alto, oppure la **barra spaziatrice**.
+- **Standalone:** il sequencer ha un trasporto interno e parte dall'inizio ogni volta che premi Play. Il tempo si imposta nel riquadro **BPM**.
+- **Plugin:** se il trasporto della DAW sta suonando, il sequencer lo **segue** (tempo e posizione) e il pulsante Play è disattivato. Se la DAW è ferma, puoi provare il pattern con il Play del plugin.
+
+## Aggiungere le celle
+
+- Dalla griglia: tasto destro su un pad → **Add to sequencer**.
+- Dalla scheda Seq: **+ Cell** apre un elenco con **ID, nome e forma d'onda**. Passando il mouse su una voce **il campione suona**, così scegli ascoltando. In fondo c'è **Add all loaded cells**.
+- Per togliere una riga: il pulsante **x** della riga.
+
+Un **clic sul nome** della riga fa suonare la cella e la seleziona (così la scheda FX e il pannello a destra mostrano quella cella).
+
+## La riga
+
+Da sinistra a destra:
+
+| Elemento | Funzione |
+|----------|----------|
+| **M** | Mute della riga |
+| **S** | Solo: se almeno una riga è in solo, suonano solo le righe in solo |
+| **FX** | Acceso: la riga usa gli effetti della cella. Spento: suona senza effetti per nota (filtro, saturazione, LoFi) e senza mandate a delay/riverbero. Gli step possono riaccenderli con i lock |
+| Nome | ID e nome della cella con la mini forma d'onda |
+| Risoluzione | Durata di ogni step: da **1/1** a **1/64**, anche puntati e terzine. Ogni riga ha la sua |
+| Lunghezza | Numero di step (1–64). Ogni riga ha la sua lunghezza: con lunghezze diverse nascono le **poliritmie** |
+| **x** | Rimuove la riga |
+
+Le righe sono **sincronizzate al tempo**: righe con risoluzioni diverse (per esempio una a 1/16 e una a 1/32) restano allineate.
+
+### Pagine
+
+Gli step si vedono **16 alla volta**: i pulsanti **1-16, 17-32, 33-48, 49-64** cambiano pagina. Un righello sopra numera gli step ogni 4, e gli step sono raggruppati a 4 a 4. Gli step oltre la lunghezza della riga sono spenti e non cliccabili. Un contorno bianco segue lo step che sta suonando.
+
+## Gli step
+
+| Azione | Risultato |
+|--------|-----------|
+| Clic su uno step **vuoto** | Lo accende e lo seleziona |
+| Clic su uno step acceso **non selezionato** | Lo seleziona (senza spegnerlo) |
+| Clic su uno step acceso **già selezionato** | Lo spegne |
+| **Tasto destro** o **Maiusc+clic** | Solo selezione, non cambia l'accensione |
+| **Trascinare su/giù** uno step acceso | Cambia la **velocity** (l'altezza della barra dello step) |
+
+Sullo step acceso, piccoli segni indicano: un **pallino** = ha dei lock sugli effetti; **x2/x3/x4** = ratchet; **%** = probabilità sotto il 100%.
+
+## L'editor dello step (STEP EDIT)
+
+In basso, per lo step selezionato. In alto il titolo dice quale step stai modificando.
+
+### Comportamento
+
+| Controllo | Effetto |
+|-----------|---------|
+| **Mode** | **As cell**: usa il Trigger mode della cella. **One-shot**: suona tutto il campione. **Gate**: suona per la durata dello step e poi si spegne con il Release. **Loop**: ripete il campione per la durata dello step |
+| **Reverse** | Suona questo step al contrario (si combina con il Reverse della cella: due inversioni si annullano) |
+| **Velocity** | Volume dello step (1–127) |
+| **Probability** | Probabilità che lo step suoni (0–100%) |
+| **Nudge** | Anticipa o ritarda lo step (−50…+50% della sua durata) |
+| **Gate** | Durata della nota in percentuale dello step: conta per le modalità Gate e Loop |
+| **Pitch** | Trasposizione dello step (±24 semitoni) |
+| **Ratchet** | Ripete il colpo 1–4 volte dentro lo step |
+
+La **probabilità è ripetibile**: lo stesso pattern dà sempre lo stesso risultato (utile per l'esportazione). **Reset seed** cambia il "seme" casuale: le scelte di probabilità cambiano ma restano ripetibili.
+
+### Effetti per step (lock)
+
+Sotto le manopole ci sono le carte **Saturation, LoFi, Filter, Delay, Reverb**. Servono a cambiare un effetto **solo su quello step**.
+
+- **Manopola grigia**: segue il valore della cella.
+- **Manopola arancione**: valore **bloccato** su questo step. Si blocca muovendo la manopola; **doppio clic** toglie il blocco.
+- Bloccare un valore **accende l'effetto per quel colpo**, anche se sulla cella è spento. Con l'interruttore della carta puoi forzare l'effetto acceso o spento per lo step.
+- **Clear locks** toglie tutti i lock dello step.
+
+I parametri bloccabili sono quelli che hanno senso per un singolo colpo:
+
+| Carta | Si blocca | Resta della cella (non si blocca per step) |
+|-------|-----------|--------------------------------------------|
+| Saturation | Drive, Mix | — |
+| LoFi | Bits, Rate, Mix | — |
+| Filter | Cutoff, Reso | Tipo di filtro |
+| Delay | **Send** (quanto viene mandato) | Time, Feedback, Sync, valore musicale (ma si regolano dalla stessa carta) |
+| Reverb | **Send** | Size, Damp (ma si regolano dalla stessa carta) |
+
+Nella carta Delay trovi anche **Sync** e il valore musicale: sono le impostazioni della cella (le stesse della scheda FX).
+
+**Esempio:** un'eco solo sul terzo colpo.
+
+1. Sulla cella lascia il **Delay spento**.
+2. Seleziona lo step e nella carta Delay imposta **Time** (o Sync + valore) e **Feedback**.
+3. Sposta **Send** verso l'alto: solo quel colpo manda l'eco, e l'eco continua a risuonare dopo lo step.
+
+## Pattern, swing e battute
+
+In alto nella scheda:
+
+- **< Pattern 1 >**: i **16 pattern** del kit. Ogni pattern è indipendente.
+- **Swing**: ritarda gli step dispari di una frazione dello step (0–50%).
+- **Reset seed**: vedi sopra.
+- **1/2/4/8 bars**: la lunghezza usata quando **esporti** (capitolo 7).
+
+## Cose da sapere
+
+- Il sequencer **non ha ancora** quantizzazione, registrazione da tastiera o annullamento (undo).
+- Un lock vale per il colpo di quello step; la sua eco (delay/riverbero) continua anche dopo.
+- Modificare una cella (nome, effetti, livelli) cambia anche come suona nel sequencer, perché la cella è la stessa.
