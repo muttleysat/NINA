@@ -411,6 +411,41 @@ public:
             expect (peak (out, 4350, 4470) > 0.8f, "echo at 100 ms");
         }
 
+        beginTest ("FX: delay time in Sync follows the tempo (1/16 at 120 and 60 BPM)");
+        {
+            auto p = cell (36);
+            p.fx.delayOn = true; p.fx.delaySync = true; p.fx.delayDivision = 10;      // 1/16
+            p.fx.delayFeedback = 0.0f; p.fx.delayMix = 1.0f;
+
+            Rig a; a.setCells ({ { p, impulse() } });
+            a.engine.live.bpm = 120.0;                      // 1/16 = 125 ms = 5512 campioni
+            auto oa = a.render (16000, noteOn (36));
+            // 5512.5 campioni: l'impulso di un campione si divide a meta' tra due campioni (interpolazione) -> picco ~0.5
+            expect (peak (oa, 5450, 5580) > 0.4f, "echo at 125 ms");
+            expect (peak (oa, 200, 5300) < 0.05f);
+
+            Rig b; b.setCells ({ { p, impulse() } });
+            b.engine.live.bpm = 60.0;                       // 250 ms = 11025 campioni
+            auto ob = b.render (16000, noteOn (36));
+            expect (peak (ob, 10960, 11090) > 0.8f, "echo at 250 ms");
+            expect (peak (ob, 5450, 5580) < 0.05f, "no echo at the 120 BPM position");
+        }
+
+        beginTest ("FX: delay time helper (divisions, tempo, clamp)");
+        {
+            FxParams f;
+            f.delaySync = true;
+            f.delayDivision = 4;                            // 1/4
+            expectWithinAbsoluteError (FxChain::delayMs (f, 120.0), 500.0f, 0.01f);
+            f.delayDivision = 9;                            // 1/8T = 1/3 beat
+            expectWithinAbsoluteError (FxChain::delayMs (f, 90.0), 222.2f, 0.2f);
+            f.delayDivision = 0;                            // 1/1 a 20 BPM = 12 s: limitato al massimo
+            expectEquals (FxChain::delayMs (f, 20.0), FxChain::kMaxDelayMs);
+            f.delaySync = false;
+            f.delayTime = 333.0f;
+            expectEquals (FxChain::delayMs (f, 120.0), 333.0f);
+        }
+
         beginTest ("FX: reverb tail outlasts the sample");
         {
             auto p = cell (36);
@@ -482,7 +517,7 @@ public:
         {
             ParamRig pr;
             auto all = pr.root.getParameters (true);
-            expectEquals ((int) all.size(), 48 * 38 + 26);     // 48 celle x 38 + master 26
+            expectEquals ((int) all.size(), 48 * 40 + 28);     // 48 celle x 40 + master 28
 
             std::set<juce::String> ids;
             for (auto* p : all)
@@ -493,7 +528,8 @@ public:
             // ID che non devono mai cambiare tra le versioni (retrocompatibilita' dei progetti)
             for (auto* id : { "c00.level", "c00.pan", "c00.start", "c00.end", "c00.attack", "c00.reverse", "c00.mode",
                               "c00.filter.cutoff", "c00.filter.type", "c00.filter.on", "c00.delay.time", "c47.reverb.mix",
-                              "c11.comp.threshold", "master.level", "master.filter.cutoff" })
+                              "c11.comp.threshold", "master.level", "master.filter.cutoff",
+                              "c00.delay.sync", "c00.delay.division" })
                 expect (pr.byId (id) != nullptr, juce::String ("missing id ") + id);
         }
 
@@ -594,6 +630,8 @@ public:
             kit.cells[5].reverse = true;
             kit.cells[5].fx.delayOn = true;
             kit.cells[5].fx.delayTime = 333.0f;
+            kit.cells[5].fx.delaySync = true;
+            kit.cells[5].fx.delayDivision = 10;
             kit.cells[5].fx.filterType = 1;
             kit.masterDb = -3.0f;
             kit.masterFx.compOn = true;
@@ -610,6 +648,8 @@ public:
             expect (fresh.cells[5].fx.delayOn);
             expectWithinAbsoluteError (fresh.cells[5].fx.delayTime, 333.0f, 1.0f);
             expectEquals (fresh.cells[5].fx.filterType, 1);
+            expect (fresh.cells[5].fx.delaySync);
+            expectEquals (fresh.cells[5].fx.delayDivision, 10);
             expectWithinAbsoluteError (fresh.masterDb, -3.0f, 0.06f);
             expect (fresh.masterFx.compOn);
             expectWithinAbsoluteError (fresh.masterFx.compRatio, 8.0f, 0.06f);

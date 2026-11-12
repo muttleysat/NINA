@@ -22,6 +22,7 @@ public:
         std::array<FxParams, kMaxCells> fx;
         FxParams masterFx;
         float masterGain = 1.0f;
+        double bpm = 120.0;             // tempo corrente (DAW o interno) per gli effetti sincronizzati
     };
     LiveParams live;
 

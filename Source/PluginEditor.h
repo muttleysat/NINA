@@ -50,6 +50,7 @@ private:
     SampleLabProcessor& processor;
 
     juce::TextButton kitButton, prevKitButton { "<" }, nextKitButton { ">" }, saveButton { "Save" }, sizeButton { "Size 100%" };
+    juce::Label bpmLabel;               // BPM: della DAW (sola lettura) oppure interno (modificabile) nello standalone
     SampleBrowser browser;
     PadGrid grid;
     WaveStrip waveStrip;

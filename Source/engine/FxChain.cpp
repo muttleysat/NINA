@@ -31,7 +31,18 @@ void FxChain::reset()
     paramsValid = false;
 }
 
-void FxChain::applyParams (const FxParams& p) noexcept
+float FxChain::delayMs (const FxParams& p, double bpm) noexcept
+{
+    float ms = p.delayTime;
+    if (p.delaySync)
+    {
+        const int d = juce::jlimit (0, kNumDivisions - 1, p.delayDivision);
+        ms = kDivisionBeats[d] * 60000.0f / (float) juce::jmax (20.0, bpm);
+    }
+    return juce::jlimit (1.0f, kMaxDelayMs, ms);
+}
+
+void FxChain::applyParams (const FxParams& p, double bpm) noexcept
 {
     if (paramsValid && p == applied)
         return;
@@ -41,7 +52,7 @@ void FxChain::applyParams (const FxParams& p) noexcept
     {
         std::fill (delayL.begin(), delayL.end(), 0.0f);
         std::fill (delayR.begin(), delayR.end(), 0.0f);
-        delayCurrent = p.delayTime * (float) sr / 1000.0f;
+        delayCurrent = delayMs (p, bpm) * (float) sr / 1000.0f;
     }
     if (! paramsValid || (p.reverbOn && ! applied.reverbOn))
         reverb.reset();
@@ -72,7 +83,7 @@ void FxChain::applyParams (const FxParams& p) noexcept
     paramsValid = true;
 }
 
-void FxChain::process (float* l, float* r, int n, const FxParams& p) noexcept
+void FxChain::process (float* l, float* r, int n, const FxParams& p, double bpm) noexcept
 {
     if (! p.anyOn())
     {
@@ -81,12 +92,12 @@ void FxChain::process (float* l, float* r, int n, const FxParams& p) noexcept
     }
 
     for (int done = 0; done < n; done += maxBlock)
-        processChunk (l + done, r + done, juce::jmin (maxBlock, n - done), p);
+        processChunk (l + done, r + done, juce::jmin (maxBlock, n - done), p, bpm);
 }
 
-void FxChain::processChunk (float* l, float* r, int n, const FxParams& p) noexcept
+void FxChain::processChunk (float* l, float* r, int n, const FxParams& p, double bpm) noexcept
 {
-    applyParams (p);
+    applyParams (p, bpm);
 
     // 1) Saturazione (tanh, normalizzata in modo che il fondo scala resti ~1)
     if (p.satOn)
@@ -152,7 +163,8 @@ void FxChain::processChunk (float* l, float* r, int n, const FxParams& p) noexce
     if (p.delayOn)
     {
         const int size = (int) delayL.size();
-        const float target = juce::jlimit (1.0f, kMaxDelayMs, p.delayTime) * (float) sr / 1000.0f;
+        // In Sync il tempo segue il BPM; il cambio di tempo e' smussato (effetto "tape", senza click)
+        const float target = delayMs (p, bpm) * (float) sr / 1000.0f;
         const float fb = juce::jlimit (0.0f, 0.95f, p.delayFeedback);
         const float mix = juce::jlimit (0.0f, 1.0f, p.delayMix);
         for (int i = 0; i < n; ++i)

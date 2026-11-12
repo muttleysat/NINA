@@ -49,7 +49,7 @@ const FDesc kFxF[(size_t) FxF::Count] = {
     { "attack",    "Attack",   "ms", 0.1f,   100.0f, 0.1f,  10.0f,   10.0f,  1 },
     { "release",   "Release",  "ms", 10.0f,  1000.0f, 1.0f, 120.0f,  150.0f, 0 },
     { "makeup",    "Makeup",   "dB", 0.0f,   24.0f,  0.1f,  0.0f,    0.0f,   1 },
-    { "time",      "Time",     "ms", 1.0f,   750.0f, 1.0f,  250.0f,  200.0f, 0 },
+    { "time",      "Time",     "ms", 1.0f,   2000.0f, 1.0f, 250.0f,  400.0f, 0 },
     { "feedback",  "Feedback", "",   0.0f,   0.95f,  0.01f, 0.35f,   0.0f,   2 },
     { "mix",       "Mix",      "",   0.0f,   1.0f,   0.01f, 0.3f,    0.0f,   2 },
     { "size",      "Size",     "",   0.0f,   1.0f,   0.01f, 0.5f,    0.0f,   2 },
@@ -142,6 +142,23 @@ ParamSet::ParamSet()
                 allParams.push_back (type.get());
                 sub[b]->addChild (std::move (type));
             }
+
+            if (b == (size_t) FxB::Delay)
+            {
+                // Sync al tempo: i valori musicali compaiono per nome nella DAW (1/8, 1/16T...)
+                auto sync = makeBool (idPrefix + ".delay.sync", namePrefix + "Delay Sync", false);
+                refs.delaySync = sync.get();
+                allParams.push_back (sync.get());
+                sub[b]->addChild (std::move (sync));
+
+                juce::StringArray divisions;
+                for (const char* name : kDivisionNames)
+                    divisions.add (name);
+                auto division = makeChoice (idPrefix + ".delay.division", namePrefix + "Delay Division", divisions, 7);
+                refs.delayDivision = division.get();
+                allParams.push_back (division.get());
+                sub[b]->addChild (std::move (division));
+            }
         }
 
         for (size_t f = 0; f < (size_t) FxF::Count; ++f)
@@ -225,6 +242,8 @@ void fillFx (const FxRefs& r, FxParams& out) noexcept
     for (size_t b = 0; b < (size_t) FxB::Count; ++b)
         out.*kFxBM[b] = r.on[b]->get();
     out.filterType = r.filterType->getIndex();
+    out.delaySync = r.delaySync->get();
+    out.delayDivision = r.delayDivision->getIndex();
 }
 }
 
@@ -266,6 +285,8 @@ void applyFx (const FxRefs& r, const FxParams& fx)
     for (size_t b = 0; b < (size_t) FxB::Count; ++b)
         setValue (r.on[b], fx.*kFxBM[b] ? 1.0f : 0.0f);
     setValue (r.filterType, (float) fx.filterType);
+    setValue (r.delaySync, fx.delaySync ? 1.0f : 0.0f);
+    setValue (r.delayDivision, (float) fx.delayDivision);
 }
 
 void applyCell (const CellRefs& r, const CellParams& c)
@@ -311,6 +332,8 @@ void ParamSet::writeToKit (Kit& kit) const
         for (size_t b = 0; b < (size_t) FxB::Count; ++b)
             out.fx.*kFxBM[b] = r.fx.on[b]->get();
         out.fx.filterType = r.fx.filterType->getIndex();
+        out.fx.delaySync = r.fx.delaySync->get();
+        out.fx.delayDivision = r.fx.delayDivision->getIndex();
     }
 
     kit.masterDb = masterLevelParam->get();
@@ -319,5 +342,7 @@ void ParamSet::writeToKit (Kit& kit) const
     for (size_t b = 0; b < (size_t) FxB::Count; ++b)
         kit.masterFx.*kFxBM[b] = masterFxRefs.on[b]->get();
     kit.masterFx.filterType = masterFxRefs.filterType->getIndex();
+    kit.masterFx.delaySync = masterFxRefs.delaySync->get();
+    kit.masterFx.delayDivision = masterFxRefs.delayDivision->getIndex();
 }
 }

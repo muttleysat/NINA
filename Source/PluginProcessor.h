@@ -63,6 +63,11 @@ public:
 
     std::pair<float, float> getMasterLevels() const { return engine.getMasterLevels(); }
 
+    // Tempo per gli effetti sincronizzati: BPM della DAW se la DAW lo fornisce, altrimenti il BPM interno (standalone)
+    double getCurrentBpm() const { return currentBpm.load(); }
+    bool isHostTempo() const { return hostTempo.load(); }
+    void setInternalBpm (double bpm) { internalBpm.store (juce::jlimit (20.0, 400.0, bpm)); }
+
     // Anteprima dei file del browser (caricamento in background, riproduzione su una voce dedicata)
     void auditionFile (const juce::File& file, float gainDb);
     void stopAudition();
@@ -103,6 +108,8 @@ private:
     std::map<juce::String, sl::SampleDataPtr> sampleCache;   // i campioni restano in memoria per la sessione
     std::atomic<bool> dirty { false };
     DirtyListener dirtyListener { dirty };
+    std::atomic<double> internalBpm { 120.0 }, currentBpm { 120.0 };
+    std::atomic<bool> hostTempo { false };
     int generation = 0;
 
     mutable std::unique_ptr<juce::ApplicationProperties> appProps;

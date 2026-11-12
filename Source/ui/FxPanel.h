@@ -35,6 +35,11 @@ private:
         std::unique_ptr<juce::ButtonParameterAttachment> powerAttachment;
         std::unique_ptr<juce::ComboBox> combo;                 // solo per il filtro (tipo)
         std::unique_ptr<juce::ComboBoxParameterAttachment> comboAttachment;
+        // Solo per il delay: interruttore Sync e valore musicale (1/8, 1/16T...)
+        std::unique_ptr<juce::TextButton> syncButton;
+        std::unique_ptr<juce::ButtonParameterAttachment> syncAttachment;
+        std::unique_ptr<juce::ComboBox> divisionCombo;
+        std::unique_ptr<juce::ComboBoxParameterAttachment> divisionAttachment;
         std::vector<Knob> knobs;
         juce::Rectangle<int> bounds;
     };
@@ -43,6 +48,7 @@ private:
     void addKnob (Card&, const juce::String& title, sl::FxF which);
     const sl::FxRefs& refs() const;
     void updateHeader();
+    void updateSyncState();
     void timerCallback() override;      // ridisegna il bordo degli effetti accesi/spenti dall'automazione
 
     SampleLabProcessor& processor;

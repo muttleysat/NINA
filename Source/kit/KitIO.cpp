@@ -44,6 +44,8 @@ static juce::var fxToVar (const FxParams& f)
     o->setProperty ("compRelease", f.compRelease);
     o->setProperty ("compMakeup", f.compMakeup);
     o->setProperty ("delayOn", f.delayOn);
+    o->setProperty ("delaySync", f.delaySync);
+    o->setProperty ("delayDivision", f.delayDivision);
     o->setProperty ("delayTime", f.delayTime);
     o->setProperty ("delayFeedback", f.delayFeedback);
     o->setProperty ("delayMix", f.delayMix);
@@ -78,6 +80,8 @@ static FxParams fxFromVar (const juce::var& o)
     f.compRelease = getF (o, "compRelease", f.compRelease);
     f.compMakeup = getF (o, "compMakeup", f.compMakeup);
     f.delayOn = getB (o, "delayOn", f.delayOn);
+    f.delaySync = getB (o, "delaySync", f.delaySync);
+    f.delayDivision = juce::jlimit (0, kNumDivisions - 1, getI (o, "delayDivision", f.delayDivision));
     f.delayTime = getF (o, "delayTime", f.delayTime);
     f.delayFeedback = getF (o, "delayFeedback", f.delayFeedback);
     f.delayMix = getF (o, "delayMix", f.delayMix);

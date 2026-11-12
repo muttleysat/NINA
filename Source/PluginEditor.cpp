@@ -16,6 +16,17 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     for (auto* b : { &kitButton, &prevKitButton, &nextKitButton, &saveButton, &sizeButton })
         addAndMakeVisible (b);
 
+    bpmLabel.setJustificationType (juce::Justification::centred);
+    bpmLabel.setColour (juce::Label::backgroundColourId, theme::panelHi);
+    bpmLabel.setColour (juce::Label::outlineColourId, theme::border);
+    bpmLabel.setColour (juce::Label::textColourId, theme::accentSoft);
+    bpmLabel.setColour (juce::TextEditor::backgroundColourId, theme::panelHi);
+    bpmLabel.onTextChange = [this]
+    {
+        processor.setInternalBpm (bpmLabel.getText().retainCharacters ("0123456789.").getDoubleValue());
+    };
+    addAndMakeVisible (bpmLabel);
+
     addAndMakeVisible (browser);
     addAndMakeVisible (grid);
     addAndMakeVisible (waveStrip);
@@ -61,6 +72,13 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
 void SampleLabEditor::timerCallback()
 {
     refreshTopBar();
+
+    // BPM: dalla DAW (non modificabile) oppure interno (si modifica con doppio clic)
+    const bool host = processor.isHostTempo();
+    bpmLabel.setEditable (! host, ! host, false);
+    bpmLabel.setTooltip (host ? "Tempo from the host" : "Internal tempo (double-click to edit)");
+    if (! bpmLabel.isBeingEdited())
+        bpmLabel.setText (juce::String (processor.getCurrentBpm(), 1) + " BPM", juce::dontSendNotification);
 }
 
 SampleLabEditor::~SampleLabEditor()
@@ -413,6 +431,8 @@ void SampleLabEditor::resized()
         sizeButton.setBounds (bar.removeFromRight (juce::jmax (96, (int) (108 * s))));
         bar.removeFromRight ((int) (8 * s));
         saveButton.setBounds (bar.removeFromRight (juce::jmax (60, (int) (70 * s))));
+        bar.removeFromRight ((int) (8 * s));
+        bpmLabel.setBounds (bar.removeFromRight (juce::jmax (90, (int) (110 * s))));
 
         const int navW = juce::jmax (28, (int) (34 * s));
         const int nameW = juce::jmax (200, (int) (300 * s));

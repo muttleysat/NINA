@@ -37,7 +37,12 @@ FxPanel::FxPanel (SampleLabProcessor& p) : processor (p)
     addKnob (comp, "Release", F::CompRelease);
     addKnob (comp, "Makeup", F::CompMakeup);
 
-    auto& delay = addCard ("Delay", 3.2f, B::Delay);
+    auto& delay = addCard ("Delay", 3.6f, B::Delay);
+    delay.syncButton = std::make_unique<juce::TextButton> ("Sync");
+    delay.syncButton->setTooltip ("Lock the delay time to the project tempo");
+    delay.divisionCombo = std::make_unique<juce::ComboBox>();
+    addAndMakeVisible (*delay.syncButton);
+    addAndMakeVisible (*delay.divisionCombo);
     addKnob (delay, "Time", F::DelayTime);
     addKnob (delay, "Feedback", F::DelayFeedback);
     addKnob (delay, "Mix", F::DelayMix);
@@ -53,6 +58,7 @@ FxPanel::FxPanel (SampleLabProcessor& p) : processor (p)
 
 void FxPanel::timerCallback()
 {
+    updateSyncState();
     unsigned mask = 0;
     const auto& r = refs();
     for (size_t i = 0; i < cards.size(); ++i)
@@ -131,8 +137,35 @@ void FxPanel::refresh()
             k.attachment.reset();
             k.attachment = std::make_unique<juce::SliderParameterAttachment> (*r.at (k.which), k.box->slider);
         }
+
+        if (c->syncButton != nullptr)
+        {
+            c->syncAttachment.reset();
+            c->syncAttachment = std::make_unique<juce::ButtonParameterAttachment> (*r.delaySync, *c->syncButton);
+            c->divisionAttachment.reset();
+            c->divisionCombo->clear (juce::dontSendNotification);
+            c->divisionCombo->addItemList (r.delayDivision->choices, 1);
+            c->divisionAttachment = std::make_unique<juce::ComboBoxParameterAttachment> (*r.delayDivision, *c->divisionCombo);
+        }
     }
+    updateSyncState();
     repaint();
+}
+
+// Con il sync acceso il tempo libero (ms) non ha effetto: la manopola Time si disattiva
+void FxPanel::updateSyncState()
+{
+    const bool sync = refs().delaySync->get();
+    for (auto& c : cards)
+        if (c->syncButton != nullptr)
+            for (auto& k : c->knobs)
+                if (k.which == sl::FxF::DelayTime)
+                {
+                    k.box->setEnabled (! sync);
+                    k.box->setAlpha (sync ? 0.4f : 1.0f);
+                    c->divisionCombo->setEnabled (sync);
+                    c->divisionCombo->setAlpha (sync ? 1.0f : 0.5f);
+                }
 }
 
 void FxPanel::paint (juce::Graphics& g)
@@ -186,6 +219,14 @@ void FxPanel::resized()
 
         if (c.combo != nullptr)
             c.combo->setBounds (inner.removeFromTop ((int) (24 * s)).reduced ((int) (4 * s), 0));
+
+        if (c.syncButton != nullptr)
+        {
+            auto row = inner.removeFromTop ((int) (24 * s)).reduced ((int) (4 * s), 0);
+            c.syncButton->setBounds (row.removeFromLeft (row.getWidth() * 38 / 100));
+            row.removeFromLeft ((int) (4 * s));
+            c.divisionCombo->setBounds (row);
+        }
 
         const int n = (int) c.knobs.size();
         const int kw = inner.getWidth() / juce::jmax (1, n);

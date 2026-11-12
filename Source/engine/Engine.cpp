@@ -144,7 +144,7 @@ void Engine::renderChunk (float* l, float* r, int n) noexcept
                 if (v.isActive() && v.getCellIndex() == c)
                     v.render (scratchL.data(), scratchR.data(), n);
 
-        cellFx[(size_t) c]->process (scratchL.data(), scratchR.data(), n, fx);
+        cellFx[(size_t) c]->process (scratchL.data(), scratchR.data(), n, fx, live.bpm);
 
         for (int i = 0; i < n; ++i)
         {
@@ -227,7 +227,7 @@ void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& 
     renderVoices (l, r, pos, numSamples - pos);
 
     // Effetti globali del kit, poi volume master
-    masterFx.process (l, r, numSamples, live.masterFx);
+    masterFx.process (l, r, numSamples, live.masterFx, live.bpm);
 
     if (live.masterGain != 1.0f)
         buffer.applyGain (live.masterGain);

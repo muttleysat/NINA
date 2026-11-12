@@ -12,17 +12,21 @@ namespace sl
 class FxChain
 {
 public:
-    static constexpr float kMaxDelayMs = 750.0f;
+    static constexpr float kMaxDelayMs = 2000.0f;
 
     void prepare (double sampleRate, int maxBlockSize);
     void reset();
 
     // Elabora in place. n puo' superare maxBlockSize: viene suddiviso internamente.
-    void process (float* l, float* r, int n, const FxParams& p) noexcept;
+    // bpm: tempo corrente (DAW o interno), usato dagli effetti in modalita' Sync.
+    void process (float* l, float* r, int n, const FxParams& p, double bpm) noexcept;
+
+    // Tempo del delay in ms secondo i parametri e il BPM (limitato alla lunghezza massima)
+    static float delayMs (const FxParams& p, double bpm) noexcept;
 
 private:
-    void processChunk (float* l, float* r, int n, const FxParams& p) noexcept;
-    void applyParams (const FxParams& p) noexcept;
+    void processChunk (float* l, float* r, int n, const FxParams& p, double bpm) noexcept;
+    void applyParams (const FxParams& p, double bpm) noexcept;
 
     double sr = 44100.0;
     int maxBlock = 512;

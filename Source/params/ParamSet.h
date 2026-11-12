@@ -27,6 +27,8 @@ struct FxRefs
     std::array<juce::AudioParameterFloat*, (size_t) FxF::Count> f {};
     std::array<juce::AudioParameterBool*, (size_t) FxB::Count> on {};
     juce::AudioParameterChoice* filterType = nullptr;
+    juce::AudioParameterBool* delaySync = nullptr;         // delay: tempo libero (ms) o sincronizzato al BPM
+    juce::AudioParameterChoice* delayDivision = nullptr;   // valore musicale quando il sync e' acceso
 
     juce::AudioParameterFloat* at (FxF p) const { return f[(size_t) p]; }
     juce::AudioParameterBool* power (FxB p) const { return on[(size_t) p]; }

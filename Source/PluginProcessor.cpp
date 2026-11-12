@@ -45,6 +45,20 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     // e' quindi applicata anche nell'export offline, senza passare dal thread dell'interfaccia.
     params.fillLive (engine.live);
 
+    // Tempo: dalla DAW se disponibile, altrimenti il BPM interno (standalone)
+    double bpm = internalBpm.load();
+    bool fromHost = false;
+    if (auto* ph = getPlayHead())
+        if (auto pos = ph->getPosition())
+            if (auto hostBpm = pos->getBpm(); hostBpm.hasValue() && *hostBpm > 0.0)
+            {
+                bpm = *hostBpm;
+                fromHost = true;
+            }
+    engine.live.bpm = bpm;
+    currentBpm.store (bpm, std::memory_order_relaxed);
+    hostTempo.store (fromHost, std::memory_order_relaxed);
+
     buffer.clear();
     engine.process (buffer, midi);
 }
@@ -305,6 +319,7 @@ void SampleLabProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("uiWidth", uiWidth, nullptr);
     state.setProperty ("uiHeight", uiHeight, nullptr);
     state.setProperty ("uiZoom", uiZoom, nullptr);
+    state.setProperty ("internalBpm", internalBpm.load(), nullptr);
     state.setProperty ("kitJson", sl::KitIO::toJson (kit, false), nullptr);   // percorsi assoluti
     state.setProperty ("kitFile", kit.file.getFullPathName(), nullptr);
     state.setProperty ("dirty", dirty.load(), nullptr);
@@ -322,6 +337,7 @@ void SampleLabProcessor::setStateInformation (const void* data, int sizeInBytes)
     uiWidth  = state.getProperty ("uiWidth", uiWidth);
     uiHeight = state.getProperty ("uiHeight", uiHeight);
     uiZoom   = state.getProperty ("uiZoom", uiZoom);
+    setInternalBpm (state.getProperty ("internalBpm", 120.0));
 
     const juce::String json = state.getProperty ("kitJson", juce::String());
     if (json.isNotEmpty())
