@@ -27,6 +27,7 @@ private:
     class LaneRow;
     class LaneList;
     struct FxKnob;
+    struct CellKnob;
     struct FxCard;
 
     void timerCallback() override;

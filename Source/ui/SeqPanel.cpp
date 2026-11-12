@@ -525,13 +525,26 @@ struct SeqPanel::FxKnob
     DoubleClickHandler handler;
 };
 
+// Manopola "della cella" dentro la carta di uno step (tempo/feedback del delay, dimensione/smorzamento del riverbero):
+// non e' un lock, modifica il parametro della cella (condiviso da tutti gli step) cosi' non serve cambiare scheda.
+struct SeqPanel::CellKnob
+{
+    std::unique_ptr<KnobBox> box;
+    sl::FxF which;
+    std::unique_ptr<juce::SliderParameterAttachment> attachment;
+};
+
 struct SeqPanel::FxCard
 {
     juce::String title;
     sl::FxB effect = sl::FxB::Sat;
     juce::ToggleButton power;
-    std::vector<std::unique_ptr<FxKnob>> knobs;
+    std::vector<std::unique_ptr<FxKnob>> knobs;          // lock per step (colpo per colpo)
+    std::vector<std::unique_ptr<CellKnob>> cellKnobs;    // parametri della cella, condivisi
+    int attachedCell = -2;
     juce::Rectangle<int> bounds;
+
+    size_t numKnobs() const { return knobs.size() + cellKnobs.size(); }
 };
 
 // ------------------------------------------------------------------- SeqPanel
@@ -643,7 +656,8 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     addAndMakeVisible (clearLocksButton);
 
     // ---- Effetti per colpo: saturazione, LoFi, filtro, delay e riverbero (mandate) ----
-    auto addCard = [this] (const char* title, sl::FxB effect, std::initializer_list<std::pair<const char*, sl::FxF>> knobList)
+    auto addCard = [this] (const char* title, sl::FxB effect, std::initializer_list<std::pair<const char*, sl::FxF>> knobList,
+                           std::initializer_list<std::pair<const char*, sl::FxF>> cellKnobList = {})
     {
         auto card = std::make_unique<FxCard>();
         card->title = title;
@@ -677,14 +691,26 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
             addAndMakeVisible (*k->box);
             card->knobs.push_back (std::move (k));
         }
+
+        // Parametri della cella mostrati nella stessa carta (collegati ai parametri veri, agganciati in refreshEditor)
+        for (const auto& [name, f] : cellKnobList)
+        {
+            auto ck = std::make_unique<CellKnob>();
+            ck->box = std::make_unique<KnobBox> (name);
+            ck->which = f;
+            ck->box->slider.getProperties().set ("dim", true);            // grigio: non e' un lock
+            ck->box->slider.setTooltip ("Cell setting shared by all steps (same as in the FX tab)");
+            addAndMakeVisible (*ck->box);
+            card->cellKnobs.push_back (std::move (ck));
+        }
         fxCards.push_back (std::move (card));
     };
     using F = sl::FxF;
     addCard ("Saturation", sl::FxB::Sat, { { "Drive", F::Drive }, { "Mix", F::SatMix } });
     addCard ("LoFi", sl::FxB::Lofi, { { "Bits", F::Bits }, { "Rate", F::Downsample }, { "Mix", F::LofiMix } });
     addCard ("Filter", sl::FxB::Filter, { { "Cutoff", F::Cutoff }, { "Reso", F::Resonance } });
-    addCard ("Delay", sl::FxB::Delay, { { "Send", F::DelayMix } });
-    addCard ("Reverb", sl::FxB::Reverb, { { "Send", F::ReverbMix } });
+    addCard ("Delay", sl::FxB::Delay, { { "Send", F::DelayMix } }, { { "Time", F::DelayTime }, { "Feedback", F::DelayFeedback } });
+    addCard ("Reverb", sl::FxB::Reverb, { { "Send", F::ReverbMix } }, { { "Size", F::ReverbSize }, { "Damp", F::ReverbDamp } });
 
     refresh();
     startTimerHz (30);
@@ -901,6 +927,33 @@ void SeqPanel::refreshEditor()
                                               : "Follows the cell. Move it to lock a value on this step.");
             k->box->slider.repaint();
         }
+
+        // Parametri della cella: agganciati ai parametri veri della cella dello step selezionato (seguono anche l'automazione)
+        for (auto& ck : card->cellKnobs)
+        {
+            if (card->attachedCell != cell)
+            {
+                ck->attachment.reset();
+                if (cell >= 0)
+                    ck->attachment = std::make_unique<juce::SliderParameterAttachment> (*processor.getParams().cell (cell).fx.at (ck->which),
+                                                                                         ck->box->slider);
+            }
+            ck->box->slider.setEnabled (cell >= 0);
+        }
+        card->attachedCell = cell;
+
+        // Con il sync acceso il tempo libero non conta: si imposta il valore musicale nella scheda FX
+        if (cell >= 0 && card->effect == sl::FxB::Delay)
+        {
+            const bool sync = processor.getParams().cell (cell).fx.delaySync->get();
+            for (auto& ck : card->cellKnobs)
+                if (ck->which == sl::FxF::DelayTime)
+                {
+                    ck->box->slider.setEnabled (! sync);
+                    ck->box->slider.setTooltip (sync ? "Delay is synced to the tempo: choose the note value in the FX tab"
+                                                     : "Cell setting shared by all steps (same as in the FX tab)");
+                }
+        }
     }
     updatingEditor = false;
     repaint (headerRect);
@@ -1075,7 +1128,7 @@ void SeqPanel::paint (juce::Graphics& g)
     // Carte degli effetti per colpo
     g.setColour (theme::textDim);
     g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.5f * s), juce::Font::bold));
-    g.drawText ("EFFECTS (STEP)  -  per-hit: only this step changes. Compressor, delay time/feedback and reverb size belong to the cell (FX tab).",
+    g.drawText ("EFFECTS (STEP)  -  orange = locked on this step, grey = follows the cell. Delay time/feedback and reverb size/damp are cell settings shared by all steps.",
                 fxLabelRect, juce::Justification::centredLeft, true);
 
     for (auto& card : fxCards)
@@ -1156,13 +1209,13 @@ void SeqPanel::resized()
     ed.removeFromTop ((int) (2 * s));
 
     float total = 0.0f;
-    for (auto& c : fxCards) total += (float) c->knobs.size() + 1.3f;     // le carte con una sola manopola restano abbastanza larghe per il titolo
+    for (auto& c : fxCards) total += (float) c->numKnobs() + 1.3f;      // le carte con poche manopole restano abbastanza larghe per il titolo
     const float perUnit = (float) (ed.getWidth() - gap * ((int) fxCards.size() - 1)) / total;
     int x = ed.getX();
     for (size_t i = 0; i < fxCards.size(); ++i)
     {
         auto& c = *fxCards[i];
-        const int w = i + 1 == fxCards.size() ? ed.getRight() - x : (int) (((float) c.knobs.size() + 1.3f) * perUnit);
+        const int w = i + 1 == fxCards.size() ? ed.getRight() - x : (int) (((float) c.numKnobs() + 1.3f) * perUnit);
         c.bounds = { x, ed.getY(), w, ed.getHeight() };
         x += w + gap;
 
@@ -1170,9 +1223,11 @@ void SeqPanel::resized()
         c.power.setBounds (juce::Rectangle<int> (c.bounds.getRight() - pw2 - (int) (6 * s), c.bounds.getY() + (int) (4 * s), pw2, (int) (16 * s)));
 
         auto inner = c.bounds.reduced ((int) (4 * s), 0).withTrimmedTop ((int) (22 * s)).withTrimmedBottom ((int) (4 * s));
-        const int n = (int) c.knobs.size();
+        const int n = (int) c.numKnobs();
         const int cw = inner.getWidth() / juce::jmax (1, n);
         for (auto& k : c.knobs)
             k->box->setBounds (inner.removeFromLeft (cw));
+        for (auto& ck : c.cellKnobs)
+            ck->box->setBounds (inner.removeFromLeft (cw));
     }
 }
