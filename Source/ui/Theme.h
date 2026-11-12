@@ -20,6 +20,21 @@ constexpr float baseWidth = 1280.0f;
 
 inline float scaleFor (const juce::Component& c) { return juce::jmax (0.6f, (float) c.getTopLevelComponent()->getWidth() / baseWidth); }
 
+// I pulsanti non prendono il focus da tastiera: cosi' la barra spaziatrice resta il Play/Stop del sequencer
+// e non "preme" l'ultimo pulsante cliccato.
+inline void noButtonFocus (juce::Component& c)
+{
+    for (auto* child : c.getChildren())
+    {
+        if (auto* b = dynamic_cast<juce::Button*> (child))
+        {
+            b->setWantsKeyboardFocus (false);
+            b->setMouseClickGrabsKeyboardFocus (false);
+        }
+        noButtonFocus (*child);
+    }
+}
+
 inline juce::String noteName (int note) { return juce::MidiMessage::getMidiNoteName (note, true, true, 3); }   // C3 = 60 (Cubase)
 
 inline juce::String cellId (int cell, int cols)

@@ -21,8 +21,10 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
+    bool keyPressed (const juce::KeyPress&) override;      // barra spaziatrice = Play/Stop del sequencer
 
 private:
+    void toggleTransport();
     void timerCallback() override;
     void showTab (int tab);
     juce::Rectangle<int> tabRect (int index) const;
@@ -51,6 +53,7 @@ private:
     SampleLabProcessor& processor;
 
     juce::TextButton kitButton, prevKitButton { "<" }, nextKitButton { ">" }, saveButton { "Save" }, sizeButton { "Size 100%" };
+    juce::TextButton transportButton { "Play" };    // Play/Stop del sequencer, sempre visibile
     juce::Label bpmLabel;               // BPM: della DAW (sola lettura) oppure interno (modificabile) nello standalone
     SampleBrowser browser;
     PadGrid grid;

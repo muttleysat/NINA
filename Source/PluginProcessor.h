@@ -54,6 +54,7 @@ public:
     void setSequencerRunning (bool run);
     bool isSequencerRunning() const { return seqRunning.load(); }
     bool isSequencerPlaying() const { return seqPlaying.load(); }     // in riproduzione ora (DAW o interno)
+    bool isHostPlaying() const { return hostRolling.load(); }         // il trasporto della DAW sta suonando: comanda lui
     double getSequencerPpq() const { return seqPpq.load(); }         // posizione corrente in quarti (per l'indicatore degli step)
 
     // Esportazione del pattern attivo: clip MIDI e audio (WAV 24 bit con effetti, lock e tail)
@@ -134,7 +135,7 @@ private:
     sl::SharedExchange<sl::Pattern> patternExchange;
     std::shared_ptr<const sl::Pattern> audioPattern;        // solo thread audio
     sl::SequencerRunner seqRunner;
-    std::atomic<bool> seqRunning { false }, seqPlaying { false };
+    std::atomic<bool> seqRunning { false }, seqPlaying { false }, hostRolling { false };
     std::atomic<double> seqPpq { 0.0 };
     double internalPpq = 0.0;                               // solo thread audio
     bool wasRunning = false;                                // solo thread audio

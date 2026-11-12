@@ -70,17 +70,22 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     patternExchange.tryAcquire (audioPattern);
 
     const int numSamples = buffer.getNumSamples();
+    // Trasporto: se la DAW sta suonando il sequencer la segue; altrimenti (DAW ferma o standalone) parte dal tasto Play
+    // del plugin con il trasporto interno, cosi' si puo' provare il pattern senza avviare Cubase.
     bool playing = seqRunning.load();
     double ppq0 = internalPpq;
     bool useHostPpq = false;
+    bool hostRollingNow = false;
     if (auto* ph = getPlayHead())
         if (auto pos = ph->getPosition())
-            if (auto hostPpq = pos->getPpqPosition(); hostPpq.hasValue())
+            if (auto hostPpq = pos->getPpqPosition(); hostPpq.hasValue() && pos->getIsPlaying())
             {
                 useHostPpq = true;
-                playing = pos->getIsPlaying();
+                hostRollingNow = true;
+                playing = true;
                 ppq0 = *hostPpq;
             }
+    hostRolling.store (hostRollingNow, std::memory_order_relaxed);
 
     if (! useHostPpq)
     {

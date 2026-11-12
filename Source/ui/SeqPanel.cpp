@@ -8,6 +8,134 @@ const char* lockNames[(size_t) sl::FxF::Count] = {
     "Delay Time", "Delay Feedback", "Delay Mix", "Reverb Size", "Reverb Damp", "Reverb Mix" };
 
 constexpr int kPageSize = 16;
+
+// Picchi assoluti (0..1) del campione, uno per colonna: per le mini forme d'onda
+std::vector<float> computePeaks (const sl::SampleData* data, int width)
+{
+    std::vector<float> peaks;
+    if (data == nullptr || width <= 0)
+        return peaks;
+
+    const int n = data->numSamples();
+    peaks.resize ((size_t) width);
+    for (int x = 0; x < width; ++x)
+    {
+        const int a = (int) ((int64_t) x * n / width);
+        const int b = juce::jmin (n, juce::jmax (a + 1, (int) ((int64_t) (x + 1) * n / width)));
+        float p = 0.0f;
+        for (int ch = 0; ch < data->numChannels(); ++ch)
+        {
+            const float* d = data->audio.getReadPointer (ch);
+            for (int i = a; i < b; ++i)
+                p = juce::jmax (p, std::abs (d[i]));
+        }
+        peaks[(size_t) x] = juce::jmin (1.0f, p);
+    }
+    return peaks;
+}
+
+void drawPeaks (juce::Graphics& g, const std::vector<float>& peaks, juce::Rectangle<float> area, juce::Colour colour)
+{
+    if (peaks.empty() || area.getWidth() < 2.0f)
+        return;
+
+    const float mid = area.getCentreY(), half = area.getHeight() * 0.5f;
+    juce::Path p;
+    const int w = (int) peaks.size();
+    const float step = area.getWidth() / (float) w;
+    p.startNewSubPath (area.getX(), mid);
+    for (int x = 0; x < w; ++x)
+        p.lineTo (area.getX() + (float) x * step, mid - peaks[(size_t) x] * half);
+    for (int x = w - 1; x >= 0; --x)
+        p.lineTo (area.getX() + (float) x * step, mid + peaks[(size_t) x] * half);
+    p.closeSubPath();
+    g.setColour (colour);
+    g.fillPath (p);
+}
+
+// Voce del menu "+ Cell": ID, nome e forma d'onda; il campione suona mentre la voce e' evidenziata (si ascolta prima di scegliere)
+class CellMenuItem final : public juce::PopupMenu::CustomComponent, private juce::Timer
+{
+public:
+    CellMenuItem (SampleLabProcessor& p, int c) : CustomComponent (true), processor (p), cell (c)
+    {
+        peaks = computePeaks (processor.getCellData (cell).get(), 120);
+        startTimerHz (25);
+    }
+
+    ~CellMenuItem() override
+    {
+        stopTimer();
+        stop();
+    }
+
+    void getIdealSize (int& w, int& h) override { w = 320; h = 40; }
+
+    void paint (juce::Graphics& g) override
+    {
+        const auto& kit = processor.getKit();
+        const auto& c = kit.cells[(size_t) cell];
+        const bool hot = isItemHighlighted();
+
+        g.fillAll (hot ? theme::accent.withAlpha (0.25f) : juce::Colours::transparentBlack);
+        auto area = getLocalBounds().reduced (10, 4);
+
+        g.setColour (juce::Colour (c.colour));
+        g.fillRoundedRectangle (area.removeFromLeft (4).toFloat(), 2.0f);
+        area.removeFromLeft (8);
+
+        auto text = area.removeFromLeft (110);
+        g.setColour (theme::text);
+        g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
+        g.drawText (sl::cellLabel (cell, kit.cols), text.removeFromTop (16), juce::Justification::centredLeft);
+        g.setColour (theme::textDim);
+        g.setFont (juce::FontOptions (12.0f));
+        g.drawText (c.name, text, juce::Justification::centredLeft, true);
+
+        drawPeaks (g, peaks, area.toFloat().reduced (0, 2), juce::Colour (c.colour).withAlpha (hot ? 1.0f : 0.7f));
+
+        if (hot)
+        {
+            g.setColour (theme::text.withAlpha (0.85f));
+            g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
+            g.drawText ("PLAYING", getLocalBounds().reduced (10, 2), juce::Justification::topRight);
+        }
+    }
+
+private:
+    void timerCallback() override
+    {
+        const bool hot = isItemHighlighted();
+        if (hot && ! playing)
+            start();
+        else if (! hot && playing)
+            stop();
+        repaint();
+    }
+
+    void start()
+    {
+        const auto& c = processor.getKit().cells[(size_t) cell];
+        if (! c.hasSample() || c.missing)
+            return;
+        note = c.lowNote;
+        processor.getKeyboardState().noteOn (1, note, 0.85f);
+        playing = true;
+    }
+
+    void stop()
+    {
+        if (playing)
+            processor.getKeyboardState().noteOff (1, note, 0.0f);
+        playing = false;
+    }
+
+    SampleLabProcessor& processor;
+    int cell;
+    int note = 0;
+    bool playing = false;
+    std::vector<float> peaks;
+};
 }
 
 // ------------------------------------------------------------------------ Step
@@ -166,6 +294,19 @@ public:
             return;
 
         const auto& c = kit.cells[(size_t) l.cell];
+
+        // Mini forma d'onda dietro il nome: si riconosce il campione a colpo d'occhio
+        const int w = labelRect.getWidth();
+        if (w != peaksWidth || peaksCell != l.cell)
+        {
+            peaks = computePeaks (owner.processor.getCellData (l.cell).get(), juce::jmax (1, w));
+            peaksWidth = w;
+            peaksCell = l.cell;
+        }
+        g.setColour (theme::panelHi.withAlpha (held ? 0.9f : 0.5f));
+        g.fillRoundedRectangle (labelRect.toFloat(), 5.0f * s);
+        drawPeaks (g, peaks, labelRect.toFloat().reduced (0.0f, 3.0f * s), juce::Colour (c.colour).withAlpha (held ? 0.5f : 0.28f));
+
         g.setColour (juce::Colour (c.colour));
         g.fillRoundedRectangle (labelRect.toFloat().removeFromLeft (4.0f * s), 2.0f * s);
         g.setColour (theme::text);
@@ -201,9 +342,44 @@ public:
 
     int headerWidth() const { return (int) (310 * theme::scaleFor (*this)); }
 
+    // Un clic sul nome della riga fa suonare la cella (anteprima del campione)
+    void mouseDown (const juce::MouseEvent& e) override
+    {
+        if (! labelRect.contains (e.getPosition()))
+            return;
+        const auto& l = owner.pat().lanes[(size_t) lane];
+        if (l.cell < 0 || l.cell >= owner.processor.getKit().numCells())
+            return;
+        const auto& c = owner.processor.getKit().cells[(size_t) l.cell];
+        if (! c.hasSample() || c.missing)
+            return;
+        heldNote = c.lowNote;
+        held = true;
+        owner.processor.getKeyboardState().noteOn (1, heldNote, 0.85f);
+        repaint (labelRect);
+    }
+
+    void mouseUp (const juce::MouseEvent&) override
+    {
+        if (held)
+            owner.processor.getKeyboardState().noteOff (1, heldNote, 0.0f);
+        held = false;
+        repaint (labelRect);
+    }
+
+    ~LaneRow() override
+    {
+        if (held)
+            owner.processor.getKeyboardState().noteOff (1, heldNote, 0.0f);
+    }
+
 private:
     SeqPanel& owner;
     int lane;
+    std::vector<float> peaks;
+    int peaksWidth = 0, peaksCell = -2;
+    bool held = false;
+    int heldNote = 0;
     juce::TextButton muteButton, soloButton, removeButton;
     juce::ComboBox divisionBox;
     juce::Slider lengthSlider;
@@ -395,6 +571,7 @@ void SeqPanel::refresh()
     refreshEditor();
     lanes->updateAll();
     resized();
+    theme::noButtonFocus (*this);       // i pulsanti delle nuove righe non rubano la barra spaziatrice
 }
 
 void SeqPanel::stepClicked (int lane, int step, bool selectOnly)
@@ -505,15 +682,28 @@ void SeqPanel::showAddMenu()
         const auto& c = kit.cells[(size_t) i];
         if (! c.hasSample() || pat().findLane (i) != nullptr)
             continue;
-        m.addItem (i + 1, sl::cellLabel (i, kit.cols) + "  " + c.name);
+        // Voce con forma d'onda: passando il mouse il campione suona, cosi' si sceglie ascoltando
+        m.addCustomItem (i + 1, std::make_unique<CellMenuItem> (processor, i), nullptr, sl::cellLabel (i, kit.cols) + "  " + c.name);
         ++count;
     }
     if (count == 0)
         m.addItem (-1, "No cells to add (load a sample first)", false);
+    else
+    {
+        m.addSeparator();
+        m.addItem (1000, "Add all loaded cells");
+    }
 
     m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (addButton), [this] (int r)
     {
-        if (r > 0)
+        if (r == 1000)
+        {
+            for (int i = 0; i < processor.getKit().numCells(); ++i)
+                if (processor.getKit().cells[(size_t) i].hasSample())
+                    processor.addLaneForCell (i);
+            refresh();
+        }
+        else if (r > 0)
         {
             processor.addLaneForCell (r - 1);
             refresh();
@@ -575,10 +765,11 @@ void SeqPanel::bounceWav()
 
 void SeqPanel::timerCallback()
 {
-    const bool host = processor.isHostTempo();
+    const bool host = processor.isHostPlaying();
     playButton.setButtonText (processor.isSequencerPlaying() ? "Stop" : "Play");
     playButton.setEnabled (! host);
-    playButton.setTooltip (host ? "The sequencer follows the host transport" : "Start/stop the internal transport");
+    playButton.setTooltip (host ? "The host transport is running: the sequencer follows it"
+                                : "Start/stop the sequencer (Space)");
     playButton.setToggleState (processor.isSequencerPlaying(), juce::dontSendNotification);
 
     lanes->updateAll();

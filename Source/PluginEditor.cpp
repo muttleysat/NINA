@@ -16,6 +16,9 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     for (auto* b : { &kitButton, &prevKitButton, &nextKitButton, &saveButton, &sizeButton })
         addAndMakeVisible (b);
 
+    transportButton.onClick = [this] { toggleTransport(); };
+    addAndMakeVisible (transportButton);
+
     bpmLabel.setJustificationType (juce::Justification::centred);
     bpmLabel.setColour (juce::Label::backgroundColourId, theme::panelHi);
     bpmLabel.setColour (juce::Label::outlineColourId, theme::border);
@@ -67,7 +70,27 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     setSize (processor.uiWidth, processor.uiHeight);
     sizeButton.setButtonText ("Size " + juce::String (juce::roundToInt (processor.uiZoom * 100.0f)) + "%");
     refreshAll();
+
+    setWantsKeyboardFocus (true);
+    theme::noButtonFocus (*this);
     startTimerHz (10);
+}
+
+void SampleLabEditor::toggleTransport()
+{
+    if (processor.isHostPlaying())
+        return;                                         // la DAW sta suonando: comanda il suo trasporto
+    processor.setSequencerRunning (! processor.isSequencerRunning());
+}
+
+bool SampleLabEditor::keyPressed (const juce::KeyPress& key)
+{
+    if (key == juce::KeyPress::spaceKey)
+    {
+        toggleTransport();
+        return true;
+    }
+    return false;
 }
 
 // Il nome del kit mostra l'asterisco anche quando un parametro cambia dall'automazione o dal MIDI
@@ -75,6 +98,12 @@ void SampleLabEditor::timerCallback()
 {
     processor.pollMidiLearn();      // completa l'assegnazione se e' arrivato un CC durante il MIDI learn
     refreshTopBar();
+
+    transportButton.setButtonText (processor.isSequencerPlaying() ? "Stop" : "Play");
+    transportButton.setToggleState (processor.isSequencerPlaying(), juce::dontSendNotification);
+    transportButton.setEnabled (! processor.isHostPlaying());
+    transportButton.setTooltip (processor.isHostPlaying() ? "The host transport is running: the sequencer follows it"
+                                                          : "Start/stop the sequencer (Space)");
 
     // BPM: dalla DAW (non modificabile) oppure interno (si modifica con doppio clic)
     const bool host = processor.isHostTempo();
@@ -164,6 +193,7 @@ void SampleLabEditor::showTab (int tab)
     fxPanel.setVisible (tab == 3);
     if (seq)
         seqPanel.refresh();
+    theme::noButtonFocus (*this);
     repaint (tabBar);
 }
 
@@ -445,6 +475,8 @@ void SampleLabEditor::resized()
         saveButton.setBounds (bar.removeFromRight (juce::jmax (60, (int) (70 * s))));
         bar.removeFromRight ((int) (8 * s));
         bpmLabel.setBounds (bar.removeFromRight (juce::jmax (90, (int) (110 * s))));
+        bar.removeFromRight ((int) (8 * s));
+        transportButton.setBounds (bar.removeFromRight (juce::jmax (64, (int) (78 * s))));
 
         const int navW = juce::jmax (28, (int) (34 * s));
         const int nameW = juce::jmax (200, (int) (300 * s));
