@@ -1,6 +1,6 @@
 # Sample Lab – Requisiti di prodotto
 
-Versione: 1.1 (bozza) – 2026-11-12
+Versione: 1.2 (bozza) – 2026-11-12
 Stato: documento vivo, da estendere iterativamente.
 
 ## 1. Visione
@@ -132,11 +132,11 @@ Sequencer interno che suona le celle del kit e consente di creare una **frase MI
 | SQ-4 | **Modalità di riproduzione per step**: one-shot / gate, reverse, selezione slice (per loop slicciati), pitch/tune di step, start offset. | Must |
 | SQ-5 | **Effetti per step** (*parameter lock*, stile Elektron): ogni step può sovrascrivere i parametri degli effetti della cella (es. filtro, drive, bit crusher, delay send) solo per quello step; i valori non bloccati restano quelli della cella. | Must |
 | SQ-6 | Editor griglia nella stessa finestra (pannello a schede), con editing rapido di velocity/probabilità, copia/incolla step e pattern, randomizzazione e clear. | Must |
-| SQ-7 | **Esportazione frase MIDI nella DAW**: (a) **drag & drop** del pattern dal plugin alla traccia o all'area di progetto di Cubase come clip MIDI (file `.mid` generato al volo); (b) esportazione su file `.mid`; (c) opzionale **uscita MIDI** del plugin da instradare su un'altra traccia, da verificare in Cubase 16. L'esportazione conserva note, velocity, durata e probabilità/ratchet "risolti" in eventi MIDI fissi. | Must |
+| SQ-7 | **Esportazione frase MIDI nella DAW**: (a) **drag & drop** del pattern dal plugin alla traccia o all'area di progetto di Cubase come clip MIDI (file `.mid` generato al volo); (b) esportazione su file `.mid`; (c) *facoltativo, non pianificato*: uscita MIDI in tempo reale del plugin da instradare su un'altra traccia, da provare in Cubase 16 solo se utile. L'esportazione conserva note, velocity, durata e probabilità/ratchet "risolti" in eventi MIDI fissi. | Must |
 | SQ-8 | Il sequencer pilota le celle direttamente (non solo via MIDI interno); le note MIDI in ingresso dalla DAW continuano a funzionare in parallelo. Possibile modalità "registra da tastiera" (step recording) con quantizzazione. | Should |
 | SQ-9 | Pattern salvati nel kit `.slkit` insieme al resto dei parametri. | Must |
 | SQ-10 | **Esporta audio (Bounce pattern)**: dal sequencer, comando "Esporta WAV" che genera un file audio del pattern **completo di tutto ciò che il sequencer fa** (reverse, parameter lock degli effetti, pitch, ratchet, probabilità, effetti di cella e globali). Il file si importa poi in Cubase come qualsiasi audio, accanto alla clip MIDI esportata (SQ-7). | Must |
-| SQ-10a | Opzioni di export: numero di ripetizioni del pattern (1, 2, 4… o lunghezza in battute), **coda finale** per riverbero/delay (automatica o in secondi), formato **WAV** a 16/24 bit o 32 float, frequenza di campionamento (quella del progetto o scelta), normalizzazione opzionale. | Must |
+| SQ-10a | Opzioni di export: numero di ripetizioni del pattern (1, 2, 4… o lunghezza in battute), **coda finale** per riverbero/delay (automatica o in secondi), formato **WAV** a 16/24 bit o 32 float (in alternativa **AIFF** o **FLAC**), frequenza di campionamento (quella del progetto o scelta), normalizzazione opzionale. | Must |
 | SQ-10b | **Tempo**: il pattern viene renderizzato al BPM corrente della DAW o a un BPM scelto manualmente. Il BPM e il numero di battute vengono scritti nel nome file (es. `NomeKit_Pattern01_120bpm_4bar.wav`) e, se supportato, nei metadati del WAV. | Must |
 | SQ-10c | **Stem**: oltre al mix stereo completo, opzione di esportare un file per ogni cella o uscita assegnata (kick, snare, hat…), tutti della stessa lunghezza per allinearsi in Cubase. | Should |
 | SQ-10d | Il rendering avviene **offline**, più veloce del tempo reale, senza dover far suonare la DAW, con barra di avanzamento e possibilità di annullare. | Should |
@@ -228,10 +228,10 @@ Kits/
 
 Formato kit deciso: file `.slkit` (JSON) + cartella di sample collegata (sez. 10).
 
-**Ancora aperte**:
+**Ancora aperte**: nessuna.
 Struttura del sequencer decisa: una riga per cella, aggiunta con il tasto destro sulla cella (SQ-1, SQ-12).
 
-1. **Uscita MIDI in Cubase 16 (SQ-7c)**: da verificare con un prototipo; il drag & drop del file MIDI resta il metodo garantito.
+Esportazione verso Cubase decisa: clip MIDI (drag & drop o file `.mid`) per le note, file audio WAV/AIFF/FLAC per il suono con effetti, da importare nella DAW dall'esterno. L'uscita MIDI in tempo reale (SQ-7c) resta una prova facoltativa.
 
 ## 14. Roadmap indicativa
 
