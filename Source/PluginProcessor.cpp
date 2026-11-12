@@ -325,6 +325,38 @@ void SampleLabProcessor::clearCell (int cell)
     cellEdited (cell);
 }
 
+float SampleLabProcessor::normalizeCell (int cell, float targetDb)
+{
+    const auto data = getCellData (cell);
+    if (data == nullptr || cell < 0 || cell >= sl::kNumCells)
+        return 0.0f;
+
+    const auto& refs = params.cell (cell);
+    const float peak = sl::samplePeak (*data, refs.at (sl::CellF::Start)->get(), refs.at (sl::CellF::End)->get());
+    if (peak < 1.0e-5f)
+        return 0.0f;
+
+    // Il Level della cella ha un intervallo limitato (-60..+12 dB): un campione molto basso puo' non arrivare al target
+    auto* level = refs.at (sl::CellF::Level);
+    const auto range = level->getNormalisableRange();
+    const float gain = juce::jlimit (range.start, range.end, sl::normalizeGainDb (peak, targetDb));
+    level->setValueNotifyingHost (level->convertTo0to1 (gain));
+    dirty = true;
+    return gain;
+}
+
+int SampleLabProcessor::normalizeAllCells (float targetDb)
+{
+    int count = 0;
+    for (int i = 0; i < kit.numCells(); ++i)
+        if (getCellData (i) != nullptr && sl::samplePeak (*getCellData (i)) >= 1.0e-5f)
+        {
+            normalizeCell (i, targetDb);
+            ++count;
+        }
+    return count;
+}
+
 void SampleLabProcessor::cellEdited (int)
 {
     dirty = true;

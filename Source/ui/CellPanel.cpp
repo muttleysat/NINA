@@ -28,6 +28,15 @@ CellPanel::CellPanel (SampleLabProcessor& p) : processor (p)
     reverseButton.setColour (juce::ToggleButton::textColourId, theme::text);
     addAndMakeVisible (reverseButton);
 
+    // Normalize: regola il Level della cella perche' il picco arrivi a -1 dBFS (il file audio non cambia)
+    normalizeButton.setTooltip ("Set this cell's Level so the loudest peak reaches -1 dBFS");
+    normalizeButton.onClick = [this]
+    {
+        processor.normalizeCell (cell);
+        if (onEdited) onEdited();
+    };
+    addAndMakeVisible (normalizeButton);
+
     // MIDI learn su Reverse e sulla modalita' di trigger (parametri della cella selezionata)
     learnMenus.push_back (std::make_unique<LearnMenu> (processor, reverseButton,
         [this] { return (juce::RangedAudioParameter*) processor.getParams().cell (cell).reverse; }));
@@ -94,6 +103,7 @@ void CellPanel::refresh()
     const bool has = c.hasSample();
     for (auto& b : modeButtons) b.setEnabled (has);
     reverseButton.setEnabled (has);
+    normalizeButton.setEnabled (has && ! c.missing);
     repaint();
 }
 
@@ -198,7 +208,9 @@ void CellPanel::resized()
         modeButtons[i].setBounds (row.removeFromLeft (w).reduced ((int) (2 * s), 0));
     area.removeFromTop (gap);
 
-    reverseButton.setBounds (area.removeFromTop ((int) (26 * s)));
+    auto reverseRow = area.removeFromTop ((int) (26 * s));
+    normalizeButton.setBounds (reverseRow.removeFromRight ((int) (92 * s)));
+    reverseButton.setBounds (reverseRow);
     area.removeFromTop (gap);
 
     mapLabel = area.removeFromTop ((int) (20 * s));

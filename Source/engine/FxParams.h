@@ -109,6 +109,22 @@ inline void setFxBool (FxParams& p, FxB b, bool v) noexcept
     }
 }
 
+// Effetto a cui appartiene ogni parametro float (bloccare un parametro accende l'effetto per quello step)
+inline constexpr FxB fxOwner (FxF f) noexcept
+{
+    switch (f)
+    {
+        case FxF::Drive: case FxF::SatMix: return FxB::Sat;
+        case FxF::Bits: case FxF::Downsample: case FxF::LofiMix: return FxB::Lofi;
+        case FxF::Cutoff: case FxF::Resonance: return FxB::Filter;
+        case FxF::CompThreshold: case FxF::CompRatio: case FxF::CompAttack: case FxF::CompRelease: case FxF::CompMakeup: return FxB::Comp;
+        case FxF::DelayTime: case FxF::DelayFeedback: case FxF::DelayMix: return FxB::Delay;
+        case FxF::ReverbSize: case FxF::ReverbDamp: case FxF::ReverbMix: return FxB::Reverb;
+        case FxF::Count: break;
+    }
+    return FxB::Sat;
+}
+
 // Parametri "bloccabili" dagli step del sequencer: prima i 18 valori degli effetti (FxF), poi i 6 interruttori on/off (FxB)
 inline constexpr int kNumLockable = (int) FxF::Count + (int) FxB::Count;
 inline constexpr int lockIndex (FxB b) noexcept { return (int) FxF::Count + (int) b; }

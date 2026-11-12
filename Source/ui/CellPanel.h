@@ -30,6 +30,7 @@ private:
     juce::TextButton prevButton { "<" }, nextButton { ">" }, loadButton { "Load" };
     juce::TextButton modeButtons[3];
     juce::ToggleButton reverseButton { "Reverse" };
+    juce::TextButton normalizeButton { "Normalize" };
     std::unique_ptr<juce::ParameterAttachment> modeAttachment;            // modalita' e reverse sono parametri automatizzabili
     std::unique_ptr<juce::ButtonParameterAttachment> reverseAttachment;
     std::vector<std::unique_ptr<LearnMenu>> learnMenus;                   // tasto destro: MIDI learn

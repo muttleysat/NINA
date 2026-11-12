@@ -580,10 +580,18 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     addAndMakeVisible (stepModeBox);
 
     // Parameter lock: parametro dell'effetto (o interruttore on/off) + valore solo per questo step
-    for (int i = 0; i < (int) sl::FxF::Count; ++i)
-        lockParamBox.addItem (lockNames[i], i + 1);
-    for (int i = 0; i < (int) sl::FxB::Count; ++i)
-        lockParamBox.addItem (lockOnNames[i], (int) sl::FxF::Count + i + 1);
+    // Elenco raggruppato per effetto: "On/Off" e poi i suoi parametri. Bloccare un parametro accende l'effetto per lo step.
+    const char* fxTitles[(size_t) sl::FxB::Count] = { "SATURATION", "LOFI", "FILTER", "COMPRESSOR", "DELAY", "REVERB" };
+    for (int b = 0; b < (int) sl::FxB::Count; ++b)
+    {
+        lockParamBox.addSectionHeading (fxTitles[b]);
+        lockParamBox.addItem (lockOnNames[b], sl::lockIndex ((sl::FxB) b) + 1);
+        for (int f = 0; f < (int) sl::FxF::Count; ++f)
+            if ((int) sl::fxOwner ((sl::FxF) f) == b)
+                lockParamBox.addItem (lockNames[f], f + 1);
+    }
+    lockParamBox.setTooltip ("Parameter to lock for this step. Locking a value also switches that effect on for the step, "
+                             "even if it is off on the cell.");
     lockParamBox.setSelectedId (6, juce::dontSendNotification);           // Filter Cutoff
     lockParamBox.onChange = [this] { updateLockControls(); };
     addAndMakeVisible (lockParamBox);

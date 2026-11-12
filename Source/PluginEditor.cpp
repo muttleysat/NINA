@@ -250,6 +250,8 @@ void SampleLabEditor::showKitMenu()
     m.addItem (3, "Save");
     m.addItem (4, "Save as...");
     m.addSeparator();
+    m.addItem (6, "Normalize all cells (peak -1 dBFS)");
+    m.addSeparator();
 
     const auto recents = processor.getRecentKits();
     juce::PopupMenu recent;
@@ -275,6 +277,14 @@ void SampleLabEditor::showKitMenu()
                          else if (r == 3) doSave();
                          else if (r == 4) doSaveAs();
                          else if (r == 5) processor.clearRecentKits();
+                         else if (r == 6)
+                         {
+                             const int n = processor.normalizeAllCells();
+                             refreshCellViews();
+                             juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "Sample Lab",
+                                 juce::String (n) + " cell(s) normalized: each Level was set so the loudest peak reaches -1 dBFS.\n"
+                                                    "The audio files are not modified; you can still adjust each Level.");
+                         }
                          else if (r >= 100 && r - 100 < recents.size())
                          {
                              const juce::File f (recents[r - 100]);

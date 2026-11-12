@@ -217,7 +217,7 @@ ParamSet::ParamSet()
 
     // Master
     auto master = std::make_unique<juce::AudioProcessorParameterGroup> ("master", "Master", "|");
-    auto level = makeFloat ("master.level", "Master Level", FDesc { "level", "Level", "dB", -60.0f, 6.0f, 0.1f, 0.0f, 0.0f, 1 });
+    auto level = makeFloat ("master.level", "Master Level", FDesc { "level", "Level", "dB", -60.0f, 12.0f, 0.1f, 0.0f, 0.0f, 1 });
     masterLevelParam = level.get();
     allParams.push_back (level.get());
     master->addChild (std::move (level));

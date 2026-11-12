@@ -76,6 +76,11 @@ public:
 
     bool loadSampleIntoCell (int cell, const juce::File& file, juce::String& error);
     void clearCell (int cell);
+
+    // Normalizzazione: porta il picco del campione (tra Start ed End) al livello target regolando il Level della cella.
+    // Non modifica il file audio. Ritorna il guadagno applicato in dB; 0 se la cella e' vuota o silenziosa.
+    float normalizeCell (int cell, float targetDb = -1.0f);
+    int normalizeAllCells (float targetDb = -1.0f);               // ritorna quante celle sono state normalizzate
     void cellEdited (int cell);                    // parametri modificati: marca modificato e pubblica
     sl::SampleDataPtr getCellData (int cell) const;
 

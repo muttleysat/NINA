@@ -963,6 +963,69 @@ public:
             expect (peak (b, 5000, 8000) > 0.3f, "step in one-shot mode ignores the note-off");
         }
 
+        beginTest ("Sequencer + engine: locking an effect parameter switches that effect on for the step");
+        {
+            auto impulse3 = [] ()
+            {
+                auto d = std::make_shared<SampleData>();
+                d->audio.setSize (1, 100); d->audio.clear(); d->audio.setSample (0, 0, 1.0f); d->sampleRate = kSR;
+                return SampleDataPtr (d);
+            };
+            auto run = [&] (std::function<void (Step&)> setup)
+            {
+                Pattern pat;
+                Lane l; l.cell = 0; l.division = 4; l.length = 4; l.steps[0].on = true;
+                setup (l.steps[0]);
+                pat.lanes.push_back (l);
+                SequencerRunner r;
+                r.runBlock (&pat, true, 0.0, 120.0, kSR, 44100, 1.0);
+                std::vector<SeqEvent> ons;
+                for (auto& e : r.getEvents()) if (e.type == SeqEvent::Type::NoteOn) ons.push_back (e);
+                Rig rig;                                        // cella SENZA effetti attivi
+                rig.setCells ({ { cell (36), impulse3() } });
+                return rig.render (8192, {}, 256, ons);
+            };
+
+            // Solo valori bloccati (delay spento sulla cella): l'effetto parte da solo
+            auto withLocks = run ([] (Step& s) { s.setLock (FxF::DelayTime, 100.0f); s.setLock (FxF::DelayMix, 1.0f); s.setLock (FxF::DelayFeedback, 0.0f); });
+            expect (peak (withLocks, 4300, 4520) > 0.7f, "value locks must switch the delay on for the step");
+
+            // Senza lock niente eco
+            auto none = run ([] (Step&) {});
+            expect (peak (none, 4300, 4520) < 0.01f);
+
+            // Un lock esplicito On/Off = spento vince: i valori bloccati non si sentono
+            auto forcedOff = run ([] (Step& s)
+            {
+                s.setLock (FxF::DelayTime, 100.0f); s.setLock (FxF::DelayMix, 1.0f); s.setLock (FxF::DelayFeedback, 0.0f);
+                s.setLock (lockIndex (FxB::Delay), 0.0f);
+            });
+            expect (peak (forcedOff, 4300, 4520) < 0.01f, "explicit Off lock wins over the implicit switch-on");
+        }
+
+        beginTest ("Normalize: gain brings the peak to the target; silence is left alone");
+        {
+            auto quiet = makeSine (440, 0.5, 0.25f);                          // picco 0.25 = -12.04 dB
+            const float gain = normalizeGainDb (samplePeak (*quiet), -1.0f);
+            expectWithinAbsoluteError (gain, 11.04f, 0.05f);
+            expectWithinAbsoluteError (samplePeak (*quiet) * dbToGain (gain), dbToGain (-1.0f), 0.01f);
+
+            auto loud = makeSine (440, 0.5, 1.0f);
+            expectWithinAbsoluteError (normalizeGainDb (samplePeak (*loud), -1.0f), -1.0f, 0.05f);   // si abbassa a -1 dB
+
+            auto silent = std::make_shared<SampleData>();
+            silent->audio.setSize (1, 100); silent->audio.clear();
+            expectEquals (normalizeGainDb (samplePeak (*silent), -1.0f), 0.0f);
+
+            // La regione conta: il picco e' misurato solo tra start ed end
+            auto two = std::make_shared<SampleData>();
+            two->audio.setSize (1, 1000); two->audio.clear();
+            two->audio.setSample (0, 100, 0.2f);
+            two->audio.setSample (0, 900, 1.0f);
+            expectWithinAbsoluteError (samplePeak (*two, 0.0f, 0.5f), 0.2f, 1e-6f);
+            expectWithinAbsoluteError (samplePeak (*two, 0.5f, 1.0f), 1.0f, 1e-6f);
+        }
+
         beginTest ("Sequencer + engine: a dry lane skips the cell's effects; a step lock can switch one back on");
         {
             auto p = cell (36);
