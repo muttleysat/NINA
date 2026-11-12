@@ -55,11 +55,21 @@ void Engine::renderVoices (float* l, float* r, int start, int count) noexcept
 
 void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi) noexcept
 {
-    if (exchange.tryAcquire (current) && current != nullptr && current->generation != lastGeneration)
+    if (exchange.tryAcquire (current) && current != nullptr)
     {
-        for (auto& v : voices)
-            v.kill();
-        lastGeneration = current->generation;
+        if (current->generation != lastGeneration)
+        {
+            for (auto& v : voices)
+                v.kill();
+            lastGeneration = current->generation;
+        }
+        else
+        {
+            // Stesso kit con parametri modificati: le voci in corso seguono subito i nuovi valori
+            for (auto& v : voices)
+                if (v.isActive() && v.getCellIndex() >= 0 && v.getCellIndex() < (int) current->cells.size())
+                    v.updateParams (current->cells[(size_t) v.getCellIndex()]);
+        }
     }
 
     if (current == nullptr || buffer.getNumChannels() < 1)

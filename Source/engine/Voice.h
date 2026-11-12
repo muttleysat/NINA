@@ -19,11 +19,17 @@ public:
     void release() noexcept;
     void kill() noexcept { active = false; }
 
+    // Applica i parametri aggiornati della cella a una voce gia' in riproduzione (pitch, tune, level, pan, inviluppo, regione).
+    void updateParams (const CellRuntime& cell) noexcept;
+
     // Somma l'uscita nei buffer l / r
     void render (float* l, float* r, int numSamples) noexcept;
 
 private:
     enum class Stage { Attack, Hold, Decay, Sustain, Release };
+
+    void computeDerived() noexcept;     // step, guadagni, tempi dell'inviluppo dai parametri correnti
+    float velocity = 1.0f;
 
     bool active = false;
     const SampleData* data = nullptr;

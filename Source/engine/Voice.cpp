@@ -27,31 +27,56 @@ void Voice::start (const CellRuntime& cell, int noteNumber, float velocity01, do
     note = noteNumber;
     age = ageStamp;
     sampleRate = outSR;
+    velocity = juce::jlimit (0.0f, 1.0f, velocity01);
 
-    const int n = data->numSamples();
-    regionStart = juce::jlimit (0, n - 2, (int) (dsp.start * (float) n));
-    regionEnd = juce::jlimit (regionStart + 2, n, (int) (dsp.end * (float) n));
+    computeDerived();
     if (regionEnd - regionStart < 2)
         return;
 
-    const double semis = (double) dsp.pitchSemis + (double) dsp.tuneCents / 100.0 + (double) (noteNumber - dsp.rootNote);
-    step = (data->sampleRate / outSR) * std::pow (2.0, semis / 12.0);
-
     forward = ! dsp.reverse;
     pos = forward ? (double) regionStart : (double) (regionEnd - 1);
+    holdSamplesLeft = (int) ((double) dsp.hold * outSR);
+    env = 0.0f;
+    stage = Stage::Attack;
+    active = true;
+}
 
-    const float g = dsp.gain * juce::jlimit (0.0f, 1.0f, velocity01);
+void Voice::computeDerived() noexcept
+{
+    const int n = data->numSamples();
+    regionStart = juce::jlimit (0, n - 2, (int) (dsp.start * (float) n));
+    regionEnd = juce::jlimit (regionStart + 2, n, (int) (dsp.end * (float) n));
+
+    const double semis = (double) dsp.pitchSemis + (double) dsp.tuneCents / 100.0 + (double) (note - dsp.rootNote);
+    step = (data->sampleRate / sampleRate) * std::pow (2.0, semis / 12.0);
+
+    const float g = dsp.gain * velocity;
     const float angle = (dsp.pan + 1.0f) * juce::MathConstants<float>::pi * 0.25f;
     gainL = g * std::cos (angle) * juce::MathConstants<float>::sqrt2;
     gainR = g * std::sin (angle) * juce::MathConstants<float>::sqrt2;
 
     sustainLevel = dsp.sustain;
-    attackInc = 1.0f / (float) juce::jmax (1.0, (double) dsp.attack * outSR);
-    holdSamplesLeft = (int) ((double) dsp.hold * outSR);
-    decayDec = (1.0f - sustainLevel) / (float) juce::jmax (1.0, (double) dsp.decay * outSR);
-    env = 0.0f;
-    stage = Stage::Attack;
-    active = true;
+    attackInc = 1.0f / (float) juce::jmax (1.0, (double) dsp.attack * sampleRate);
+    decayDec = (1.0f - sustainLevel) / (float) juce::jmax (1.0, (double) dsp.decay * sampleRate);
+}
+
+void Voice::updateParams (const CellRuntime& cell) noexcept
+{
+    if (! active)
+        return;
+
+    if (cell.data != data)              // il campione della cella e' stato sostituito
+    {
+        active = false;
+        return;
+    }
+
+    dsp = cell.dsp;
+    computeDerived();
+    pos = juce::jlimit ((double) regionStart, (double) (regionEnd - 1), pos);
+
+    if (stage == Stage::Release)
+        releaseDec = juce::jmin (releaseDec, env / (float) juce::jmax (1.0, (double) dsp.release * sampleRate));
 }
 
 void Voice::release() noexcept

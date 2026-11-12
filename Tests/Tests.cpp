@@ -186,6 +186,41 @@ public:
             expect (std::abs ((double) zb / (double) za - 2.0) < 0.05, "zc ratio " + juce::String ((double) zb / za));
         }
 
+        beginTest ("Tune +100 cents equals pitch +1 semitone");
+        {
+            auto p1 = cell (36);
+            p1.tuneCents = 100.0f;
+            auto p2 = cell (36);
+            p2.pitchSemis = 1.0f;
+            Rig a, b, base;
+            a.setCells ({ { p1, makeSine (200, 1.0) } });
+            b.setCells ({ { p2, makeSine (200, 1.0) } });
+            base.setCells ({ { cell (36), makeSine (200, 1.0) } });
+            auto oa = a.render (22050, noteOn (36));
+            auto ob = b.render (22050, noteOn (36));
+            auto o0 = base.render (22050, noteOn (36));
+            const int za = zeroCrossings (oa, 100, 20000), zb = zeroCrossings (ob, 100, 20000), z0 = zeroCrossings (o0, 100, 20000);
+            expect (std::abs (za - zb) <= 1, "tune zc " + juce::String (za) + " vs pitch zc " + juce::String (zb));
+            expect (za > z0, "tune should raise the frequency");
+        }
+
+        beginTest ("Changing a parameter while a voice plays updates it live");
+        {
+            Rig r;
+            auto p = cell (36, TriggerMode::Loop);
+            auto sine = makeSine (200, 1.0);
+            r.setCells ({ { p, sine } });
+            r.render (4096, noteOn (36));                       // la voce e' attiva
+            const int before = zeroCrossings (r.render (8192, {}), 100, 8000);
+
+            auto p2 = p;
+            p2.pitchSemis = 12.0f;                              // +1 ottava mentre suona
+            r.setCells ({ { p2, sine } });
+            r.render (512, {});                                 // il cambio viene recepito
+            const int after = zeroCrossings (r.render (8192, {}), 100, 8000);
+            expect (after > before * 3 / 2, "live pitch: before " + juce::String (before) + " after " + juce::String (after));
+        }
+
         beginTest ("Key range transposes relative to root");
         {
             auto p = cell (36);
