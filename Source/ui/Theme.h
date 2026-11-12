@@ -2,6 +2,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_audio_basics/juce_audio_basics.h>
+#include <juce_audio_processors/juce_audio_processors.h>
 
 namespace theme
 {
@@ -17,8 +18,26 @@ inline const juce::Colour danger     { 0xffe0556a };
 
 // Dimensione di riferimento: tutti i componenti scalano rispetto alla larghezza della finestra
 constexpr float baseWidth = 1280.0f;
+constexpr float baseHeight = 760.0f;
 
-inline float scaleFor (const juce::Component& c) { return juce::jmax (0.6f, (float) c.getTopLevelComponent()->getWidth() / baseWidth); }
+// Fattore di scala dell'interfaccia: segue il lato PIU' STRETTO della finestra (larghezza o altezza rispetto alla
+// dimensione di riferimento 1280x760). Cosi' una finestra bassa non lascia senza spazio i controlli in basso
+// e una finestra stretta non ne taglia i lati: tutto si ridimensiona in proporzione.
+inline float scaleForSize (int width, int height)
+{
+    return juce::jmax (0.5f, juce::jmin ((float) width / baseWidth, (float) height / baseHeight));
+}
+
+inline float scaleFor (const juce::Component& c)
+{
+    // Si misura l'editor (l'area utile), non la finestra con la barra del titolo
+    const juce::Component* ref = dynamic_cast<const juce::AudioProcessorEditor*> (&c);
+    if (ref == nullptr)
+        ref = c.findParentComponentOfClass<juce::AudioProcessorEditor>();
+    if (ref == nullptr)
+        ref = c.getTopLevelComponent();
+    return scaleForSize (ref->getWidth(), ref->getHeight());
+}
 
 // I pulsanti non prendono il focus da tastiera: cosi' la barra spaziatrice resta il Play/Stop del sequencer
 // e non "preme" l'ultimo pulsante cliccato.

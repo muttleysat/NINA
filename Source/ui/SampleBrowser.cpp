@@ -108,7 +108,7 @@ void SampleBrowser::resized()
     area.removeFromTop ((int) (6 * s));
 
     auto footer = area.removeFromBottom ((int) (28 * s));
-    autoPlay.setBounds (footer.removeFromLeft (juce::jmax (84, (int) (104 * s))));
+    autoPlay.setBounds (footer.removeFromLeft (juce::jmax (96, (int) (110 * s))));
     previewVolume.setBounds (footer);
     area.removeFromBottom ((int) (4 * s));
     tree.setItemHeight (juce::jmax (16, (int) (18 * s)));

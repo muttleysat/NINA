@@ -200,7 +200,7 @@ void SampleLabEditor::refreshCellViews()
 
 juce::Rectangle<int> SampleLabEditor::tabRect (int index) const
 {
-    const float s = juce::jmax (0.6f, (float) getWidth() / (float) baseWidth);
+    const float s = theme::scaleFor (*this);
     auto r = tabBar.reduced ((int) (10 * s), (int) (4 * s));
     const int tw = (int) (74 * s), gap = (int) (6 * s);
     return { r.getX() + index * (tw + gap), r.getY(), tw, r.getHeight() };
@@ -453,7 +453,7 @@ void SampleLabEditor::paint (juce::Graphics& g)
 {
     g.fillAll (theme::background);
 
-    const float s = juce::jmax (0.6f, (float) getWidth() / (float) baseWidth);
+    const float s = theme::scaleFor (*this);
 
     // Barra superiore con logo
     g.setColour (theme::panel);
@@ -498,19 +498,20 @@ void SampleLabEditor::resized()
     processor.uiWidth  = getWidth();
     processor.uiHeight = getHeight();
 
-    const float s = juce::jmax (0.6f, (float) getWidth() / (float) baseWidth);
-    const int m = juce::jmax (6, (int) (10 * s));
+    // Scala sul lato piu' stretto (vedi theme::scaleForSize): anche in una finestra bassa tutti i controlli restano visibili
+    const float s = theme::scaleFor (*this);
+    const int m = juce::jmax (4, (int) (10 * s));
     auto area = getLocalBounds();
 
     // Barra superiore: logo (disegnato in paint), navigazione kit al centro, dimensione a destra
-    topBar = area.removeFromTop (juce::jmax (42, (int) (56 * s)));
+    topBar = area.removeFromTop (juce::jmax (36, (int) (56 * s)));
     {
         auto bar = topBar.reduced ((int) (10 * s), (int) (8 * s));
-        sizeButton.setBounds (bar.removeFromRight (juce::jmax (96, (int) (108 * s))));
+        sizeButton.setBounds (bar.removeFromRight (juce::jmax (84, (int) (108 * s))));
         bar.removeFromRight ((int) (8 * s));
-        bpmLabel.setBounds (bar.removeFromRight (juce::jmax (90, (int) (110 * s))));
+        bpmLabel.setBounds (bar.removeFromRight (juce::jmax (80, (int) (110 * s))));
         bar.removeFromRight ((int) (8 * s));
-        transportButton.setBounds (bar.removeFromRight (juce::jmax (64, (int) (78 * s))));
+        transportButton.setBounds (bar.removeFromRight (juce::jmax (56, (int) (78 * s))));
 
         // Gruppo kit, come nel riferimento: [<] nome [>] [Save] [Kit menu]. Le frecce passano al kit precedente/successivo
         // nella stessa cartella e si attivano solo se ce n'e' un altro.
@@ -530,11 +531,11 @@ void SampleLabEditor::resized()
         kitMenuButton.setBounds (center.removeFromLeft (btnW));
     }
 
-    tabBar = area.removeFromBottom (juce::jmax (24, (int) (32 * s)));
+    tabBar = area.removeFromBottom (juce::jmax (22, (int) (32 * s)));
     area.reduce (m, m);
 
-    // Fila dei moduli, a tutta larghezza
-    const auto bottomArea = area.removeFromBottom (juce::jlimit (130, 240, (int) ((float) area.getHeight() * 0.30f)));
+    // Fila dei moduli, a tutta larghezza: altezza proporzionale (limiti espressi in unita' scalate)
+    const auto bottomArea = area.removeFromBottom (juce::jlimit ((int) (150 * s), (int) (250 * s), (int) ((float) area.getHeight() * 0.30f)));
     modules.setBounds (bottomArea);
     fxPanel.setBounds (bottomArea);
     area.removeFromBottom (m);
@@ -546,7 +547,7 @@ void SampleLabEditor::resized()
     cellPanel.setBounds (area.removeFromRight (juce::jlimit (210, 340, getWidth() * 21 / 100)));
     area.removeFromRight (m);
 
-    const int waveH = juce::jlimit (70, 150, (int) ((float) area.getHeight() * 0.28f));
+    const int waveH = juce::jlimit ((int) (70 * s), (int) (150 * s), (int) ((float) area.getHeight() * 0.28f));
     waveStrip.setBounds (area.removeFromBottom (waveH));
     area.removeFromBottom (m);
     grid.setBounds (area);

@@ -819,6 +819,19 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
             ck->which = f;
             ck->box->slider.getProperties().set ("dim", true);            // grigio: non e' un lock
             ck->box->slider.setTooltip ("Cell setting shared by all steps (same as in the FX tab)");
+
+            // Intervallo e testo corretti anche prima dell'aggancio al parametro (nessuno step selezionato): stessi del master
+            {
+                const auto* param = processor.getParams().masterFx().at (f);
+                const auto range = param->getNormalisableRange();
+                auto& s = ck->box->slider;
+                s.setRange ((double) range.start, (double) range.end, (double) range.interval);
+                s.setSkewFactor ((double) range.skew);
+                const juce::AudioProcessorParameter* paramBase = param;
+                s.textFromValueFunction = [param, paramBase] (double v) { return paramBase->getText (param->convertTo0to1 ((float) v), 0); };
+                s.setValue ((double) param->get(), juce::dontSendNotification);
+                s.setEnabled (false);
+            }
             addAndMakeVisible (*ck->box);
             card->cellKnobs.push_back (std::move (ck));
         }
@@ -1379,8 +1392,10 @@ void SeqPanel::resized()
     // Righello dei beat sopra le righe (il testo e' disegnato in paint)
     rulerRect = area.removeFromTop ((int) (16 * s));
 
-    // Editor dello step in basso (altezza adattiva), poi le righe riempiono lo spazio rimasto
-    const int editorH = juce::jlimit ((int) (190 * s), (int) (292 * s), area.getHeight() * 54 / 100);
+    // Editor dello step in basso: altezza FISSA in unita' scalate (cosi' le carte degli effetti hanno sempre lo spazio per le
+    // manopole), poi le righe riempiono lo spazio rimasto. La scala segue il lato piu' stretto della finestra, quindi lo spazio
+    // per le righe resta sempre almeno ~200 unita'.
+    const int editorH = juce::jmin ((int) (300 * s), area.getHeight() * 66 / 100);
     editorRect = area.removeFromBottom (editorH);
     area.removeFromBottom (gap);
     viewport.setBounds (area);
@@ -1398,8 +1413,8 @@ void SeqPanel::resized()
     clearLocksButton.setBounds (behaviour.removeFromRight ((int) (110 * s)));
     ed.removeFromTop ((int) (4 * s));
 
-    // Manopole dello step (altezza ~ 48% dello spazio rimasto), poi le carte degli effetti
-    const int knobsH = ed.getHeight() * 46 / 100;
+    // Manopole dello step (altezza fissa in unita' scalate), poi le carte degli effetti con tutto lo spazio rimasto
+    const int knobsH = juce::jmin ((int) (90 * s), ed.getHeight() * 45 / 100);
     auto knobRow = ed.removeFromTop (knobsH);
     KnobBox* stepKnobs[6] = { &velocityKnob, &probKnob, &nudgeKnob, &gateKnob, &pitchKnob, &ratchetKnob };
     const int kw = knobRow.getWidth() / 6;
@@ -1420,8 +1435,8 @@ void SeqPanel::resized()
         c.bounds = { x, ed.getY(), w, ed.getHeight() };
         x += w + gap;
 
-        const int pw2 = (int) (30 * s);
-        c.power.setBounds (juce::Rectangle<int> (c.bounds.getRight() - pw2 - (int) (6 * s), c.bounds.getY() + (int) (4 * s), pw2, (int) (16 * s)));
+        const int pw2 = (int) (26 * s);
+        c.power.setBounds (juce::Rectangle<int> (c.bounds.getRight() - pw2 - (int) (4 * s), c.bounds.getY() + (int) (4 * s), pw2, (int) (15 * s)));
 
         auto inner = c.bounds.reduced ((int) (4 * s), 0).withTrimmedTop ((int) (22 * s)).withTrimmedBottom ((int) (4 * s));
         if (c.syncButton != nullptr)
