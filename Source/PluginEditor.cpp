@@ -478,9 +478,9 @@ void SampleLabEditor::paint (juce::Graphics& g)
     g.setColour (theme::border);
     g.drawHorizontalLine (tabBar.getY(), 0.0f, (float) getWidth());
 
-    const char* tabs[] = { "Main", "Seq", "Mixer", "FX", "Macros" };
+    const char* tabs[] = { "Main", "Seq", "Mixer", "FX" };
     g.setFont (juce::FontOptions (juce::jmax (10.0f, 13.0f * s), juce::Font::bold));
-    for (int i = 0; i < 5; ++i)
+    for (int i = 0; i < 4; ++i)
     {
         const auto tab = tabRect (i);
         if (i == currentTab)
@@ -490,7 +490,7 @@ void SampleLabEditor::paint (juce::Graphics& g)
             g.setColour (juce::Colour (0xff1a1006));
         }
         else
-            g.setColour (i == 0 || i == 1 || i == 3 ? theme::text.withAlpha (0.85f) : theme::textDim.withAlpha (0.45f));   // Mixer e Macros arriveranno
+            g.setColour (i == 0 || i == 1 || i == 3 ? theme::text.withAlpha (0.85f) : theme::textDim.withAlpha (0.45f));   // Mixer arrivera'
         g.drawText (tabs[i], tab, juce::Justification::centred);
     }
 }

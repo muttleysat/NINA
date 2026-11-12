@@ -26,7 +26,7 @@
 - Altri effetti: EQ, chorus, flanger, phaser, stutter e altri effetti creativi.
 - Aggiungere **righe e celle** oltre le 48 della griglia.
 - Uscite multiple verso la DAW (una per cella).
-- Le schede **Mixer** e **Macros**.
+- La scheda **Mixer**.
 - La versione **macOS** (il codice la prevede ma non è mai stata compilata né provata) e il formato AU.
 - Sample da ingresso audio (campionamento da scheda): escluso per ora.
 

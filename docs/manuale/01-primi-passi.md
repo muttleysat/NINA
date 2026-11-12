@@ -30,12 +30,12 @@ Il progetto si compila dal codice sorgente (vedi il README nella cartella princi
 ├────────────┴──────────────────────────────────────────────┴────────────────────┤
 │ Moduli: AMP · PITCH · MASTER   (oppure la scheda FX, oppure il sequencer)       │
 ├────────────────────────────────────────────────────────────────────────────────┤
-│ Main   Seq   Mixer   FX   Macros                                                │ schede
+│ Main   Seq   Mixer   FX                                                         │ schede
 └────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 - **Barra superiore:** nome del kit, frecce per il kit precedente/successivo, **Save**, menu **Kit**, **Play/Stop** del sequencer, **BPM** e **Size** (ingrandisce o riduce la finestra a percentuali).
-- **Schede in basso:** **Main** (celle e moduli), **Seq** (sequencer), **FX** (effetti). *Mixer* e *Macros* sono in grigio perché non esistono ancora.
+- **Schede in basso:** **Main** (celle e moduli), **Seq** (sequencer), **FX** (effetti). *Mixer* è in grigio perché non esiste ancora.
 - La finestra si può **ridimensionare** trascinando i bordi: tutti gli elementi si adattano.
 
 ## Il tuo primo beat in 5 minuti

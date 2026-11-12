@@ -66,7 +66,7 @@ private:
     ModulesBar modules;
     FxPanel fxPanel;
     SeqPanel seqPanel;
-    int currentTab = 0;                 // 0 = Main, 1 = Seq, 3 = FX (Mixer e Macros arriveranno con le fasi successive)
+    int currentTab = 0;                 // 0 = Main, 1 = Seq, 3 = FX (Mixer arrivera' con le fasi successive)
     std::unique_ptr<juce::FileChooser> chooser;
 
     juce::Rectangle<int> topBar, tabBar;
