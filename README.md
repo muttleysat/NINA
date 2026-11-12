@@ -42,4 +42,4 @@ Sequencer (primo passo): scheda **Seq** con una riga per ogni cella aggiunta (ta
 
 Fase 2 (effetti) avviata: scheda **FX** con sei effetti per cella e per il kit (Saturation, LoFi, Filter, Compressor, Delay, Reverb), ciascuno con interruttore; delay e riverbero continuano a suonare dopo la fine della nota.
 
-Fase 1 (MVP sampler) in corso: griglia 4×12 con mapping da C1, browser dei file, drag & drop sui pad, editor di cella (forma d'onda con Start/End, AHDSR, Level, Pan, Tune, Pitch, modalità one-shot/gate/loop, reverse, range note), kit `.slkit` con cartella dei sample omonima, apri/salva/kit recenti, menu di ridimensionamento a percentuali. Mancano: uscite multiple per cella, verifica in Cubase 16, build su macOS.
+Fase 1 (MVP sampler) in corso: griglia 4×12 con mapping da C1, browser dei file, drag & drop sui pad, editor di cella (forma d'onda con Start/End, AHDSR, Level, Pan, Tune, Pitch, modalità one-shot/gate/loop, reverse, range note), kit `.slkit` con cartella dei sample omonima, apri/salva/kit recenti, menu di ridimensionamento a percentuali. Mancano: verifica in Cubase 16 (comprese le uscite multiple per cella, fatte nel motore), build su macOS.

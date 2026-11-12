@@ -280,6 +280,9 @@ void SampleLabEditor::showKitMenu()
     m.addSeparator();
     m.addItem (6, "Normalize all cells (peak -1 dBFS)");
     m.addSeparator();
+    m.addItem (7, "Outputs: one cell per output (first 15 loaded cells)");
+    m.addItem (8, "Outputs: all cells to Main");
+    m.addSeparator();
 
     const auto recents = processor.getRecentKits();
     juce::PopupMenu recent;
@@ -312,6 +315,15 @@ void SampleLabEditor::showKitMenu()
                              juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "Sample Lab",
                                  juce::String (n) + " cell(s) normalized: each Level was set so the loudest peak reaches -1 dBFS.\n"
                                                     "The audio files are not modified; you can still adjust each Level.");
+                         }
+                         else if (r == 7 || r == 8)
+                         {
+                             // Uscite multiple: la prima cella con campione va su Out 2, la seconda su Out 3... (max 15); le altre su Main
+                             int next = 1;
+                             for (auto& c : processor.getKit().cells)
+                                 c.output = (r == 7 && c.hasSample() && next < sl::Engine::kMaxOutputs) ? next++ : 0;
+                             processor.cellEdited (0);
+                             refreshCellViews();
                          }
                          else if (r >= 100 && r - 100 < recents.size())
                          {

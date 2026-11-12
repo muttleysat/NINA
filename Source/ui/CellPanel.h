@@ -43,6 +43,8 @@ private:
     juce::ToggleButton syncButton { "Sync to tempo" }, keyLockButton { "Key lock" };
     juce::Slider bpmSlider;
     juce::TextButton detectButton { "Detect" };
+    juce::ComboBox outputBox;                      // uscita verso la DAW: Main o Out 2..16
+    juce::Rectangle<int> outputRow;
     juce::Rectangle<int> loopLabel, loopToggleRow, bpmRow;
 
     juce::Rectangle<int> titleRect, sampleCard, modeLabel, reverseLabel, infoRect;

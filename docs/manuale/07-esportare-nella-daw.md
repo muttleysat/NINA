@@ -42,6 +42,18 @@ Il nome proposto contiene kit, pattern, BPM e battute (per esempio `MioKit_Patte
 4. Se vuoi **rimixare** ogni suono: *Drag lanes*, poi bilancia le tracce.
 5. Se cambi il pattern o il tempo, **riesporta**: l'export è un'istantanea, non un collegamento.
 
+## Uscite separate (plugin)
+
+Il plugin ha **16 uscite stereo**: **Main** (il mix) e **Out 2 … Out 16**. In **Cubase** le uscite aggiuntive sono spente di default: aprili dal rack dei VSTi (le uscite dello strumento) e attiva quelle che ti servono, una per traccia.
+
+1. Seleziona una cella e nel pannello a destra scegli **Output** (Main, Out 2…).
+2. In alternativa usa il menu **Kit → Outputs: one cell per output** per mandare le prime 15 celle con campione su Out 2…Out 16 (le altre restano su Main), oppure **all cells to Main** per annullare.
+3. Se un'uscita è spenta nella DAW, la cella **suona nel Main** (non sparisce).
+
+Le uscite singole sono **prima** degli effetti master e del volume master (restano invece gli effetti della cella). Anche il sequencer le usa: le righe suonano sulla uscita della loro cella. Le esportazioni (MIDI, audio, righe) non cambiano: l'audio esportato contiene tutto nel mix, come prima.
+
+> **Stato della verifica:** il routing è provato da test automatici sul motore; non ancora verificato in Cubase. Nello standalone c'è solo il Main (le uscite multiple valgono nel plugin).
+
 ## Limiti
 
 - L'export non include l'**automazione** della DAW, ma i valori correnti dei controlli.

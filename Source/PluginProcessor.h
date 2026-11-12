@@ -123,6 +123,7 @@ public:
     static constexpr int kMaxRecentKits = 5;
 
 private:
+    static BusesProperties makeBuses();
     void publishKit (bool newGeneration);
     void publishPattern();
     static bool writeWav24 (const juce::File& file, const juce::AudioBuffer<float>& audio, double sampleRate, int numSamples, juce::String& error);

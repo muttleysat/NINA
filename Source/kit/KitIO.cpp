@@ -114,6 +114,8 @@ static juce::var cellToVar (const CellParams& c, const juce::String& samplePath)
     o->setProperty ("rootNote", c.rootNote);
     o->setProperty ("lowNote", c.lowNote);
     o->setProperty ("highNote", c.highNote);
+    if (c.output != 0)
+        o->setProperty ("output", c.output);
     if (c.tempoSync || c.loopBpm > 0.0f || ! c.keyLock)
     {
         o->setProperty ("tempoSync", c.tempoSync);
@@ -359,6 +361,7 @@ bool fromJson (const juce::String& text, const juce::File& baseDir, Kit& kit, ju
         c.rootNote = getI (o, "rootNote", defNote);
         c.lowNote = getI (o, "lowNote", defNote);
         c.highNote = getI (o, "highNote", defNote);
+        c.output = juce::jlimit (0, 15, getI (o, "output", 0));
         c.tempoSync = getB (o, "tempoSync", false);
         c.keyLock = getB (o, "keyLock", true);
         c.loopBpm = getF (o, "loopBpm", 0.0f);

@@ -14,6 +14,7 @@ struct CellRuntime
     int cellIndex = -1;
     const SampleData* data = nullptr;   // i campioni restano vivi per tutta la vita del processore
     int rootNote = 36, lowNote = 36, highNote = 36;
+    int output = 0;                     // 0 = Main, 1..15 = uscite aggiuntive
 };
 
 // Fotografia immutabile dei campioni e del mapping del kit.

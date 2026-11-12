@@ -14,6 +14,7 @@ class Engine
 public:
     static constexpr int kMaxVoices = 64;
     static constexpr int kMaxCells = 48;    // griglia 4x12; tutti i parametri di queste celle sono automatizzabili
+    static constexpr int kMaxOutputs = 16;  // Main + 15 uscite stereo aggiuntive
 
     // Valori automatizzabili correnti (cella per cella + master). Li scrive chi chiama process(), nello stesso thread,
     // subito prima di ogni blocco (il processore li legge dai parametri della DAW). Nessuna copia dal thread UI.
@@ -26,6 +27,11 @@ public:
         double bpm = 120.0;             // tempo corrente (DAW o interno) per gli effetti sincronizzati
     };
     LiveParams live;
+
+    // Uscite multiple: outputMap[k] = indice del canale sinistro dell'uscita k nel buffer (la destra e' il canale successivo);
+    // -1 = uscita non disponibile (bus spento dalla DAW): le celle assegnate a quell'uscita suonano nel Main. L'uscita 0 (Main)
+    // e' sempre sui canali 0/1. Si scrive dal thread audio, nello stesso blocco in cui si chiama process().
+    std::array<int, kMaxOutputs> outputMap = [] { std::array<int, kMaxOutputs> m {}; m.fill (-1); m[0] = 0; return m; }();
 
     // Alloca gli stati degli effetti: da chiamare fuori dal thread audio (prepareToPlay).
     void prepare (double sampleRate, int maxBlockSize = 1024);
@@ -60,8 +66,8 @@ private:
     void noteOff (int note) noexcept;
     Voice* allocateVoice() noexcept;
     void seqEvent (const SeqEvent& e) noexcept;      // NoteOn/NoteOff/Stop dal sequencer
-    void renderVoices (float* l, float* r, int start, int count) noexcept;
-    void renderChunk (float* l, float* r, int n) noexcept;
+    void renderVoices (int start, int count) noexcept;
+    void renderChunk (int start, int n) noexcept;
     void renderMaster (float* l, float* r, int n) noexcept;
 
     double sampleRate = 44100.0;
@@ -81,6 +87,7 @@ private:
     KitSnapshotPtr current;
     int lastGeneration = -1;
     juce::uint64 ageCounter = 0;
+    std::array<float*, kMaxOutputs> outL {}, outR {};     // puntatori di uscita del blocco corrente (nullptr = non disponibile)
 
     SnapshotExchange previewExchange;
     KitSnapshotPtr previewCurrent;

@@ -114,6 +114,21 @@ CellPanel::CellPanel (SampleLabProcessor& p) : processor (p)
     };
     addAndMakeVisible (detectButton);
 
+    // Uscita verso la DAW: Main (mix) oppure una delle uscite aggiuntive (nel plugin vanno attivate nella DAW)
+    outputBox.addItem ("Main (mix)", 1);
+    for (int i = 2; i <= sl::Engine::kMaxOutputs; ++i)
+        outputBox.addItem ("Out " + juce::String (i), i);
+    outputBox.setTooltip ("Which output of the plugin this cell plays on. In your DAW, enable the extra outputs (Out 2...) to get it on its own track; "
+                          "if that output is off the cell plays in the Main mix. Single outputs skip the master effects and master volume.");
+    outputBox.onChange = [this]
+    {
+        if (updating) return;
+        processor.getKit().cells[(size_t) cell].output = outputBox.getSelectedId() - 1;
+        processor.cellEdited (cell);
+        if (onEdited) onEdited();
+    };
+    addAndMakeVisible (outputBox);
+
     setCell (0);
 }
 
@@ -149,6 +164,7 @@ void CellPanel::refresh()
     syncButton.setToggleState (c.tempoSync, juce::dontSendNotification);
     keyLockButton.setToggleState (c.keyLock, juce::dontSendNotification);
     bpmSlider.setValue ((double) c.loopBpm, juce::dontSendNotification);
+    outputBox.setSelectedId (juce::jlimit (0, 15, c.output) + 1, juce::dontSendNotification);
     updating = false;
 
     const bool has = c.hasSample();
@@ -159,6 +175,7 @@ void CellPanel::refresh()
         b->setEnabled (has && ! c.missing);
     bpmSlider.setEnabled (has && ! c.missing);
     detectButton.setEnabled (has && ! c.missing);
+    outputBox.setEnabled (has);
     repaint();
 }
 
@@ -212,6 +229,7 @@ void CellPanel::paint (juce::Graphics& g)
     g.setColour (theme::textDim);
     g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.5f * s)));
     g.drawText ("Loop BPM", bpmRow.withWidth (bpmRow.getWidth() / 3), juce::Justification::centredLeft);
+    g.drawText ("Output", outputRow.withWidth (outputRow.getWidth() / 3), juce::Justification::centredLeft);
     g.setColour (theme::textDim);
     g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.5f * s)));
     g.drawText ("Root note", rootRow.withWidth (rootRow.getWidth() / 2), juce::Justification::centredLeft);
@@ -298,6 +316,8 @@ void CellPanel::resized()
         bpmSlider.setBounds (r);
         bpmSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, (int) ((float) r.getWidth() * 0.5f), r.getHeight());
     }
+    outputRow = area.removeFromTop (rh);
+    outputBox.setBounds (outputRow.withTrimmedLeft (outputRow.getWidth() / 3).reduced (0, 1));
     area.removeFromTop (gap);
 
     infoRect = area;

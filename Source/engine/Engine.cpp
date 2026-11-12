@@ -182,12 +182,12 @@ void Engine::seqEvent (const SeqEvent& e) noexcept
     v->setLocks (e.lockMask, e.lockValues);      // i lock valgono solo per questo colpo
 }
 
-void Engine::renderVoices (float* l, float* r, int start, int count) noexcept
+void Engine::renderVoices (int start, int count) noexcept
 {
     while (count > 0)
     {
         const int n = juce::jmin (count, maxBlock);
-        renderChunk (l + start, r + start, n);
+        renderChunk (start, n);
         start += n;
         count -= n;
     }
@@ -195,7 +195,7 @@ void Engine::renderVoices (float* l, float* r, int start, int count) noexcept
 
 // Cella per cella: ogni voce passa dai suoi effetti per colpo, poi la cella somma le voci, applica il compressore e
 // aggiunge delay e riverbero alimentati dalle mandate delle voci.
-void Engine::renderChunk (float* l, float* r, int n) noexcept
+void Engine::renderChunk (int start, int n) noexcept
 {
     if (current == nullptr)
         return;
@@ -271,6 +271,12 @@ void Engine::renderChunk (float* l, float* r, int n) noexcept
                 chain.resetReverb();
         }
 
+        // Uscita della cella: Main oppure una delle uscite aggiuntive (se il bus e' attivo, altrimenti Main)
+        int o = current->cells[(size_t) c].output;
+        if (o < 0 || o >= kMaxOutputs || outL[(size_t) o] == nullptr)
+            o = 0;
+        float* l = outL[(size_t) o] + start;
+        float* r = outR[(size_t) o] + start;
         for (int i = 0; i < n; ++i)
         {
             l[i] += busL[(size_t) i];
@@ -330,6 +336,21 @@ void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& 
     float* l = buffer.getWritePointer (0);
     float* r = buffer.getNumChannels() > 1 ? buffer.getWritePointer (1) : l;
 
+    // Uscite: Main sui canali 0/1, le altre secondo outputMap (se il buffer ha quei canali)
+    outL.fill (nullptr);
+    outR.fill (nullptr);
+    outL[0] = l;
+    outR[0] = r;
+    for (int k = 1; k < kMaxOutputs; ++k)
+    {
+        const int ch = outputMap[(size_t) k];
+        if (ch >= 2 && ch + 1 < buffer.getNumChannels())
+        {
+            outL[(size_t) k] = buffer.getWritePointer (ch);
+            outR[(size_t) k] = buffer.getWritePointer (ch + 1);
+        }
+    }
+
     // Anteprima del browser: una voce dedicata, indipendente dal kit
     if (previewExchange.tryAcquire (previewCurrent) && previewCurrent != nullptr)
     {
@@ -385,7 +406,7 @@ void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& 
 
         const bool takeSeq = nextSeq <= nextMidi;
         const int at = juce::jlimit (pos, numSamples, takeSeq ? nextSeq : nextMidi);
-        renderVoices (l, r, pos, at - pos);
+        renderVoices (pos, at - pos);
         pos = at;
 
         if (takeSeq)
@@ -405,14 +426,15 @@ void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& 
                     v.release();
         }
     }
-    renderVoices (l, r, pos, numSamples - pos);
+    renderVoices (pos, numSamples - pos);
 
     // Effetti globali del kit (a blocchi di maxBlock), poi volume master
     for (int done = 0; done < numSamples; done += maxBlock)
         renderMaster (l + done, r + done, juce::jmin (maxBlock, numSamples - done));
 
-    if (live.masterGain != 1.0f)
-        buffer.applyGain (live.masterGain);
+    if (live.masterGain != 1.0f)                       // volume e effetti master valgono solo per il Main: le uscite singole restano pre-master
+        for (int ch = 0; ch < juce::jmin (2, buffer.getNumChannels()); ++ch)
+            buffer.applyGain (ch, 0, numSamples, live.masterGain);
 
     for (auto& a : activity)
         a.store (0, std::memory_order_relaxed);

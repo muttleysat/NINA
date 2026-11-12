@@ -60,6 +60,7 @@ struct Rig
             r.rootNote = p.rootNote;
             r.lowNote = p.lowNote;
             r.highNote = p.highNote;
+            r.output = p.output;
             snap->cells.push_back (r);
 
             engine.live.dsp[(size_t) i] = toDsp (p);     // i valori automatizzabili vanno nei parametri live
@@ -1640,6 +1641,63 @@ public:
             expect (! back.cells[0].keyLock);
             expectWithinAbsoluteError (back.cells[0].loopBpm, 93.5f, 0.001f);
             expect (! back.cells[1].tempoSync && back.cells[1].keyLock);   // le altre celle: valori predefiniti
+            tmp.deleteRecursively();
+        }
+
+        beginTest ("Multiple outputs: a cell routed to Out 2 plays there, not in the Main mix");
+        {
+            auto run = [&] (int outputMapCh, int cellOutput, float& mainPeak, float& aux2Peak, float& masterGainCheck)
+            {
+                Rig r;
+                auto p0 = cell (36);
+                p0.output = 0;
+                auto p1 = cell (38);
+                p1.output = cellOutput;
+                r.setCells ({ { p0, makeSine (440, 1.0) }, { p1, makeSine (880, 1.0) } });
+                r.engine.outputMap[1] = outputMapCh;
+                r.engine.live.masterGain = 0.5f;
+                juce::AudioBuffer<float> blk (4, 4096);
+                blk.clear();
+                juce::MidiBuffer m;
+                m.addEvent (juce::MidiMessage::noteOn (1, 38, 1.0f), 0);      // suona solo la cella 2
+                r.engine.process (blk, m, nullptr);
+                mainPeak = juce::jmax (blk.getMagnitude (0, 0, 4096), blk.getMagnitude (1, 0, 4096));
+                aux2Peak = juce::jmax (blk.getMagnitude (2, 0, 4096), blk.getMagnitude (3, 0, 4096));
+                masterGainCheck = 0.0f;
+            };
+
+            float mainPeak = 0, auxPeak = 0, dummy = 0;
+            run (2, 1, mainPeak, auxPeak, dummy);                // Out 2 attivo: il suono e' solo li'
+            expect (auxPeak > 0.1f, "aux peak " + juce::String (auxPeak));
+            expectEquals (mainPeak, 0.0f);
+
+            run (-1, 1, mainPeak, auxPeak, dummy);               // Out 2 spento dalla DAW: ripiega sul Main
+            expect (mainPeak > 0.1f, "fallback main peak " + juce::String (mainPeak));
+            expectEquals (auxPeak, 0.0f);
+
+            // Il volume master vale solo per il Main: l'uscita singola e' pre-master
+            run (2, 1, mainPeak, auxPeak, dummy);
+            Rig ref;
+            auto p = cell (38);
+            ref.setCells ({ { p, makeSine (880, 1.0) } });
+            auto full = ref.render (4096, noteOn (38));
+            expect (std::abs (auxPeak - peak (full, 0, 4096)) < 0.02f, "aux " + juce::String (auxPeak) + " vs " + juce::String (peak (full, 0, 4096)));
+        }
+
+        beginTest ("Cell output assignment survives a kit save and load");
+        {
+            auto tmp = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("sl_out_test");
+            tmp.deleteRecursively();
+            tmp.createDirectory();
+            Kit k = Kit::makeDefault();
+            k.cells[3].output = 7;
+            juce::String err;
+            const auto f = tmp.getChildFile ("Out.slkit");
+            expect (KitIO::save (k, f, err), err);
+            Kit back;
+            expect (KitIO::load (f, back, err), err);
+            expectEquals (back.cells[3].output, 7);
+            expectEquals (back.cells[0].output, 0);
             tmp.deleteRecursively();
         }
     }

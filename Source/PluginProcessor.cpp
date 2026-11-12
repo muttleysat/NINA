@@ -3,8 +3,17 @@
 #include "sequencer/SequencerExport.h"
 #include <set>
 
+// Main + 15 uscite stereo aggiuntive (spente di default: le attiva la DAW). Le celle si assegnano alle uscite dal pannello della cella.
+juce::AudioProcessor::BusesProperties SampleLabProcessor::makeBuses()
+{
+    auto buses = BusesProperties().withOutput ("Main", juce::AudioChannelSet::stereo(), true);
+    for (int i = 2; i <= sl::Engine::kMaxOutputs; ++i)
+        buses = buses.withOutput ("Out " + juce::String (i), juce::AudioChannelSet::stereo(), false);
+    return buses;
+}
+
 SampleLabProcessor::SampleLabProcessor()
-    : AudioProcessor (BusesProperties().withOutput ("Main", juce::AudioChannelSet::stereo(), true))
+    : AudioProcessor (makeBuses())
 {
     // Parametri esposti alla DAW (automazione): gruppi per cella ed effetto, nomi leggibili, ID stabili
     for (auto& group : params.releaseGroups())
@@ -41,7 +50,12 @@ void SampleLabProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 
 bool SampleLabProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-    return layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
+    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
+        return false;
+    for (int i = 1; i < layouts.outputBuses.size(); ++i)
+        if (! layouts.outputBuses[i].isDisabled() && layouts.outputBuses[i] != juce::AudioChannelSet::stereo())
+            return false;
+    return true;
 }
 
 void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
@@ -107,6 +121,22 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     seqPpq.store (ppq0, std::memory_order_relaxed);
 
     buffer.clear();
+
+    // Uscite aggiuntive attive: il buffer contiene i canali dei bus accesi, in ordine (Main = 0/1)
+    {
+        int ch = 2;
+        for (int k = 1; k < sl::Engine::kMaxOutputs; ++k)
+        {
+            auto* bus = getBus (false, k);
+            if (bus != nullptr && bus->isEnabled())
+            {
+                engine.outputMap[(size_t) k] = ch;
+                ch += bus->getNumberOfChannels();
+            }
+            else
+                engine.outputMap[(size_t) k] = -1;
+        }
+    }
     engine.process (buffer, midi, &seqRunner.getEvents());
 }
 
@@ -163,6 +193,7 @@ std::shared_ptr<sl::KitSnapshot> SampleLabProcessor::buildSnapshot() const
         r.rootNote = c.rootNote;
         r.lowNote = c.lowNote;
         r.highNote = c.highNote;
+        r.output = c.output;
         snap->cells.push_back (r);
     }
     return snap;
