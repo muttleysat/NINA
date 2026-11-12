@@ -144,6 +144,7 @@ static juce::var patternsToVar (const Kit& kit)
             lo->setProperty ("length", l.length);
             lo->setProperty ("mute", l.mute);
             lo->setProperty ("solo", l.solo);
+            lo->setProperty ("dry", l.dry);
 
             juce::Array<juce::var> steps;
             for (int i = 0; i < kMaxSteps; ++i)
@@ -160,9 +161,14 @@ static juce::var patternsToVar (const Kit& kit)
                 so->setProperty ("g", s.gate);
                 so->setProperty ("pitch", (int) s.pitch);
 
+                if (s.reverse)
+                    so->setProperty ("rev", true);
+                if (s.mode >= 0)
+                    so->setProperty ("mode", (int) s.mode);
+
                 juce::Array<juce::var> locks;
-                for (int f = 0; f < (int) FxF::Count; ++f)
-                    if (s.hasLock ((FxF) f))
+                for (int f = 0; f < kNumLockable; ++f)
+                    if (s.hasLock (f))
                     {
                         auto* lk = new juce::DynamicObject();
                         lk->setProperty ("f", f);
@@ -212,6 +218,7 @@ static void patternsFromVar (const juce::var& v, Kit& kit)
                 l.length = juce::jlimit (1, kMaxSteps, getI (lo, "length", 16));
                 l.mute = getB (lo, "mute", false);
                 l.solo = getB (lo, "solo", false);
+                l.dry = getB (lo, "dry", false);
 
                 if (const auto* steps = lo["steps"].getArray())
                     for (const auto& so : *steps)
@@ -227,12 +234,14 @@ static void patternsFromVar (const juce::var& v, Kit& kit)
                         s.nudge = juce::jlimit (-0.5f, 0.5f, getF (so, "n", 0.0f));
                         s.gate = juce::jlimit (0.05f, 1.0f, getF (so, "g", 0.5f));
                         s.pitch = (std::int8_t) juce::jlimit (-24, 24, getI (so, "pitch", 0));
+                        s.reverse = getB (so, "rev", false);
+                        s.mode = (std::int8_t) juce::jlimit (-1, 2, getI (so, "mode", -1));
                         if (const auto* locks = so["locks"].getArray())
                             for (const auto& lk : *locks)
                             {
                                 const int f = getI (lk, "f", -1);
-                                if (f >= 0 && f < (int) FxF::Count)
-                                    s.setLock ((FxF) f, getF (lk, "v", 0.0f));
+                                if (f >= 0 && f < kNumLockable)
+                                    s.setLock (f, getF (lk, "v", 0.0f));
                             }
                     }
                 p.lanes.push_back (std::move (l));

@@ -22,13 +22,21 @@ struct Step
     float gate = 0.5f;                 // durata della nota in frazione di step (0.05..1)
     std::int8_t pitch = 0;             // trasposizione dello step in semitoni (-24..+24)
 
-    // Parameter lock: parametri degli effetti della cella sovrascritti solo da questo step
-    std::uint32_t lockMask = 0;        // bit i = FxF(i) bloccato
-    std::array<float, (size_t) FxF::Count> lockValues {};
+    // Comportamento di riproduzione dello step (SQ-4)
+    bool reverse = false;              // inverte il verso della cella solo per questo step
+    std::int8_t mode = -1;             // -1 = come la cella; 0 one-shot, 1 gate, 2 loop
 
-    bool hasLock (FxF f) const noexcept { return (lockMask >> (int) f) & 1u; }
-    void setLock (FxF f, float v) noexcept { lockMask |= 1u << (int) f; lockValues[(size_t) f] = v; }
-    void clearLock (FxF f) noexcept { lockMask &= ~(1u << (int) f); }
+    // Parameter lock: parametri degli effetti della cella sovrascritti solo da questo step.
+    // Indici 0..17 = valori degli effetti (FxF), 18..23 = interruttori on/off degli effetti (FxB).
+    std::uint32_t lockMask = 0;        // bit i = parametro i bloccato
+    std::array<float, (size_t) kNumLockable> lockValues {};   // per gli interruttori 0 = spento, 1 = acceso
+
+    bool hasLock (int i) const noexcept { return (lockMask >> i) & 1u; }
+    void setLock (int i, float v) noexcept { lockMask |= 1u << i; lockValues[(size_t) i] = v; }
+    void clearLock (int i) noexcept { lockMask &= ~(1u << i); }
+    bool hasLock (FxF f) const noexcept { return hasLock ((int) f); }
+    void setLock (FxF f, float v) noexcept { setLock ((int) f, v); }
+    void clearLock (FxF f) noexcept { clearLock ((int) f); }
 };
 
 // Una riga del sequencer: una cella con i suoi step, la sua risoluzione e la sua lunghezza.
@@ -39,6 +47,7 @@ struct Lane
     int length = 16;                   // numero di step (1..64): ogni lane puo' avere la sua lunghezza
     bool mute = false;
     bool solo = false;
+    bool dry = false;                  // true: la riga suona senza gli effetti della cella (gli step possono riaccenderli con i lock)
     std::array<Step, kMaxSteps> steps;
 };
 

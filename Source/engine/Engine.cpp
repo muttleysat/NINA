@@ -132,7 +132,8 @@ void Engine::seqEvent (const SeqEvent& e) noexcept
         return;
 
     const auto d = liveDsp (e.cell);
-    allocateVoice()->start (cell.data, d, e.cell, d.rootNote, e.velocity, sampleRate, ++ageCounter, e.semis, true);
+    allocateVoice()->start (cell.data, d, e.cell, d.rootNote, e.velocity, sampleRate, ++ageCounter, e.semis, true,
+                            e.reverse, e.mode);
 }
 
 void Engine::applyLocks() noexcept
@@ -142,9 +143,16 @@ void Engine::applyLocks() noexcept
         const auto mask = lockMask[(size_t) c];
         if (mask == 0)
             continue;
-        for (int f = 0; f < (int) FxF::Count; ++f)
-            if ((mask >> f) & 1u)
-                setFxFloat (effFx[(size_t) c], (FxF) f, lockValues[(size_t) c][(size_t) f]);
+        for (int i = 0; i < kNumLockable; ++i)
+        {
+            if (! ((mask >> i) & 1u))
+                continue;
+            const float v = lockValues[(size_t) c][(size_t) i];
+            if (i < (int) FxF::Count)
+                setFxFloat (effFx[(size_t) c], (FxF) i, v);                         // valore di un effetto
+            else
+                setFxBool (effFx[(size_t) c], (FxB) (i - (int) FxF::Count), v >= 0.5f);   // effetto acceso/spento
+        }
     }
 }
 

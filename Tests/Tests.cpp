@@ -918,6 +918,99 @@ public:
             expect (peak (out, 30000, 40000) > 0.5f, "next step without lock goes back to the cell's own cutoff");
         }
 
+        beginTest ("Sequencer + engine: a step can reverse the cell and override its trigger mode");
+        {
+            auto ramp = [] ()
+            {
+                auto d = std::make_shared<SampleData>();
+                d->audio.setSize (1, 4000);
+                for (int i = 0; i < 4000; ++i) d->audio.setSample (0, i, (float) i / 4000.0f);   // rampa crescente
+                d->sampleRate = kSR;
+                return SampleDataPtr (d);
+            };
+            auto ev = [] (SeqEvent::Type t, int pos, bool rev = false, int mode = -1)
+            {
+                SeqEvent e; e.type = t; e.samplePos = pos; e.cell = 0; e.reverse = rev; e.mode = mode; return e;
+            };
+
+            Rig forward, flipped, cellReverse, cellReverse2;
+            forward.setCells ({ { cell (36), ramp() } });
+            flipped.setCells ({ { cell (36), ramp() } });
+            auto rc = cell (36); rc.reverse = true;
+            cellReverse.setCells ({ { rc, ramp() } });
+            cellReverse2.setCells ({ { rc, ramp() } });
+
+            auto f = forward.render (1024, {}, 256, { ev (SeqEvent::Type::NoteOn, 0) });
+            auto r = flipped.render (1024, {}, 256, { ev (SeqEvent::Type::NoteOn, 0, true) });
+            auto c = cellReverse.render (1024, {}, 256, { ev (SeqEvent::Type::NoteOn, 0) });
+            auto both = cellReverse2.render (1024, {}, 256, { ev (SeqEvent::Type::NoteOn, 0, true) });
+            expect (f.getSample (0, 500) > f.getSample (0, 50), "forward ramp rises");
+            expect (r.getSample (0, 500) < r.getSample (0, 50), "step reverse plays the ramp backwards");
+            expect (c.getSample (0, 500) < c.getSample (0, 50), "cell reverse plays backwards");
+            expect (both.getSample (0, 500) > both.getSample (0, 50), "cell reverse + step reverse cancel out");
+
+            // La modalita' dello step vince su quella della cella: cella one-shot, step gate -> il note-off spegne
+            Rig oneShotCell;
+            oneShotCell.setCells ({ { cell (36, TriggerMode::OneShot), makeSine (440, 2.0) } });
+            auto a = oneShotCell.render (8192, {}, 256, { ev (SeqEvent::Type::NoteOn, 0, false, 1), ev (SeqEvent::Type::NoteOff, 2000) });
+            expect (peak (a, 1000, 1900) > 0.3f);
+            expect (peak (a, 4000, 8000) < 0.001f, "step in gate mode is released by the note-off");
+
+            // E viceversa: cella gate, step one-shot -> il note-off e' ignorato
+            Rig gateCell;
+            gateCell.setCells ({ { cell (36, TriggerMode::Gate), makeSine (440, 2.0) } });
+            auto b = gateCell.render (8192, {}, 256, { ev (SeqEvent::Type::NoteOn, 0, false, 0), ev (SeqEvent::Type::NoteOff, 2000) });
+            expect (peak (b, 5000, 8000) > 0.3f, "step in one-shot mode ignores the note-off");
+        }
+
+        beginTest ("Sequencer + engine: a dry lane skips the cell's effects; a step lock can switch one back on");
+        {
+            auto p = cell (36);
+            p.fx.delayOn = true; p.fx.delayTime = 100.0f; p.fx.delayFeedback = 0.0f; p.fx.delayMix = 1.0f;
+            auto impulse2 = [] ()
+            {
+                auto d = std::make_shared<SampleData>();
+                d->audio.setSize (1, 100); d->audio.clear(); d->audio.setSample (0, 0, 1.0f); d->sampleRate = kSR;
+                return SampleDataPtr (d);
+            };
+
+            // Costruzione degli eventi attraverso il vero generatore, come in riproduzione
+            auto makeEvents = [] (bool dry, bool lockDelayOn)
+            {
+                Pattern pat;
+                Lane l; l.cell = 0; l.division = 4; l.length = 4; l.dry = dry;
+                l.steps[0].on = true;
+                if (lockDelayOn)
+                    l.steps[0].setLock (lockIndex (FxB::Delay), 1.0f);
+                pat.lanes.push_back (l);
+                SequencerRunner run;
+                run.runBlock (&pat, true, 0.0, 120.0, kSR, 44100, 1.0);
+                std::vector<SeqEvent> out;
+                for (auto& e : run.getEvents()) if (e.type == SeqEvent::Type::NoteOn) out.push_back (e);
+                return out;
+            };
+
+            auto normal = Rig();  normal.setCells ({ { p, impulse2() } });
+            auto outNormal = normal.render (8192, {}, 256, { SeqEvent { SeqEvent::Type::NoteOn, 0, 0 } });
+            expect (peak (outNormal, 4300, 4520) > 0.8f, "baseline: the cell's delay echoes at 100 ms");
+
+            Rig dryRig;  dryRig.setCells ({ { p, impulse2() } });
+            auto outDry = dryRig.render (8192, {}, 256, makeEvents (true, false));
+            expect (peak (outDry, 0, 50) > 0.7f, "the hit is still there");
+            expect (peak (outDry, 4300, 4520) < 0.01f, "dry lane: no echo from the cell's delay");
+
+            Rig back;  back.setCells ({ { p, impulse2() } });
+            auto outBack = back.render (8192, {}, 256, makeEvents (true, true));
+            expect (peak (outBack, 4300, 4520) > 0.7f, "a step lock switches the delay back on for that hit");
+
+            // Il lock di accensione funziona anche su una cella senza effetti
+            auto plain = cell (36);
+            plain.fx.delayTime = 100.0f; plain.fx.delayFeedback = 0.0f; plain.fx.delayMix = 1.0f;     // delay spento
+            Rig off;  off.setCells ({ { plain, impulse2() } });
+            auto outOff = off.render (8192, {}, 256, makeEvents (false, true));
+            expect (peak (outOff, 4300, 4520) > 0.7f, "step lock turns an effect on that the cell had off");
+        }
+
         beginTest ("Sequencer: patterns round-trip through the kit file (only lit steps are stored)");
         {
             auto kit = Kit::makeDefault();
@@ -930,6 +1023,10 @@ public:
             s.on = true; s.velocity = 90; s.probability = 75; s.ratchet = 3; s.nudge = -0.1f; s.gate = 0.8f; s.pitch = -5;
             s.setLock (FxF::Cutoff, 1500.0f);
             s.setLock (FxF::DelayMix, 0.6f);
+            s.setLock (lockIndex (FxB::Reverb), 1.0f);
+            s.reverse = true;
+            s.mode = 1;
+            l.dry = true;
             l.steps[7].on = true;
             pat.lanes.push_back (l);
             kit.activePattern = 2;
@@ -954,6 +1051,9 @@ public:
             expectWithinAbsoluteError (ls.nudge, -0.1f, 0.001f); expectWithinAbsoluteError (ls.gate, 0.8f, 0.001f);
             expectEquals ((int) ls.pitch, -5);
             expect (ls.hasLock (FxF::Cutoff) && ls.hasLock (FxF::DelayMix) && ! ls.hasLock (FxF::Drive));
+            expect (ls.hasLock (lockIndex (FxB::Reverb)), "effect on/off lock is saved");
+            expect (ls.reverse && ls.mode == 1 && ll.dry);
+            expect (! ll.steps[7].reverse && ll.steps[7].mode == -1);
             expectWithinAbsoluteError (ls.lockValues[(size_t) FxF::Cutoff], 1500.0f, 0.01f);
             expect (ll.steps[7].on && ! ll.steps[8].on);
             expect (loaded.patterns[3].lanes.empty());

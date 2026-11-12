@@ -65,7 +65,7 @@ private:
     // Parameter lock attivi per cella: restano finche' la cella riceve un nuovo step (o il sequencer si ferma)
     std::array<FxParams, kMaxCells> effFx;           // effetti effettivi del blocco = parametri live + lock degli step
     std::array<std::uint32_t, kMaxCells> lockMask {};
-    std::array<std::array<float, (size_t) FxF::Count>, kMaxCells> lockValues {};
+    std::array<std::array<float, (size_t) kNumLockable>, kMaxCells> lockValues {};
     void renderVoices (float* l, float* r, int start, int count) noexcept;
     void renderChunk (float* l, float* r, int n) noexcept;
 

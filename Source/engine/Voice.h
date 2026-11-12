@@ -16,8 +16,10 @@ public:
     TriggerMode getMode() const noexcept { return dsp.mode; }
 
     // extraSemis: trasposizione aggiuntiva (step del sequencer); fromSequencer: voce avviata dal sequencer
+    // reverseFlip: inverte il verso di lettura rispetto alla cella; modeOverride: -1 = come la cella, altrimenti TriggerMode (0..2)
     void start (const SampleData* sample, const CellDsp& params, int cell, int noteNumber, float velocity01,
-                double outputSampleRate, juce::uint64 ageStamp, float extraSemis = 0.0f, bool fromSequencer = false) noexcept;
+                double outputSampleRate, juce::uint64 ageStamp, float extraSemis = 0.0f, bool fromSequencer = false,
+                bool reverseFlip = false, int modeOverride = -1) noexcept;
     bool isFromSequencer() const noexcept { return fromSeq; }
     void release() noexcept;
     void kill() noexcept { active = false; }
@@ -36,6 +38,8 @@ private:
     float velocity = 1.0f;
     float extraSemis = 0.0f;
     bool fromSeq = false;
+    int modeOverride = -1;
+    CellDsp baseDsp;                    // parametri della cella senza gli override dello step (per rilevare le variazioni)
 
     bool active = false;
     const SampleData* data = nullptr;

@@ -18,8 +18,10 @@ struct SeqEvent
     int cell = -1;
     float velocity = 1.0f;                 // 0..1
     float semis = 0.0f;                    // trasposizione dello step
+    bool reverse = false;                  // inverte il verso della cella per questo colpo
+    int mode = -1;                         // -1 = come la cella, 0 one-shot, 1 gate, 2 loop
     std::uint32_t lockMask = 0;            // parameter lock degli effetti (NoteOn)
-    std::array<float, (size_t) FxF::Count> lockValues {};
+    std::array<float, (size_t) kNumLockable> lockValues {};
 };
 
 // Evento in tempo musicale (quarti = ppq), indipendente dalla frequenza di campionamento e dal tempo.
@@ -30,6 +32,7 @@ struct TimedEvent
     int lane = 0;
     const Step* step = nullptr;            // nullptr per Stop
     int cell = -1;
+    bool dry = false;                      // riga senza effetti
 };
 
 class Sequencer
@@ -76,11 +79,11 @@ public:
                 {
                     const double on = t0 + j * sub;
                     if (on >= ppq0 && on < ppq1)
-                        fn (TimedEvent { on, SeqEvent::Type::NoteOn, laneIdx, &st, lane.cell });
+                        fn (TimedEvent { on, SeqEvent::Type::NoteOn, laneIdx, &st, lane.cell, lane.dry });
 
                     const double off = on + gate;
                     if (off >= ppq0 && off < ppq1)
-                        fn (TimedEvent { off, SeqEvent::Type::NoteOff, laneIdx, &st, lane.cell });
+                        fn (TimedEvent { off, SeqEvent::Type::NoteOff, laneIdx, &st, lane.cell, lane.dry });
                 }
             }
         }
@@ -97,8 +100,23 @@ public:
         {
             s.velocity = (float) e.step->velocity / 127.0f;
             s.semis = (float) e.step->pitch;
-            s.lockMask = e.step->lockMask;
-            s.lockValues = e.step->lockValues;
+            s.reverse = e.step->reverse;
+            s.mode = e.step->mode;
+
+            // Riga "dry": tutti gli effetti spenti per questo colpo; i lock espliciti dello step hanno la precedenza
+            if (e.dry)
+                for (int b = 0; b < (int) FxB::Count; ++b)
+                {
+                    s.lockMask |= 1u << lockIndex ((FxB) b);
+                    s.lockValues[(size_t) lockIndex ((FxB) b)] = 0.0f;
+                }
+
+            for (int i = 0; i < kNumLockable; ++i)
+                if (e.step->hasLock (i))
+                {
+                    s.lockMask |= 1u << i;
+                    s.lockValues[(size_t) i] = e.step->lockValues[(size_t) i];
+                }
         }
         return s;
     }

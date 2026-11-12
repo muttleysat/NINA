@@ -23,6 +23,7 @@ private:
 
     void timerCallback() override;
     void stepClicked (int lane, int step, bool selectOnly);
+    void stepVelocity (int lane, int step, int velocity);
     sl::Pattern& pat() { return processor.activePattern(); }
     const sl::Pattern& pat() const { return processor.activePattern(); }
     void edited();                     // pubblica il pattern al thread audio
@@ -55,8 +56,8 @@ private:
     int selLane = -1, selStep = -1;
     bool updatingEditor = false;
     juce::Slider velocitySlider, probSlider, nudgeSlider, gateSlider, pitchSlider, lockSlider;
-    juce::ComboBox ratchetBox, lockParamBox;
-    juce::ToggleButton lockToggle { "Lock" };
+    juce::ComboBox ratchetBox, lockParamBox, stepModeBox;
+    juce::ToggleButton lockToggle { "Lock" }, reverseToggle { "Reverse this step" };
     juce::Rectangle<int> editorRect, titleRect;
     std::array<juce::Rectangle<int>, 5> labelRects;
     std::unique_ptr<juce::FileChooser> chooser;

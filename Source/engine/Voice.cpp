@@ -16,16 +16,21 @@ inline float hermite (const float* d, int n, int i0, float f) noexcept
 }
 
 void Voice::start (const SampleData* sample, const CellDsp& params, int cell, int noteNumber, float velocity01,
-                   double outSR, juce::uint64 ageStamp, float extra, bool fromSequencer) noexcept
+                   double outSR, juce::uint64 ageStamp, float extra, bool fromSequencer,
+                   bool reverseFlip, int modeOv) noexcept
 {
     extraSemis = extra;
     fromSeq = fromSequencer;
+    modeOverride = modeOv;
+    baseDsp = params;
     active = false;
     if (sample == nullptr)
         return;
 
     data = sample;
     dsp = params;
+    if (modeOverride >= 0)
+        dsp.mode = (TriggerMode) juce::jlimit (0, 2, modeOverride);
     cellIndex = cell;
     note = noteNumber;
     age = ageStamp;
@@ -36,7 +41,7 @@ void Voice::start (const SampleData* sample, const CellDsp& params, int cell, in
     if (regionEnd - regionStart < 2)
         return;
 
-    forward = ! dsp.reverse;
+    forward = ! (dsp.reverse != reverseFlip);               // reverse della cella e reverse dello step si compongono (XOR)
     pos = forward ? (double) regionStart : (double) (regionEnd - 1);
     holdSamplesLeft = (int) ((double) dsp.hold * outSR);
     env = 0.0f;
@@ -66,10 +71,13 @@ void Voice::computeDerived() noexcept
 
 void Voice::updateDsp (const CellDsp& params) noexcept
 {
-    if (! active || params == dsp)
+    if (! active || params == baseDsp)
         return;
 
+    baseDsp = params;
     dsp = params;
+    if (modeOverride >= 0)                                  // l'override dello step resta valido finche' suona
+        dsp.mode = (TriggerMode) juce::jlimit (0, 2, modeOverride);
     computeDerived();
     pos = juce::jlimit ((double) regionStart, (double) (regionEnd - 1), pos);
 

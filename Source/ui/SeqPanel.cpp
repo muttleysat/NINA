@@ -7,6 +7,10 @@ const char* lockNames[(size_t) sl::FxF::Count] = {
     "Comp Threshold", "Comp Ratio", "Comp Attack", "Comp Release", "Comp Makeup",
     "Delay Time", "Delay Feedback", "Delay Mix", "Reverb Size", "Reverb Damp", "Reverb Mix" };
 
+// Dopo i 18 valori, gli interruttori degli effetti: un lock puo' accendere o spegnere un effetto solo per quello step
+const char* lockOnNames[(size_t) sl::FxB::Count] = {
+    "Saturation On/Off", "LoFi On/Off", "Filter On/Off", "Compressor On/Off", "Delay On/Off", "Reverb On/Off" };
+
 constexpr int kPageSize = 16;
 
 // Picchi assoluti (0..1) del campione, uno per colonna: per le mini forme d'onda
@@ -200,16 +204,45 @@ public:
             g.drawText ("%", b.reduced (3.0f * s), juce::Justification::bottomRight);
     }
 
+    // Clic: accende/seleziona (vedi SeqPanel::stepClicked). Trascinamento verticale su uno step acceso: cambia la velocity.
     void mouseDown (const juce::MouseEvent& e) override
     {
-        if (! state.beyond)
-            owner.stepClicked (lane, owner.page * kPageSize + column, e.mods.isPopupMenu() || e.mods.isShiftDown());
+        dragged = false;
+        if (state.beyond)
+            return;
+        pressY = e.y;
+        pressVelocity = state.velocity;
+        rightOrShift = e.mods.isPopupMenu() || e.mods.isShiftDown();
+        if (rightOrShift)
+            owner.stepClicked (lane, owner.page * kPageSize + column, true);
+    }
+
+    void mouseDrag (const juce::MouseEvent& e) override
+    {
+        if (state.beyond || rightOrShift || ! state.on)
+            return;
+        if (std::abs (e.y - pressY) > 3)
+            dragged = true;
+        if (dragged)
+        {
+            const int v = juce::jlimit (1, 127, pressVelocity + (int) std::lround ((double) (pressY - e.y) * 127.0 / juce::jmax (20, getHeight() * 2)));
+            owner.stepVelocity (lane, owner.page * kPageSize + column, v);
+        }
+    }
+
+    void mouseUp (const juce::MouseEvent&) override
+    {
+        if (! state.beyond && ! dragged && ! rightOrShift)
+            owner.stepClicked (lane, owner.page * kPageSize + column, false);
+        dragged = false;
     }
 
 private:
     SeqPanel& owner;
     int lane;
     State state;
+    int pressY = 0, pressVelocity = 100;
+    bool dragged = false, rightOrShift = false;
 };
 
 // ------------------------------------------------------------------------ Lane
@@ -227,6 +260,12 @@ public:
         soloButton.setClickingTogglesState (true);
         muteButton.setToggleState (l.mute, juce::dontSendNotification);
         soloButton.setToggleState (l.solo, juce::dontSendNotification);
+        // FX: acceso = la riga usa gli effetti della cella (default); spento = la riga suona "dry" (gli step possono riaccenderli con i lock)
+        fxButton.setClickingTogglesState (true);
+        fxButton.setToggleState (! l.dry, juce::dontSendNotification);
+        fxButton.setTooltip ("On: this lane uses the cell's effects. Off: it plays dry (a step lock can switch an effect back on).");
+        fxButton.onClick = [this] { owner.pat().lanes[(size_t) lane].dry = ! fxButton.getToggleState(); owner.edited(); };
+        addAndMakeVisible (fxButton);
         muteButton.onClick = [this] { owner.pat().lanes[(size_t) lane].mute = muteButton.getToggleState(); owner.edited(); };
         soloButton.onClick = [this] { owner.pat().lanes[(size_t) lane].solo = soloButton.getToggleState(); owner.edited(); };
         removeButton.onClick = [this]
@@ -331,6 +370,8 @@ public:
         lengthSlider.setBounds (header.removeFromRight ((int) (70 * s)));
         header.removeFromRight ((int) (4 * s));
         divisionBox.setBounds (header.removeFromRight ((int) (62 * s)));
+        header.removeFromRight ((int) (4 * s));
+        fxButton.setBounds (header.removeFromRight ((int) (28 * s)));
         header.removeFromRight ((int) (6 * s));
         labelRect = header;
 
@@ -380,7 +421,7 @@ private:
     int peaksWidth = 0, peaksCell = -2;
     bool held = false;
     int heldNote = 0;
-    juce::TextButton muteButton, soloButton, removeButton;
+    juce::TextButton muteButton, soloButton, removeButton, fxButton { "FX" };
     juce::ComboBox divisionBox;
     juce::Slider lengthSlider;
     std::vector<std::unique_ptr<StepButton>> steps;
@@ -527,9 +568,22 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     ratchetBox.onChange = onStep ([this] (sl::Step& s) { s.ratchet = (std::uint8_t) ratchetBox.getSelectedId(); });
     addAndMakeVisible (ratchetBox);
 
-    // Parameter lock: parametro dell'effetto + valore solo per questo step
+    // Comportamento dello step: reverse e modalita' di riproduzione (come la cella, oppure one-shot/gate/loop)
+    reverseToggle.onClick = onStep ([this] (sl::Step& s) { s.reverse = reverseToggle.getToggleState(); });
+    addAndMakeVisible (reverseToggle);
+
+    stepModeBox.addItem ("Mode: as cell", 1);
+    stepModeBox.addItem ("Mode: one-shot", 2);
+    stepModeBox.addItem ("Mode: gate", 3);
+    stepModeBox.addItem ("Mode: loop", 4);
+    stepModeBox.onChange = onStep ([this] (sl::Step& s) { s.mode = (std::int8_t) (stepModeBox.getSelectedId() - 2); });
+    addAndMakeVisible (stepModeBox);
+
+    // Parameter lock: parametro dell'effetto (o interruttore on/off) + valore solo per questo step
     for (int i = 0; i < (int) sl::FxF::Count; ++i)
         lockParamBox.addItem (lockNames[i], i + 1);
+    for (int i = 0; i < (int) sl::FxB::Count; ++i)
+        lockParamBox.addItem (lockOnNames[i], (int) sl::FxF::Count + i + 1);
     lockParamBox.setSelectedId (6, juce::dontSendNotification);           // Filter Cutoff
     lockParamBox.onChange = [this] { updateLockControls(); };
     addAndMakeVisible (lockParamBox);
@@ -579,13 +633,36 @@ void SeqPanel::stepClicked (int lane, int step, bool selectOnly)
     if (lane < 0 || lane >= (int) pat().lanes.size() || step < 0 || step >= sl::kMaxSteps)
         return;
 
+    // Step vuoto: si accende e si seleziona. Step acceso non selezionato: si seleziona (per modificarlo senza spegnerlo).
+    // Step acceso e gia' selezionato: un altro clic lo spegne. Tasto destro o Maiusc+clic: solo selezione.
     auto& st = pat().lanes[(size_t) lane].steps[(size_t) step];
+    const bool wasSelected = selLane == lane && selStep == step;
     if (! selectOnly)
     {
-        st.on = ! st.on;
-        edited();
+        if (! st.on)
+        {
+            st.on = true;
+            edited();
+        }
+        else if (wasSelected)
+        {
+            st.on = false;
+            edited();
+        }
     }
     selectStep (lane, step);
+}
+
+void SeqPanel::stepVelocity (int lane, int step, int velocity)
+{
+    if (lane < 0 || lane >= (int) pat().lanes.size() || step < 0 || step >= sl::kMaxSteps)
+        return;
+
+    pat().lanes[(size_t) lane].steps[(size_t) step].velocity = (std::uint8_t) juce::jlimit (1, 127, velocity);
+    edited();
+    if (selLane == lane && selStep == step)
+        refreshEditor();                // il cursore Velocity dell'editor segue il trascinamento
+    lanes->updateAll();
 }
 
 void SeqPanel::selectStep (int lane, int step)
@@ -601,7 +678,8 @@ void SeqPanel::refreshEditor()
     const bool valid = selLane >= 0 && selLane < (int) pat().lanes.size() && selStep >= 0;
     for (juce::Component* c : { (juce::Component*) &velocitySlider, (juce::Component*) &probSlider, (juce::Component*) &nudgeSlider,
                                 (juce::Component*) &gateSlider, (juce::Component*) &pitchSlider, (juce::Component*) &ratchetBox,
-                                (juce::Component*) &lockParamBox, (juce::Component*) &lockSlider, (juce::Component*) &lockToggle })
+                                (juce::Component*) &lockParamBox, (juce::Component*) &lockSlider, (juce::Component*) &lockToggle,
+                                (juce::Component*) &reverseToggle, (juce::Component*) &stepModeBox })
         c->setEnabled (valid);
 
     updatingEditor = true;
@@ -614,6 +692,8 @@ void SeqPanel::refreshEditor()
         gateSlider.setValue (s.gate * 100.0f, juce::dontSendNotification);
         pitchSlider.setValue (s.pitch, juce::dontSendNotification);
         ratchetBox.setSelectedId (s.ratchet, juce::dontSendNotification);
+        reverseToggle.setToggleState (s.reverse, juce::dontSendNotification);
+        stepModeBox.setSelectedId (s.mode + 2, juce::dontSendNotification);
     }
     updatingEditor = false;
     updateLockControls();
@@ -625,25 +705,44 @@ void SeqPanel::refreshEditor()
 void SeqPanel::updateLockControls()
 {
     const bool valid = selLane >= 0 && selLane < (int) pat().lanes.size() && selStep >= 0;
-    const auto f = (sl::FxF) juce::jmax (0, lockParamBox.getSelectedId() - 1);
-    const auto* param = processor.getParams().masterFx().at (f);        // stesso intervallo per ogni cella
+    const int idx = juce::jmax (0, lockParamBox.getSelectedId() - 1);
+    const bool isSwitch = idx >= (int) sl::FxF::Count;                  // interruttore on/off di un effetto
+    const auto fx = (sl::FxF) juce::jmin (idx, (int) sl::FxF::Count - 1);
+    const auto sw = (sl::FxB) juce::jmax (0, idx - (int) sl::FxF::Count);
 
     updatingEditor = true;
-    const auto range = param->getNormalisableRange();
-    lockSlider.setRange ((double) range.start, (double) range.end, (double) range.interval);
-    lockSlider.setSkewFactor ((double) range.skew);
-    const juce::AudioProcessorParameter* paramBase = param;  // getText e' pubblico nella classe base
-    lockSlider.textFromValueFunction = [param, paramBase] (double v) { return paramBase->getText (param->convertTo0to1 ((float) v), 0); };
-    lockSlider.valueFromTextFunction = [] (const juce::String& t) { return (double) t.getFloatValue(); };
+    if (isSwitch)
+    {
+        // Interruttore: cursore a due posizioni (0 = spento, 1 = acceso)
+        lockSlider.setRange (0.0, 1.0, 1.0);
+        lockSlider.setSkewFactor (1.0);
+        lockSlider.textFromValueFunction = [] (double v) { return v >= 0.5 ? juce::String ("On") : juce::String ("Off"); };
+        lockSlider.valueFromTextFunction = [] (const juce::String& t) { return t.trim().equalsIgnoreCase ("on") ? 1.0 : 0.0; };
+    }
+    else
+    {
+        const auto* param = processor.getParams().masterFx().at (fx);   // stesso intervallo per ogni cella
+        const auto range = param->getNormalisableRange();
+        lockSlider.setRange ((double) range.start, (double) range.end, (double) range.interval);
+        lockSlider.setSkewFactor ((double) range.skew);
+        const juce::AudioProcessorParameter* paramBase = param;         // getText e' pubblico nella classe base
+        lockSlider.textFromValueFunction = [param, paramBase] (double v) { return paramBase->getText (param->convertTo0to1 ((float) v), 0); };
+        lockSlider.valueFromTextFunction = [] (const juce::String& t) { return (double) t.getFloatValue(); };
+    }
 
     if (valid)
     {
         const auto& lane = pat().lanes[(size_t) selLane];
         const auto& s = lane.steps[(size_t) selStep];
-        const bool locked = s.hasLock (f);
+        const bool locked = s.hasLock (idx);
         lockToggle.setToggleState (locked, juce::dontSendNotification);
-        const float base = lane.cell >= 0 ? processor.getParams().cell (lane.cell).fx.at (f)->get() : param->get();
-        lockSlider.setValue (locked ? s.lockValues[(size_t) f] : base, juce::dontSendNotification);
+
+        // Senza lock il cursore mostra il valore attuale della cella
+        float base = 0.0f;
+        if (lane.cell >= 0)
+            base = isSwitch ? (processor.getParams().cell (lane.cell).fx.power (sw)->get() ? 1.0f : 0.0f)
+                            : processor.getParams().cell (lane.cell).fx.at (fx)->get();
+        lockSlider.setValue (locked ? s.lockValues[(size_t) idx] : base, juce::dontSendNotification);
     }
     lockSlider.updateText();
     updatingEditor = false;
@@ -655,19 +754,19 @@ void SeqPanel::applyLockSlider (bool fromUser)
         return;
 
     auto& s = pat().lanes[(size_t) selLane].steps[(size_t) selStep];
-    const auto f = (sl::FxF) (lockParamBox.getSelectedId() - 1);
+    const int idx = lockParamBox.getSelectedId() - 1;
 
     if (fromUser)
     {
-        s.setLock (f, (float) lockSlider.getValue());          // muovere il cursore attiva il lock
+        s.setLock (idx, (float) lockSlider.getValue());        // muovere il cursore attiva il lock
         updatingEditor = true;
         lockToggle.setToggleState (true, juce::dontSendNotification);
         updatingEditor = false;
     }
     else if (lockToggle.getToggleState())
-        s.setLock (f, (float) lockSlider.getValue());
+        s.setLock (idx, (float) lockSlider.getValue());
     else
-        s.clearLock (f);
+        s.clearLock (idx);
 
     edited();
 }
@@ -802,9 +901,10 @@ void SeqPanel::paint (juce::Graphics& g)
     for (int i = 0; i < 5; ++i)
         g.drawText (names[i], labelRects[(size_t) i], juce::Justification::centredLeft);
 
-    juce::String title = "Select a step (click toggles it, right-click or Shift+click selects)";
+    juce::String title = "Click a step to turn it on and edit it  -  drag a lit step up/down for velocity  -  click it again to turn it off";
     if (selLane >= 0 && selLane < (int) pat().lanes.size())
-        title = "Step " + juce::String (selStep + 1) + " - " + sl::cellLabel (pat().lanes[(size_t) selLane].cell, processor.getKit().cols);
+        title = "Editing step " + juce::String (selStep + 1) + " of " + sl::cellLabel (pat().lanes[(size_t) selLane].cell, processor.getKit().cols)
+                + (pat().lanes[(size_t) selLane].steps[(size_t) selStep].on ? "" : "   (step is off: click it to turn it on)");
     g.setColour (theme::text);
     g.setFont (juce::FontOptions (juce::jmax (10.0f, 12.5f * s), juce::Font::bold));
     g.drawText (title, titleRect, juce::Justification::centredLeft);
@@ -846,8 +946,8 @@ void SeqPanel::resized()
         b.setBounds (pages.removeFromLeft (pw).reduced ((int) (2 * s), 0));
     area.removeFromTop (gap);
 
-    // Editor dello step (in basso): titolo + 3 righe di controlli
-    editorRect = area.removeFromBottom ((int) (136 * s));
+    // Editor dello step (in basso): titolo + 4 righe di controlli
+    editorRect = area.removeFromBottom ((int) (166 * s));
     area.removeFromBottom (gap);
 
     viewport.setBounds (area);
@@ -875,6 +975,11 @@ void SeqPanel::resized()
     auto row2 = ed.removeFromTop ((int) (24 * s));
     auto rest = place (row2, 3, 2, all5, 3);                                     // gate, pitch
     ratchetBox.setBounds (rest.reduced ((int) (4 * s), 0));                      // ratchet nel terzo posto
+
+    ed.removeFromTop ((int) (4 * s));
+    auto rowBehaviour = ed.removeFromTop ((int) (24 * s));                       // reverse e modalita' dello step
+    reverseToggle.setBounds (rowBehaviour.removeFromLeft ((int) (190 * s)));
+    stepModeBox.setBounds (rowBehaviour.removeFromLeft ((int) (170 * s)).reduced ((int) (4 * s), 0));
 
     ed.removeFromTop ((int) (4 * s));
     auto row3 = ed.removeFromTop ((int) (24 * s));
