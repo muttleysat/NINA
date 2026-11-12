@@ -1,30 +1,32 @@
 #include "PluginEditor.h"
 
 SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
-    : AudioProcessorEditor (&p), processor (p), grid (p), editor (p)
+    : AudioProcessorEditor (&p), processor (p), grid (p), waveStrip (p), cellPanel (p), modules (p)
 {
+    juce::LookAndFeel::setDefaultLookAndFeel (&lnf);
+
     setResizable (true, true);
     setResizeLimits (1000, 640, 3840, 2160);
 
     kitButton.onClick = [this] { showKitMenu(); };
-    kitButton.setColour (juce::TextButton::buttonColourId, theme::panelHi);
-    kitButton.setColour (juce::TextButton::textColourOffId, theme::text);
-    addAndMakeVisible (kitButton);
-
+    prevKitButton.onClick = [this] { confirmDiscard ([this] { doOpenAdjacent (-1); }); };
+    nextKitButton.onClick = [this] { confirmDiscard ([this] { doOpenAdjacent (+1); }); };
+    saveButton.onClick = [this] { doSave(); };
     sizeButton.onClick = [this] { showSizeMenu(); };
-    sizeButton.setColour (juce::TextButton::buttonColourId, theme::panelHi);
-    sizeButton.setColour (juce::TextButton::textColourOffId, theme::text);
-    addAndMakeVisible (sizeButton);
+    for (auto* b : { &kitButton, &prevKitButton, &nextKitButton, &saveButton, &sizeButton })
+        addAndMakeVisible (b);
 
     addAndMakeVisible (browser);
     addAndMakeVisible (grid);
-    addAndMakeVisible (editor);
+    addAndMakeVisible (waveStrip);
+    addAndMakeVisible (cellPanel);
+    addAndMakeVisible (modules);
 
     browser.onFileActivated = [this] (const juce::File& f) { loadIntoCell (grid.getSelected(), f); };
     browser.onPreview = [this] (const juce::File& f) { processor.auditionFile (f, browser.getPreviewGainDb()); };
     browser.onPreviewStop = [this] { processor.stopAudition(); };
 
-    grid.onSelectionChanged = [this] (int c) { editor.setCell (c); };
+    grid.onSelectionChanged = [this] (int) { refreshCellViews(); };
     grid.onFileDropped = [this] (int c, const juce::File& f) { loadIntoCell (c, f); };
     grid.onBrowserDrop = [this] (int c)
     {
@@ -35,19 +37,35 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     grid.onLoadRequested = [this] (int c) { requestLoadDialog (c); };
     grid.onKitChanged = [this]
     {
-        editor.refresh();
+        refreshCellViews();
         refreshTopBar();
     };
 
-    editor.onEdited = [this]
+    auto edited = [this]
+    {
+        grid.repaint();
+        refreshTopBar();
+    };
+    waveStrip.onEdited = edited;
+    modules.onEdited = edited;
+    cellPanel.onEdited = [this]
     {
         grid.repaint();
         refreshTopBar();
     };
 
+    cellPanel.onStep = [this] (int delta) { grid.setSelected (grid.getSelected() + delta); };
+    cellPanel.onLoadRequested = [this] (int c) { requestLoadDialog (c); };
+
     setSize (processor.uiWidth, processor.uiHeight);
     sizeButton.setButtonText ("Size " + juce::String (juce::roundToInt (processor.uiZoom * 100.0f)) + "%");
     refreshAll();
+}
+
+SampleLabEditor::~SampleLabEditor()
+{
+    if (&juce::LookAndFeel::getDefaultLookAndFeel() == &lnf)
+        juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
 }
 
 // ----------------------------------------------------------------- Dimensioni
@@ -88,14 +106,22 @@ void SampleLabEditor::applyScale (float zoom)
 void SampleLabEditor::refreshTopBar()
 {
     const auto& kit = processor.getKit();
-    kitButton.setButtonText (kit.name + (processor.isDirty() ? " *" : "") + "  " + juce::String::fromUTF8 ("\xE2\x96\xBE"));
+    kitButton.setButtonText (kit.name + (processor.isDirty() ? " *" : ""));
+}
+
+void SampleLabEditor::refreshCellViews()
+{
+    const int c = grid.getSelected();
+    waveStrip.setCell (c);
+    cellPanel.setCell (c);
+    modules.setCell (c);
 }
 
 void SampleLabEditor::refreshAll()
 {
     refreshTopBar();
     grid.setSelected (juce::jmin (grid.getSelected(), processor.getKit().numCells() - 1));
-    editor.setCell (grid.getSelected());
+    refreshCellViews();
     grid.repaint();
 }
 
@@ -211,6 +237,22 @@ void SampleLabEditor::doOpenFile (const juce::File& f)
         showError (juce::String (missing) + " sample(s) could not be found next to the kit (marked MISSING in the grid).");
 }
 
+void SampleLabEditor::doOpenAdjacent (int direction)
+{
+    // Kit precedente/successivo nella stessa cartella del kit corrente
+    const auto& kit = processor.getKit();
+    if (! kit.file.existsAsFile())
+        return;
+
+    auto files = kit.file.getParentDirectory().findChildFiles (juce::File::findFiles, false, "*.slkit");
+    files.sort();
+    const int idx = files.indexOf (kit.file);
+    if (idx < 0 || files.size() < 2)
+        return;
+
+    doOpenFile (files[(idx + direction + files.size()) % files.size()]);
+}
+
 void SampleLabEditor::doSave()
 {
     const auto& kit = processor.getKit();
@@ -263,7 +305,7 @@ void SampleLabEditor::loadIntoCell (int cell, const juce::File& file)
     }
     grid.repaint();
     if (cell == grid.getSelected())
-        editor.refresh();
+        refreshCellViews();
     refreshTopBar();
 }
 
@@ -286,12 +328,47 @@ void SampleLabEditor::paint (juce::Graphics& g)
 {
     g.fillAll (theme::background);
 
-    const float s = (float) getWidth() / (float) baseWidth;
+    const float s = juce::jmax (0.6f, (float) getWidth() / (float) baseWidth);
+
+    // Barra superiore con logo
     g.setColour (theme::panel);
     g.fillRect (topBar);
+    g.setColour (theme::border);
+    g.drawHorizontalLine (topBar.getBottom() - 1, 0.0f, (float) getWidth());
+
+    const auto logoArea = topBar.reduced ((int) (18 * s), 0).withWidth ((int) (260 * s));
+    g.setFont (juce::FontOptions (juce::jmax (15.0f, 24.0f * s), juce::Font::bold));
+    const juce::String sample = "SAMPLE ";
+    const int sw = juce::GlyphArrangement::getStringWidthInt (g.getCurrentFont(), sample);
+    g.setColour (theme::text);
+    g.drawText (sample, logoArea, juce::Justification::centredLeft);
     g.setColour (theme::accent);
-    g.setFont (juce::FontOptions (juce::jmax (14.0f, 22.0f * s), juce::Font::bold));
-    g.drawText ("SAMPLE LAB", topBar.reduced ((int) (16 * s), 0).withTrimmedRight (getWidth() / 2), juce::Justification::centredLeft);
+    g.drawText ("LAB", logoArea.withTrimmedLeft (sw), juce::Justification::centredLeft);
+
+    // Barra delle schede in basso: per ora e' attiva solo "Main" (le altre arriveranno con le fasi successive)
+    g.setColour (theme::panel);
+    g.fillRect (tabBar);
+    g.setColour (theme::border);
+    g.drawHorizontalLine (tabBar.getY(), 0.0f, (float) getWidth());
+
+    const char* tabs[] = { "Main", "Seq", "Mixer", "FX", "Macros" };
+    auto r = tabBar.reduced ((int) (10 * s), (int) (4 * s));
+    const int tw = (int) (74 * s);
+    g.setFont (juce::FontOptions (juce::jmax (10.0f, 13.0f * s), juce::Font::bold));
+    for (int i = 0; i < 5; ++i)
+    {
+        auto tab = r.removeFromLeft (tw);
+        r.removeFromLeft ((int) (6 * s));
+        if (i == 0)
+        {
+            g.setColour (theme::accent);
+            g.fillRoundedRectangle (tab.toFloat(), 6.0f * s);
+            g.setColour (juce::Colour (0xff1a1006));
+        }
+        else
+            g.setColour (theme::textDim.withAlpha (0.55f));
+        g.drawText (tabs[i], tab, juce::Justification::centred);
+    }
 }
 
 void SampleLabEditor::resized()
@@ -300,22 +377,42 @@ void SampleLabEditor::resized()
     processor.uiHeight = getHeight();
 
     const float s = juce::jmax (0.6f, (float) getWidth() / (float) baseWidth);
+    const int m = juce::jmax (6, (int) (10 * s));
     auto area = getLocalBounds();
-    const int m = juce::jmax (6, getWidth() / 160);
 
-    topBar = area.removeFromTop (juce::jmax (36, getHeight() / 14));
-    auto bar = topBar.reduced ((int) (8 * s), (int) (6 * s));
-    sizeButton.setBounds (bar.removeFromRight (juce::jmax (100, (int) (110 * s))));
-    bar.removeFromRight ((int) (8 * s));
-    // Nome del kit al centro della barra
-    kitButton.setBounds (bar.withSizeKeepingCentre (juce::jmax (220, (int) (300 * s)), bar.getHeight()));
+    // Barra superiore: logo (disegnato in paint), navigazione kit al centro, dimensione a destra
+    topBar = area.removeFromTop (juce::jmax (42, (int) (56 * s)));
+    {
+        auto bar = topBar.reduced ((int) (10 * s), (int) (8 * s));
+        sizeButton.setBounds (bar.removeFromRight (juce::jmax (96, (int) (108 * s))));
+        bar.removeFromRight ((int) (8 * s));
+        saveButton.setBounds (bar.removeFromRight (juce::jmax (60, (int) (70 * s))));
 
+        const int navW = juce::jmax (28, (int) (34 * s));
+        const int nameW = juce::jmax (200, (int) (300 * s));
+        auto center = bar.withSizeKeepingCentre (nameW + 2 * (navW + (int) (6 * s)), bar.getHeight());
+        prevKitButton.setBounds (center.removeFromLeft (navW));
+        center.removeFromLeft ((int) (6 * s));
+        nextKitButton.setBounds (center.removeFromRight (navW));
+        center.removeFromRight ((int) (6 * s));
+        kitButton.setBounds (center);
+    }
+
+    tabBar = area.removeFromBottom (juce::jmax (24, (int) (32 * s)));
     area.reduce (m, m);
-    browser.setBounds (area.removeFromLeft (juce::jlimit (190, 420, getWidth() / 5)));
-    area.removeFromLeft (m);
 
-    auto bottom = area.removeFromBottom (area.getHeight() * 47 / 100);
+    // Fila dei moduli, a tutta larghezza
+    modules.setBounds (area.removeFromBottom (juce::jlimit (130, 240, (int) ((float) area.getHeight() * 0.30f))));
+    area.removeFromBottom (m);
+
+    // Colonne: browser | centro | pannello della cella
+    browser.setBounds (area.removeFromLeft (juce::jlimit (190, 330, getWidth() * 19 / 100)));
+    area.removeFromLeft (m);
+    cellPanel.setBounds (area.removeFromRight (juce::jlimit (210, 340, getWidth() * 21 / 100)));
+    area.removeFromRight (m);
+
+    const int waveH = juce::jlimit (70, 150, (int) ((float) area.getHeight() * 0.28f));
+    waveStrip.setBounds (area.removeFromBottom (waveH));
     area.removeFromBottom (m);
     grid.setBounds (area);
-    editor.setBounds (bottom);
 }

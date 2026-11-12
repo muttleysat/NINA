@@ -1,8 +1,11 @@
 #pragma once
 
 #include "PluginProcessor.h"
+#include "ui/LookAndFeel.h"
 #include "ui/PadGrid.h"
-#include "ui/CellEditor.h"
+#include "ui/WaveStrip.h"
+#include "ui/ModulesBar.h"
+#include "ui/CellPanel.h"
 #include "ui/SampleBrowser.h"
 
 class SampleLabEditor final : public juce::AudioProcessorEditor,
@@ -10,7 +13,7 @@ class SampleLabEditor final : public juce::AudioProcessorEditor,
 {
 public:
     explicit SampleLabEditor (SampleLabProcessor&);
-    ~SampleLabEditor() override = default;
+    ~SampleLabEditor() override;
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -23,10 +26,12 @@ private:
     void showKitMenu();
     void refreshTopBar();
     void refreshAll();
+    void refreshCellViews();
     void confirmDiscard (std::function<void()> proceed);
     void doNew();
     void doOpen();
     void doOpenFile (const juce::File& f);
+    void doOpenAdjacent (int direction);
     void doSave();
     void doSaveAs();
     void showError (const juce::String& message);
@@ -35,15 +40,18 @@ private:
     void loadIntoCell (int cell, const juce::File& file);
     void requestLoadDialog (int cell);
 
+    SampleLabLookAndFeel lnf;
     SampleLabProcessor& processor;
 
-    juce::TextButton kitButton, sizeButton { "Size 100%" };
+    juce::TextButton kitButton, prevKitButton { "<" }, nextKitButton { ">" }, saveButton { "Save" }, sizeButton { "Size 100%" };
     SampleBrowser browser;
     PadGrid grid;
-    CellEditor editor;
+    WaveStrip waveStrip;
+    CellPanel cellPanel;
+    ModulesBar modules;
     std::unique_ptr<juce::FileChooser> chooser;
 
-    juce::Rectangle<int> topBar;
+    juce::Rectangle<int> topBar, tabBar;
 
     static constexpr int baseWidth = 1280;
     static constexpr int baseHeight = 760;

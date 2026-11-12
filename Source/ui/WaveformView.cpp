@@ -63,8 +63,10 @@ void WaveformView::paint (juce::Graphics& g)
     const auto b = getLocalBounds().toFloat();
     const float s = theme::scaleFor (*this);
 
-    g.setColour (theme::background);
-    g.fillRoundedRectangle (b, 5.0f * s);
+    g.setColour (juce::Colour (0xff121316));
+    g.fillRoundedRectangle (b, 8.0f * s);
+    g.setColour (theme::border);
+    g.drawRoundedRectangle (b.reduced (0.5f), 8.0f * s, 1.0f);
 
     if (sample == nullptr)
     {
@@ -96,20 +98,19 @@ void WaveformView::paint (juce::Graphics& g)
         g.drawVerticalLine (x, mid - hi * half, juce::jmax (mid - hi * half + 1.0f, mid - lo * half));
     }
 
-    // Marker
-    auto drawHandle = [&] (float x, const juce::String& label, bool isStart)
+    // Marker: linea sottile con triangoli in alto e in basso (Start a sinistra, End a destra)
+    auto drawHandle = [&] (float x)
     {
         g.setColour (theme::accent);
         g.drawVerticalLine ((int) x, 0.0f, b.getHeight());
-        const float w = 16.0f * s, h = 14.0f * s;
-        auto tab = juce::Rectangle<float> (isStart ? x : x - w, 0.0f, w, h);
-        g.fillRect (tab);
-        g.setColour (theme::background);
-        g.setFont (juce::FontOptions (10.0f * s, juce::Font::bold));
-        g.drawText (label, tab, juce::Justification::centred);
+        const float w = 9.0f * s, h = 9.0f * s;
+        juce::Path tri;
+        tri.addTriangle (x - w * 0.5f, 0.0f, x + w * 0.5f, 0.0f, x, h);
+        tri.addTriangle (x - w * 0.5f, b.getHeight(), x + w * 0.5f, b.getHeight(), x, b.getHeight() - h);
+        g.fillPath (tri);
     };
-    drawHandle (sx, "S", true);
-    drawHandle (ex, "E", false);
+    drawHandle (sx);
+    drawHandle (ex);
 }
 
 void WaveformView::mouseMove (const juce::MouseEvent& e)

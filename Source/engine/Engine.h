@@ -24,6 +24,12 @@ public:
     // Thread audio. Somma nel buffer (che deve essere gia' azzerato dal chiamante).
     void process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi) noexcept;
 
+    // Livello di picco dell'ultimo blocco (L/R), letto dalla UI per il meter master
+    std::pair<float, float> getMasterLevels() const noexcept
+    {
+        return { peakL.load (std::memory_order_relaxed), peakR.load (std::memory_order_relaxed) };
+    }
+
     // Numero di voci attive per cella (letto dalla UI per l'indicatore di attivita')
     int getCellActivity (int cell) const noexcept
     {
@@ -47,5 +53,6 @@ private:
 
     std::array<Voice, kMaxVoices> voices;
     std::array<std::atomic<int>, kMaxCells> activity {};
+    std::atomic<float> peakL { 0.0f }, peakR { 0.0f };
 };
 }

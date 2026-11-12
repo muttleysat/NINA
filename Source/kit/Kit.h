@@ -27,8 +27,9 @@ struct Kit
         k.cols = cols;
         k.cells.resize ((size_t) (rows * cols));
 
-        static const juce::uint32 rowColours[] = { 0xffd8566a, 0xffe0a24a, 0xff4cc3a0, 0xff5b9bd8,
-                                                    0xff9b7bd6, 0xffd66fb0, 0xff8fc15a, 0xff63c7d0 };
+        // Righe: rosso-arancio, giallo, blu, viola, poi verde, rosa, lime, azzurro
+        static const juce::uint32 rowColours[] = { 0xfff0603c, 0xffe8b43c, 0xff3c8cf0, 0xffb450e6,
+                                                    0xff3cc38a, 0xffe65a9b, 0xff9bd13c, 0xff3cc8e6 };
         for (int i = 0; i < (int) k.cells.size(); ++i)
         {
             auto& c = k.cells[(size_t) i];

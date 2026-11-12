@@ -52,7 +52,11 @@ target_sources(SampleLab PRIVATE
     Source/PluginEditor.cpp
     Source/ui/PadGrid.cpp
     Source/ui/WaveformView.cpp
-    Source/ui/CellEditor.cpp
+    Source/ui/ModulesBar.cpp
+    Source/ui/WaveStrip.cpp
+    Source/ui/CellPanel.cpp
+    Source/ui/Widgets.cpp
+    Source/ui/LookAndFeel.cpp
     Source/ui/SampleBrowser.cpp
 )
 

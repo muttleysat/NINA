@@ -27,7 +27,7 @@ private:
     void rebuildPeaks();
 
     sl::SampleDataPtr sample;
-    juce::Colour colour { theme::accent };
+    juce::Colour colour { theme::accent };   // sostituito dal colore della cella
     float start = 0.0f, end = 1.0f;
     Handle dragging = Handle::None;
 

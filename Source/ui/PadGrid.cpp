@@ -22,20 +22,26 @@ void PadGrid::setSelected (int cell)
         onSelectionChanged (selected);
 }
 
+float PadGrid::labelWidth() const
+{
+    return 22.0f * theme::scaleFor (*this);
+}
+
 juce::Rectangle<float> PadGrid::cellBounds (int index) const
 {
     const auto& kit = processor.getKit();
-    const float gap = 5.0f * theme::scaleFor (*this);
-    const float cw = ((float) getWidth() - gap * (float) (kit.cols - 1)) / (float) kit.cols;
+    const float gap = 7.0f * theme::scaleFor (*this);
+    const float x0 = labelWidth();
+    const float cw = ((float) getWidth() - x0 - gap * (float) (kit.cols - 1)) / (float) kit.cols;
     const float ch = ((float) getHeight() - gap * (float) (kit.rows - 1)) / (float) kit.rows;
     const int r = index / kit.cols, c = index % kit.cols;
-    return { (float) c * (cw + gap), (float) r * (ch + gap), cw, ch };
+    return { x0 + (float) c * (cw + gap), (float) r * (ch + gap), cw, ch };
 }
 
 int PadGrid::cellAt (int x, int y) const
 {
     for (int i = 0; i < processor.getKit().numCells(); ++i)
-        if (cellBounds (i).expanded (2.0f).contains ((float) x, (float) y))
+        if (cellBounds (i).expanded (3.0f).contains ((float) x, (float) y))
             return i;
     return -1;
 }
@@ -67,10 +73,47 @@ void PadGrid::timerCallback()
         repaint();
 }
 
+void PadGrid::updateThumb (Thumb& t, const sl::SampleData* data, int width)
+{
+    t.data = data;
+    t.width = width;
+    t.peaks.clear();
+    if (data == nullptr || width <= 0)
+        return;
+
+    const int n = data->numSamples();
+    t.peaks.resize ((size_t) width);
+    for (int x = 0; x < width; ++x)
+    {
+        const int a = (int) ((int64_t) x * n / width);
+        const int b = juce::jmin (n, juce::jmax (a + 1, (int) ((int64_t) (x + 1) * n / width)));
+        float p = 0.0f;
+        for (int ch = 0; ch < data->numChannels(); ++ch)
+        {
+            const float* d = data->audio.getReadPointer (ch);
+            for (int i = a; i < b; ++i)
+                p = juce::jmax (p, std::abs (d[i]));
+        }
+        t.peaks[(size_t) x] = juce::jmin (1.0f, p);
+    }
+}
+
 void PadGrid::paint (juce::Graphics& g)
 {
     const auto& kit = processor.getKit();
     const float s = theme::scaleFor (*this);
+    thumbs.resize ((size_t) kit.numCells());
+
+    // Lettere di riga
+    g.setColour (theme::textDim);
+    g.setFont (juce::FontOptions (juce::jmax (10.0f, 13.0f * s), juce::Font::bold));
+    for (int r = 0; r < kit.rows; ++r)
+    {
+        const auto first = cellBounds (r * kit.cols);
+        g.drawText (juce::String::charToString ((juce::juce_wchar) ('A' + r)),
+                    juce::Rectangle<float> (0.0f, first.getY(), labelWidth() - 4.0f * s, first.getHeight()),
+                    juce::Justification::centredRight);
+    }
 
     for (int i = 0; i < kit.numCells(); ++i)
     {
@@ -78,40 +121,85 @@ void PadGrid::paint (juce::Graphics& g)
         const auto b = cellBounds (i);
         const bool filled = c.hasSample();
         const bool active = i < (int) lastActivity.size() && lastActivity[(size_t) i] > 0;
+        const bool sel = (i == selected);
         const auto col = juce::Colour (c.colour);
+        const float rad = 8.0f * s;
 
         // Corpo
-        juce::ColourGradient grad (filled ? col.withAlpha (0.35f) : theme::panelHi, b.getX(), b.getY(),
-                                   filled ? col.withAlpha (0.18f) : theme::panel, b.getX(), b.getBottom(), false);
-        g.setGradientFill (grad);
-        g.fillRoundedRectangle (b, 6.0f * s);
-
+        g.setColour (juce::Colour (0xff17191d));
+        g.fillRoundedRectangle (b, rad);
+        if (filled)
+        {
+            g.setGradientFill (juce::ColourGradient (col.withAlpha (0.20f), b.getX(), b.getY(),
+                                                     col.withAlpha (0.03f), b.getX(), b.getBottom(), false));
+            g.fillRoundedRectangle (b, rad);
+        }
         if (active)
         {
-            g.setColour (col.withAlpha (0.55f));
-            g.fillRoundedRectangle (b, 6.0f * s);
+            g.setColour (col.withAlpha (0.38f));
+            g.fillRoundedRectangle (b, rad);
         }
 
-        // Bordo
-        const bool sel = (i == selected);
-        g.setColour (sel ? theme::accent : (i == hover ? theme::text.withAlpha (0.8f) : (filled ? col.withAlpha (0.8f) : theme::textDim.withAlpha (0.25f))));
-        g.drawRoundedRectangle (b.reduced (0.5f), 6.0f * s, sel ? 2.2f * s : 1.0f);
+        // Mini forma d'onda
+        if (filled)
+        {
+            const auto data = processor.getCellData (i);
+            const auto waveArea = b.reduced (6.0f * s, 4.0f * s).withTrimmedTop (b.getHeight() * 0.36f);
+            auto& t = thumbs[(size_t) i];
+            const int w = juce::jmax (1, (int) waveArea.getWidth());
+            if (t.data != data.get() || t.width != w)
+                updateThumb (t, data.get(), w);
 
-        // Etichette
-        g.setColour (theme::text.withAlpha (filled ? 0.95f : 0.4f));
-        g.setFont (juce::FontOptions (juce::jmax (9.0f, 12.0f * s), juce::Font::bold));
-        g.drawFittedText (c.name, b.reduced (5.0f * s, 3.0f * s).toNearestInt().withTrimmedTop ((int) (12 * s)), juce::Justification::centred, 2);
+            if (! t.peaks.empty())
+            {
+                const float mid = waveArea.getCentreY(), half = waveArea.getHeight() * 0.5f;
+                juce::Path p;
+                p.startNewSubPath (waveArea.getX(), mid);
+                for (int x = 0; x < w; ++x)
+                    p.lineTo (waveArea.getX() + (float) x, mid - t.peaks[(size_t) x] * half);
+                for (int x = w - 1; x >= 0; --x)
+                    p.lineTo (waveArea.getX() + (float) x, mid + t.peaks[(size_t) x] * half);
+                p.closeSubPath();
+                g.setColour (col.withAlpha (c.missing ? 0.2f : 0.9f));
+                g.fillPath (p);
+            }
+        }
 
-        g.setColour (theme::textDim);
-        g.setFont (juce::FontOptions (juce::jmax (8.0f, 9.5f * s)));
-        const juce::String id = juce::String::charToString ((juce::juce_wchar) ('A' + i / kit.cols)) + juce::String (i % kit.cols + 1);
-        g.drawText (id, b.reduced (5.0f * s, 3.0f * s).toNearestInt(), juce::Justification::topLeft);
-        g.drawText (theme::noteName (c.lowNote), b.reduced (5.0f * s, 3.0f * s).toNearestInt(), juce::Justification::topRight);
+        // Bordo; selezione con alone arancione
+        if (sel)
+        {
+            for (int k = 3; k >= 1; --k)
+            {
+                g.setColour (theme::accent.withAlpha (0.10f * (float) (4 - k)));
+                g.drawRoundedRectangle (b.expanded ((float) k * 1.6f * s), rad + (float) k, 1.6f * s);
+            }
+            g.setColour (theme::accent);
+            g.drawRoundedRectangle (b.reduced (0.5f), rad, 2.2f * s);
+        }
+        else
+        {
+            g.setColour (i == hover ? theme::text.withAlpha (0.8f) : (filled ? col.withAlpha (0.55f) : theme::border));
+            g.drawRoundedRectangle (b.reduced (0.5f), rad, 1.1f);
+        }
+
+        // Etichette: ID in grassetto, nome sotto
+        const auto textArea = b.reduced (7.0f * s, 5.0f * s);
+        g.setColour (theme::text.withAlpha (filled ? 1.0f : 0.5f));
+        g.setFont (juce::FontOptions (juce::jmax (9.0f, 12.5f * s), juce::Font::bold));
+        g.drawText (theme::cellId (i, kit.cols), textArea.withHeight (15.0f * s), juce::Justification::topLeft);
+
+        if (filled)
+        {
+            g.setColour (theme::text.withAlpha (0.78f));
+            g.setFont (juce::FontOptions (juce::jmax (8.0f, 11.0f * s)));
+            g.drawText (c.name, textArea.withTrimmedTop (14.0f * s).withHeight (14.0f * s), juce::Justification::topLeft, true);
+        }
 
         if (c.missing)
         {
             g.setColour (theme::danger);
-            g.drawText ("MISSING", b.reduced (5.0f * s, 3.0f * s).toNearestInt(), juce::Justification::bottomLeft);
+            g.setFont (juce::FontOptions (juce::jmax (8.0f, 10.0f * s), juce::Font::bold));
+            g.drawText ("MISSING", textArea, juce::Justification::bottomLeft);
         }
     }
 }

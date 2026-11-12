@@ -111,6 +111,18 @@ void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& 
     }
     previewVoice.render (l, r, numSamples);
 
+    // Meter master: picco del blocco dopo il guadagno master (calcolato anche senza kit)
+    struct PeakGuard
+    {
+        Engine& e; juce::AudioBuffer<float>& b;
+        ~PeakGuard()
+        {
+            e.peakL.store (b.getMagnitude (0, 0, b.getNumSamples()), std::memory_order_relaxed);
+            e.peakR.store (b.getNumChannels() > 1 ? b.getMagnitude (1, 0, b.getNumSamples()) : b.getMagnitude (0, 0, b.getNumSamples()),
+                           std::memory_order_relaxed);
+        }
+    } peakGuard { *this, buffer };
+
     if (current == nullptr)
         return;
 

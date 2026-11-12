@@ -3,8 +3,8 @@
 #include "../PluginProcessor.h"
 #include "Theme.h"
 
-// Griglia di celle (righe A.., colonne 1..). Selezione, anteprima al clic, drag & drop di file,
-// menu contestuale con il tasto destro.
+// Griglia di celle (righe A.., colonne 1..) con mini forma d'onda per pad. Selezione, anteprima al clic,
+// drag & drop di file, menu contestuale con il tasto destro.
 class PadGrid final : public juce::Component,
                       public juce::FileDragAndDropTarget,
                       public juce::DragAndDropTarget,
@@ -38,16 +38,26 @@ public:
     void itemDropped (const SourceDetails& d) override;
 
 private:
+    struct Thumb
+    {
+        const sl::SampleData* data = nullptr;
+        int width = 0;
+        std::vector<float> peaks;      // picco assoluto per colonna (0..1)
+    };
+
     void timerCallback() override;
+    float labelWidth() const;
     juce::Rectangle<float> cellBounds (int index) const;
     int cellAt (int x, int y) const;
     void setHover (int cell);
     void showContextMenu (int cell);
     void renameCell (int cell);
+    void updateThumb (Thumb&, const sl::SampleData*, int width);
 
     SampleLabProcessor& processor;
     int selected = 0;
     int hover = -1;
     int heldNote = -1;
     std::vector<int> lastActivity;
+    std::vector<Thumb> thumbs;
 };

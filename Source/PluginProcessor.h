@@ -55,6 +55,9 @@ public:
     void removeRecentKit (const juce::String& path);
     void clearRecentKits();
 
+    void setMasterDb (float db);                   // volume master del kit
+    std::pair<float, float> getMasterLevels() const { return engine.getMasterLevels(); }
+
     // Anteprima dei file del browser (caricamento in background, riproduzione su una voce dedicata)
     void auditionFile (const juce::File& file, float gainDb);
     void stopAudition();

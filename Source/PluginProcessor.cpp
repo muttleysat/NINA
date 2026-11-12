@@ -141,6 +141,12 @@ void SampleLabProcessor::clearCell (int cell)
     cellEdited (cell);
 }
 
+void SampleLabProcessor::setMasterDb (float db)
+{
+    kit.masterDb = db;
+    cellEdited (-1);
+}
+
 void SampleLabProcessor::cellEdited (int)
 {
     dirty = true;
