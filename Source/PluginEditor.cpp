@@ -75,6 +75,7 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     };
 
     cellPanel.onStep = [this] (int delta) { grid.setSelected (grid.getSelected() + delta); };
+    seqPanel.onCellSelected = [this] (int cell) { grid.setSelected (cell); };     // lo step selezionato porta con se' la sua cella
     cellPanel.onLoadRequested = [this] (int c) { requestLoadDialog (c); };
 
     setSize (processor.uiWidth, processor.uiHeight);

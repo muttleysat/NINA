@@ -16,6 +16,9 @@ public:
 
     void refresh();                    // ricostruisce le righe dal pattern attivo (cambio pattern/kit, lane aggiunte/rimosse)
 
+    // Selezionando uno step (o il nome di una riga) si seleziona anche la sua cella: la scheda FX e il pannello a destra la seguono
+    std::function<void (int cell)> onCellSelected;
+
     void paint (juce::Graphics&) override;
     void resized() override;
 

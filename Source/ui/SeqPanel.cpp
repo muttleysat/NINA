@@ -432,6 +432,8 @@ public:
         held = true;
         owner.processor.getKeyboardState().noteOn (1, heldNote, 0.85f);
         repaint (labelRect);
+        if (owner.onCellSelected)
+            owner.onCellSelected (l.cell);                  // il clic sul nome seleziona anche la cella
     }
 
     void mouseUp (const juce::MouseEvent&) override
@@ -852,6 +854,9 @@ void SeqPanel::selectStep (int lane, int step)
     selStep = step;
     refreshEditor();
     lanes->updateAll();
+
+    if (onCellSelected && lane >= 0 && lane < (int) pat().lanes.size())
+        onCellSelected (pat().lanes[(size_t) lane].cell);
 }
 
 // Rilegge lo step selezionato nei controlli. Le manopole degli effetti mostrano il valore bloccato (arancione) oppure
