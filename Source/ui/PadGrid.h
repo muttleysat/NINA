@@ -6,6 +6,7 @@
 // Griglia di celle (righe A.., colonne 1..) con mini forma d'onda per pad. Selezione, anteprima al clic,
 // drag & drop di file, menu contestuale con il tasto destro.
 class PadGrid final : public juce::Component,
+                      public juce::TooltipClient,
                       public juce::FileDragAndDropTarget,
                       public juce::DragAndDropTarget,
                       private juce::Timer
@@ -26,6 +27,7 @@ public:
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
+    juce::String getTooltip() override;                        // note della cella, celle che la coprono o si sovrappongono
 
     bool isInterestedInFileDrag (const juce::StringArray&) override { return true; }
     void filesDropped (const juce::StringArray& files, int x, int y) override;
@@ -53,6 +55,15 @@ private:
     void showContextMenu (int cell);
     void renameCell (int cell);
     void updateThumb (Thumb&, const sl::SampleData*, int width);
+
+    // Intervalli di tasti: una cella con campione puo' coprire anche le note di altre celle (Key low..Key high).
+    struct RangeInfo
+    {
+        int coveredBy = -1;                 // cella VUOTA le cui note sono coperte dall'intervallo di questa cella con campione
+        std::vector<int> overlaps;          // celle con campione che condividono almeno una nota (suonano insieme)
+    };
+    RangeInfo rangeInfo (int cell) const;
+    static juce::String rangeText (const sl::CellParams&);
 
     SampleLabProcessor& processor;
     int selected = 0;

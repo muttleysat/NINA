@@ -98,6 +98,61 @@ void PadGrid::updateThumb (Thumb& t, const sl::SampleData* data, int width)
     }
 }
 
+juce::String PadGrid::rangeText (const sl::CellParams& c)
+{
+    const int lo = juce::jmin (c.lowNote, c.highNote), hi = juce::jmax (c.lowNote, c.highNote);
+    return lo == hi ? theme::noteName (lo) : theme::noteName (lo) + " - " + theme::noteName (hi);
+}
+
+PadGrid::RangeInfo PadGrid::rangeInfo (int cell) const
+{
+    const auto& kit = processor.getKit();
+    RangeInfo info;
+    const auto& me = kit.cells[(size_t) cell];
+    const int lo = juce::jmin (me.lowNote, me.highNote), hi = juce::jmax (me.lowNote, me.highNote);
+
+    for (int j = 0; j < kit.numCells(); ++j)
+    {
+        if (j == cell)
+            continue;
+        const auto& o = kit.cells[(size_t) j];
+        if (! o.hasSample())
+            continue;
+        const int olo = juce::jmin (o.lowNote, o.highNote), ohi = juce::jmax (o.lowNote, o.highNote);
+        if (me.hasSample())
+        {
+            if (olo <= hi && ohi >= lo)
+                info.overlaps.push_back (j);
+        }
+        else if (info.coveredBy < 0 && lo >= olo && lo <= ohi)      // la nota di questo pad vuoto rientra nel range di j
+            info.coveredBy = j;
+    }
+    return info;
+}
+
+juce::String PadGrid::getTooltip()
+{
+    const int i = cellAt (getMouseXYRelative().x, getMouseXYRelative().y);
+    if (i < 0)
+        return {};
+
+    const auto& kit = processor.getKit();
+    const auto& c = kit.cells[(size_t) i];
+    const auto info = rangeInfo (i);
+    juce::String t = theme::cellId (i, kit.cols) + ": key " + rangeText (c);
+    if (info.coveredBy >= 0)
+        t += "\nThis pad is empty but its key is covered by " + theme::cellId (info.coveredBy, kit.cols)
+             + " (" + rangeText (kit.cells[(size_t) info.coveredBy]) + "): playing it triggers that cell";
+    if (! info.overlaps.empty())
+    {
+        t += "\nPlays together with: ";
+        for (size_t k = 0; k < info.overlaps.size(); ++k)
+            t += (k ? ", " : "") + theme::cellId (info.overlaps[k], kit.cols);
+        t += " (shared keys)";
+    }
+    return t;
+}
+
 void PadGrid::paint (juce::Graphics& g)
 {
     const auto& kit = processor.getKit();
@@ -133,6 +188,23 @@ void PadGrid::paint (juce::Graphics& g)
             g.setGradientFill (juce::ColourGradient (col.withAlpha (0.20f), b.getX(), b.getY(),
                                                      col.withAlpha (0.03f), b.getX(), b.getBottom(), false));
             g.fillRoundedRectangle (b, rad);
+        }
+        const auto info = rangeInfo (i);
+        if (! filled && info.coveredBy >= 0)
+        {
+            // Pad vuoto ma la sua nota suona un'altra cella (range esteso): banda del colore di quella cella
+            const auto src = juce::Colour (kit.cells[(size_t) info.coveredBy].colour);
+            g.setColour (src.withAlpha (0.13f));
+            g.fillRoundedRectangle (b, rad);
+            g.setColour (src.withAlpha (0.35f));
+            for (float x = b.getX() - b.getHeight(); x < b.getRight(); x += 9.0f * s)
+            {
+                juce::Graphics::ScopedSaveState save (g);
+                juce::Path clip;
+                clip.addRoundedRectangle (b, rad);
+                g.reduceClipRegion (clip);
+                g.drawLine (x, b.getBottom(), x + b.getHeight(), b.getY(), 1.0f);
+            }
         }
         if (active)
         {
@@ -200,6 +272,33 @@ void PadGrid::paint (juce::Graphics& g)
             g.setColour (theme::danger);
             g.setFont (juce::FontOptions (juce::jmax (8.0f, 10.0f * s), juce::Font::bold));
             g.drawText ("MISSING", textArea, juce::Justification::bottomLeft);
+        }
+        else
+        {
+            // Tasto (o intervallo di tasti) che suona la cella; nei pad vuoti coperti da un'altra cella, quale cella li copre
+            g.setFont (juce::FontOptions (juce::jmax (8.0f, 10.0f * s), juce::Font::bold));
+            if (! filled && info.coveredBy >= 0)
+            {
+                g.setColour (juce::Colour (kit.cells[(size_t) info.coveredBy].colour).brighter (0.2f));
+                g.drawText (juce::String (juce::CharPointer_UTF8 ("\xe2\x86\x90 ")) + theme::cellId (info.coveredBy, kit.cols),
+                            textArea, juce::Justification::centred);
+            }
+            g.setColour (theme::text.withAlpha (0.55f));
+            if (filled || info.coveredBy >= 0 || c.lowNote != c.highNote)
+                g.drawText (rangeText (c), textArea, juce::Justification::bottomLeft);
+        }
+
+        // Avviso: due celle con campione condividono dei tasti e suonano insieme
+        if (! info.overlaps.empty() && filled)
+        {
+            const auto tri = juce::Rectangle<float> (b.getRight() - 17.0f * s, b.getY() + 4.0f * s, 12.0f * s, 11.0f * s);
+            juce::Path p;
+            p.addTriangle (tri.getCentreX(), tri.getY(), tri.getRight(), tri.getBottom(), tri.getX(), tri.getBottom());
+            g.setColour (theme::accent);
+            g.fillPath (p);
+            g.setColour (juce::Colour (0xff1a1006));
+            g.setFont (juce::FontOptions (juce::jmax (7.0f, 9.0f * s), juce::Font::bold));
+            g.drawText ("!", tri.translated (0.0f, 1.5f * s), juce::Justification::centred);
         }
 
         // Pallino arancione: la cella e' nel sequencer

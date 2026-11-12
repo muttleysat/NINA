@@ -53,6 +53,13 @@ Di default il pad **A1 suona C1** (nota MIDI 36) e ogni pad successivo la nota d
 - Se **Key low** e **Key high** sono diversi, la cella suona su più tasti e il campione viene **trasposto** rispetto a **Root note**: è il modo per suonare un campione in modo melodico.
 - Più celle possono rispondere alla stessa nota: suonano insieme (layer).
 
+**Cosa si vede sui pad:**
+- In basso a sinistra di ogni pad compare il **tasto** della cella (per esempio `C1`) oppure l'**intervallo** (`C1 - C2`).
+- Un pad **vuoto** la cui nota rientra nell'intervallo di un'altra cella si vede con **strisce** del colore di quella cella e la scritta `← A1`: significa che premendo quel tasto suona la cella A1, e che caricando un campione in quel pad le due celle suonerebbero insieme.
+- Un triangolo arancione **!** in alto a destra segnala che due celle **con campione** condividono dei tasti. Passando il mouse sul pad, il tooltip elenca quali.
+
+Nota: le note dei tasti MIDI valgono anche per il sequencer, ma ogni riga suona la sua cella solo con la nota **Key low**; gli altri tasti dell'intervallo servono per suonare dalla tastiera.
+
 ## Loop e tempo (Sync, Key lock)
 
 Per far seguire a un loop (per esempio un breakbeat o un giro di batteria) il **BPM del progetto**:
