@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "sequencer/SequencerExport.h"
+#include <set>
 
 SampleLabProcessor::SampleLabProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Main", juce::AudioChannelSet::stereo(), true))
@@ -243,6 +244,17 @@ bool SampleLabProcessor::bouncePatternWav (const juce::File& file, int bars, juc
     auto out = sl::SequencerExport::renderOffline (*eng, activePattern(), bars, bpm, sr);
     const int totalSamples = out.getNumSamples();
 
+    // Si taglia il silenzio finale oltre la coda
+    int lastAudible = totalSamples;
+    while (lastAudible > 0 && out.getMagnitude (0, lastAudible - 1, 1) < 1.0e-5f && out.getMagnitude (1, lastAudible - 1, 1) < 1.0e-5f)
+        --lastAudible;
+    lastAudible = juce::jmin (totalSamples, lastAudible + (int) (0.05 * sr));
+
+    return writeWav24 (file, out, sr, lastAudible, error);
+}
+
+bool SampleLabProcessor::writeWav24 (const juce::File& file, const juce::AudioBuffer<float>& audio, double sr, int numSamples, juce::String& error)
+{
     file.deleteFile();
     juce::WavAudioFormat wav;
     std::unique_ptr<juce::FileOutputStream> stream (file.createOutputStream());
@@ -258,14 +270,53 @@ bool SampleLabProcessor::bouncePatternWav (const juce::File& file, int bars, juc
         return false;
     }
     stream.release();                                                  // il writer ne e' proprietario
+    return writer->writeFromAudioSampleBuffer (audio, 0, numSamples);
+}
 
-    // Si taglia il silenzio finale oltre la coda
-    int lastAudible = totalSamples;
-    while (lastAudible > 0 && out.getMagnitude (0, lastAudible - 1, 1) < 1.0e-5f && out.getMagnitude (1, lastAudible - 1, 1) < 1.0e-5f)
-        --lastAudible;
-    lastAudible = juce::jmin (totalSamples, lastAudible + (int) (0.05 * sr));
+// Un file WAV per ogni riga del pattern (le "tracce" separate), con gli effetti della sua cella (filtro, saturazione, send,
+// delay sincronizzato al tempo, riverbero e relative code) ma senza gli effetti master. Tutti della stessa lunghezza,
+// per allinearli in Cubase.
+int SampleLabProcessor::exportPatternStems (const juce::File& folder, int bars, juce::String& error)
+{
+    const double sr = currentSampleRate > 0.0 ? currentSampleRate : 44100.0;
+    const double bpm = currentBpm.load();
+    const auto& pattern = activePattern();
 
-    return writer->writeFromAudioSampleBuffer (out, 0, lastAudible);
+    if (! folder.createDirectory().wasOk())
+    {
+        error = "Impossibile creare la cartella " + folder.getFullPathName();
+        return -1;
+    }
+
+    int written = 0;
+    std::set<juce::String> used;
+    for (int i = 0; i < (int) pattern.lanes.size(); ++i)
+    {
+        const int cell = pattern.lanes[(size_t) i].cell;
+        if (cell < 0 || cell >= kit.numCells())
+            continue;
+
+        auto eng = std::make_unique<sl::Engine>();
+        eng->prepare (sr, 512);
+        eng->publish (buildSnapshot());
+        params.fillLive (eng->live);
+        eng->live.bpm = bpm;
+        eng->live.masterFx = sl::FxParams();                        // niente effetti master negli stem: si rimixano nella DAW
+        eng->live.masterGain = 1.0f;
+
+        auto audio = sl::SequencerExport::renderOffline (*eng, sl::SequencerExport::isolateLane (pattern, i), bars, bpm, sr);
+
+        juce::String base = sl::KitIO::sanitiseName (sl::cellLabel (cell, kit.cols) + "_" + (kit.cells[(size_t) cell].name.isEmpty() ? juce::String ("cell") : kit.cells[(size_t) cell].name));
+        juce::String name = base;
+        for (int n = 2; used.count (name) > 0; ++n)
+            name = base + "_" + juce::String (n);
+        used.insert (name);
+
+        if (! writeWav24 (folder.getChildFile (name + ".wav"), audio, sr, audio.getNumSamples(), error))
+            return -1;
+        ++written;
+    }
+    return written;
 }
 
 sl::SampleDataPtr SampleLabProcessor::getCellData (int cell) const

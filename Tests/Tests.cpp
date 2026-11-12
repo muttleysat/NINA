@@ -1302,6 +1302,55 @@ public:
             expectEquals (maxDiff, 0.0f);                            // render identico a ogni esecuzione
         }
 
+        beginTest ("Export: each lane as its own file (equal length) adds up to the full mix");
+        {
+            auto impulseS = [] (float amp)
+            {
+                auto d = std::make_shared<SampleData>();
+                d->audio.setSize (1, 100); d->audio.clear(); d->audio.setSample (0, 0, amp); d->sampleRate = kSR;
+                return SampleDataPtr (d);
+            };
+
+            Pattern p;
+            for (int i = 0; i < 2; ++i)
+            {
+                Lane l; l.cell = i; l.division = 4; l.length = 4;
+                l.steps[i].on = true;                              // lane 0 sul beat 1, lane 1 sul beat 2
+                p.lanes.push_back (l);
+            }
+
+            auto makeRig = [&] ()
+            {
+                auto c0 = cell (36);
+                c0.fx.delayOn = true; c0.fx.delaySync = true; c0.fx.delayDivision = 4;      // 1/4: l'effetto resta nel suo stem
+                c0.fx.delayFeedback = 0.0f; c0.fx.delayMix = 1.0f;
+                auto c1 = cell (37);
+                c1.fx.satOn = true; c1.fx.drive = 12.0f;
+                auto r = std::make_unique<Rig>();
+                r->setCells ({ { c0, impulseS (0.8f) }, { c1, impulseS (0.5f) } });
+                r->engine.live.bpm = 120.0;
+                return r;
+            };
+
+            auto full = makeRig();
+            auto mix = SequencerExport::renderOffline (full->engine, p, 1, 120.0, kSR, 2.0);
+
+            auto r0 = makeRig(), r1 = makeRig();
+            auto s0 = SequencerExport::renderOffline (r0->engine, SequencerExport::isolateLane (p, 0), 1, 120.0, kSR, 2.0);
+            auto s1 = SequencerExport::renderOffline (r1->engine, SequencerExport::isolateLane (p, 1), 1, 120.0, kSR, 2.0);
+
+            expectEquals (s0.getNumSamples(), mix.getNumSamples());                         // stessa lunghezza: si allineano nella DAW
+            expectEquals (s1.getNumSamples(), mix.getNumSamples());
+            expect (peak (s0, 0, 50) > 0.5f && peak (s1, 0, 50) < 0.001f, "stem 0 has only lane 0 at beat 1");
+            expect (peak (s0, 22000, 22100) > 0.5f, "stem 0 keeps its own delay echo");       // eco del colpo a 500 ms
+            expect (peak (s1, 22000, 22100) > 0.1f, "stem 1 has lane 1 at beat 2 (saturated by its own effect)");
+
+            float maxDiff = 0.0f;
+            for (int i = 0; i < mix.getNumSamples(); ++i)
+                maxDiff = juce::jmax (maxDiff, std::abs (mix.getSample (0, i) - (s0.getSample (0, i) + s1.getSample (0, i))));
+            expect (maxDiff < 1.0e-5f, "stems must sum to the full mix, diff " + juce::String (maxDiff));
+        }
+
         // ------------------------------------------------------- MIDI learn
 
         auto ccBuffer = [] (int cc, int value)

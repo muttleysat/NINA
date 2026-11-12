@@ -48,6 +48,7 @@ private:
     void showAddMenu();
     void exportMidi();
     void bounceWav();
+    void exportStems();
     juce::File defaultExportFile (const juce::String& extension) const;
     int bars() const { return 1 << juce::jmax (0, barsBox.getSelectedId() - 1); }   // 1, 2, 4, 8
     void showMessage (const juce::String& text);
@@ -56,7 +57,7 @@ private:
 
     // Trasporto e pattern
     juce::TextButton playButton { "Play" }, addButton { "+ Cell" }, midiButton { "Export MIDI" }, wavButton { "Bounce WAV" },
-                     reseedButton { "Reset seed" }, prevPattern { "<" }, nextPattern { ">" };
+                     stemsButton { "Export lanes" }, reseedButton { "Reset seed" }, prevPattern { "<" }, nextPattern { ">" };
     juce::ComboBox patternBox, barsBox;
     juce::Slider swingSlider;
     juce::TextButton pageButtons[4];

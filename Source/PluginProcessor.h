@@ -60,6 +60,7 @@ public:
     // Esportazione del pattern attivo: clip MIDI e audio (WAV 24 bit con effetti, lock e tail)
     bool exportPatternMidi (const juce::File& file, int bars, juce::String& error);
     bool bouncePatternWav (const juce::File& file, int bars, juce::String& error);
+    int exportPatternStems (const juce::File& folder, int bars, juce::String& error);    // un WAV per riga; ritorna quanti, -1 se errore
 
     // ---- MIDI learn dei parametri ----
     sl::MidiLearn& getMidiLearn() { return midiLearn; }
@@ -118,6 +119,7 @@ public:
 private:
     void publishKit (bool newGeneration);
     void publishPattern();
+    static bool writeWav24 (const juce::File& file, const juce::AudioBuffer<float>& audio, double sampleRate, int numSamples, juce::String& error);
     std::shared_ptr<sl::KitSnapshot> buildSnapshot() const;
     void loadKitSamples();
     void addRecentKit (const juce::File& file);

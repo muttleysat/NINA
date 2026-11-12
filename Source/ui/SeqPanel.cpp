@@ -541,6 +541,11 @@ struct SeqPanel::FxCard
     juce::ToggleButton power;
     std::vector<std::unique_ptr<FxKnob>> knobs;          // lock per step (colpo per colpo)
     std::vector<std::unique_ptr<CellKnob>> cellKnobs;    // parametri della cella, condivisi
+    // Solo per il delay: Sync al tempo e valore musicale (parametri della cella)
+    std::unique_ptr<juce::TextButton> syncButton;
+    std::unique_ptr<juce::ComboBox> divisionBox;
+    std::unique_ptr<juce::ButtonParameterAttachment> syncAttachment;
+    std::unique_ptr<juce::ComboBoxParameterAttachment> divisionAttachment;
     int attachedCell = -2;
     juce::Rectangle<int> bounds;
 
@@ -557,8 +562,13 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     addAndMakeVisible (viewport);
 
     // Il Play/Stop e' nella barra in alto dell'applicazione (e con la barra spaziatrice)
-    for (auto* b : { &addButton, &midiButton, &wavButton, &reseedButton, &prevPattern, &nextPattern })
+    for (auto* b : { &addButton, &midiButton, &wavButton, &stemsButton, &reseedButton, &prevPattern, &nextPattern })
         addAndMakeVisible (*b);
+    stemsButton.setTooltip ("Each lane as its own WAV file (same length, so they line up): with the cell's effects but without the master effects. "
+                            "Drop them on separate tracks in your DAW.");
+    wavButton.setTooltip ("The whole sequence as ONE audio file: cell effects, step locks, tempo-synced delay, tails and master effects included");
+    midiButton.setTooltip ("The notes as a MIDI clip (effects are not part of MIDI: use Bounce WAV or Export lanes for those)");
+    stemsButton.onClick = [this] { exportStems(); };
 
     addButton.onClick = [this] { showAddMenu(); };
     midiButton.onClick = [this] { exportMidi(); };
@@ -711,6 +721,18 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     addCard ("Filter", sl::FxB::Filter, { { "Cutoff", F::Cutoff }, { "Reso", F::Resonance } });
     addCard ("Delay", sl::FxB::Delay, { { "Send", F::DelayMix } }, { { "Time", F::DelayTime }, { "Feedback", F::DelayFeedback } });
     addCard ("Reverb", sl::FxB::Reverb, { { "Send", F::ReverbMix } }, { { "Size", F::ReverbSize }, { "Damp", F::ReverbDamp } });
+
+    // Sync del delay al tempo del progetto (DAW o BPM interno): valore musicale 1/4, 1/8, 1/16T...
+    for (auto& card : fxCards)
+        if (card->effect == sl::FxB::Delay)
+        {
+            card->syncButton = std::make_unique<juce::TextButton> ("Sync");
+            card->syncButton->setTooltip ("Lock the delay time to the project tempo (host or internal BPM)");
+            card->divisionBox = std::make_unique<juce::ComboBox>();
+            card->divisionBox->setTooltip ("Note value of the delay when Sync is on");
+            addAndMakeVisible (*card->syncButton);
+            addAndMakeVisible (*card->divisionBox);
+        }
 
     refresh();
     startTimerHz (30);
@@ -940,17 +962,34 @@ void SeqPanel::refreshEditor()
             }
             ck->box->slider.setEnabled (cell >= 0);
         }
+        // Sync e valore musicale del delay agganciati ai parametri della cella
+        if (card->syncButton != nullptr && card->attachedCell != cell)
+        {
+            card->syncAttachment.reset();
+            card->divisionAttachment.reset();
+            if (cell >= 0)
+            {
+                const auto& refs = processor.getParams().cell (cell).fx;
+                card->syncAttachment = std::make_unique<juce::ButtonParameterAttachment> (*refs.delaySync, *card->syncButton);
+                card->divisionBox->clear (juce::dontSendNotification);
+                card->divisionBox->addItemList (refs.delayDivision->choices, 1);
+                card->divisionAttachment = std::make_unique<juce::ComboBoxParameterAttachment> (*refs.delayDivision, *card->divisionBox);
+            }
+            card->syncButton->setEnabled (cell >= 0);
+        }
         card->attachedCell = cell;
 
-        // Con il sync acceso il tempo libero non conta: si imposta il valore musicale nella scheda FX
+        // Con il sync acceso conta il valore musicale e il tempo libero (ms) si disattiva; senza sync e' il contrario
         if (cell >= 0 && card->effect == sl::FxB::Delay)
         {
             const bool sync = processor.getParams().cell (cell).fx.delaySync->get();
+            card->divisionBox->setEnabled (sync);
+            card->divisionBox->setAlpha (sync ? 1.0f : 0.5f);
             for (auto& ck : card->cellKnobs)
                 if (ck->which == sl::FxF::DelayTime)
                 {
                     ck->box->slider.setEnabled (! sync);
-                    ck->box->slider.setTooltip (sync ? "Delay is synced to the tempo: choose the note value in the FX tab"
+                    ck->box->slider.setTooltip (sync ? "Delay is synced to the tempo: choose the note value with the menu above"
                                                      : "Cell setting shared by all steps (same as in the FX tab)");
                 }
         }
@@ -1047,6 +1086,39 @@ void SeqPanel::bounceWav()
                                   showMessage ("Audio bounced:\n" + f.getFullPathName());
                               else
                                   showMessage (err.isEmpty() ? juce::String ("Bounce failed") : err);
+                          });
+}
+
+void SeqPanel::exportStems()
+{
+    if (pat().lanes.empty())
+    {
+        showMessage ("There are no lanes in the sequencer yet: add cells first.");
+        return;
+    }
+
+    const auto start = defaultExportFile ("").getParentDirectory();
+    chooser = std::make_unique<juce::FileChooser> ("Choose where to create the folder with one file per lane", start, "*", true);
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
+                          [this] (const juce::FileChooser& fc)
+                          {
+                              const auto parent = fc.getResult();
+                              if (parent == juce::File())
+                                  return;
+
+                              const auto folderName = sl::KitIO::sanitiseName (processor.getKit().name + "_" + pat().name + "_"
+                                                                              + juce::String (juce::roundToInt (processor.getCurrentBpm())) + "bpm_"
+                                                                              + juce::String (bars()) + "bar_lanes");
+                              const auto folder = parent.getChildFile (folderName);
+                              juce::String err;
+                              const int n = processor.exportPatternStems (folder, bars(), err);
+                              if (n >= 0)
+                                  showMessage (juce::String (n) + " lane file(s) written to:\n" + folder.getFullPathName()
+                                               + "\n\nAll files have the same length: place them at the start of the same bar in your DAW. "
+                                                 "They include each cell's effects and the delay synced to " + juce::String (processor.getCurrentBpm(), 1)
+                                               + " BPM, but not the master effects.");
+                              else
+                                  showMessage (err.isEmpty() ? juce::String ("Export failed") : err);
                           });
 }
 
@@ -1169,6 +1241,8 @@ void SeqPanel::resized()
     midiButton.setBounds (row2.removeFromLeft ((int) (104 * s)));
     row2.removeFromLeft (gap);
     wavButton.setBounds (row2.removeFromLeft ((int) (104 * s)));
+    row2.removeFromLeft (gap);
+    stemsButton.setBounds (row2.removeFromLeft ((int) (104 * s)));
     const int pw = juce::jmin ((int) (58 * s), juce::jmax (30, row2.getWidth() / 4));
     auto pages = row2.removeFromRight (pw * 4);
     for (auto& b : pageButtons)
@@ -1223,6 +1297,13 @@ void SeqPanel::resized()
         c.power.setBounds (juce::Rectangle<int> (c.bounds.getRight() - pw2 - (int) (6 * s), c.bounds.getY() + (int) (4 * s), pw2, (int) (16 * s)));
 
         auto inner = c.bounds.reduced ((int) (4 * s), 0).withTrimmedTop ((int) (22 * s)).withTrimmedBottom ((int) (4 * s));
+        if (c.syncButton != nullptr)
+        {
+            auto syncRow = inner.removeFromTop ((int) (22 * s)).reduced ((int) (2 * s), 0);
+            c.syncButton->setBounds (syncRow.removeFromLeft (syncRow.getWidth() * 36 / 100));
+            syncRow.removeFromLeft ((int) (4 * s));
+            c.divisionBox->setBounds (syncRow);
+        }
         const int n = (int) c.numKnobs();
         const int cw = inner.getWidth() / juce::jmax (1, n);
         for (auto& k : c.knobs)

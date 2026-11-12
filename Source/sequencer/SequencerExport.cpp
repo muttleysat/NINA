@@ -54,6 +54,17 @@ bool writeMidiFile (const juce::MidiFile& midi, const juce::File& file)
     return out.openedOk() && midi.writeTo (out);
 }
 
+Pattern isolateLane (const Pattern& pattern, int lane)
+{
+    Pattern p = pattern;
+    for (int i = 0; i < (int) p.lanes.size(); ++i)
+    {
+        p.lanes[(size_t) i].mute = (i != lane);
+        p.lanes[(size_t) i].solo = false;
+    }
+    return p;
+}
+
 juce::AudioBuffer<float> renderOffline (Engine& engine, const Pattern& pattern, int bars, double bpm, double sr, double tailSeconds)
 {
     constexpr int block = 512;

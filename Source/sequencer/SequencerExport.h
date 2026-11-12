@@ -16,6 +16,9 @@ juce::MidiFile toMidiFile (const Pattern& pattern, const Kit& kit, int bars, dou
 // Scrive il file .mid (ritorna false in caso di errore)
 bool writeMidiFile (const juce::MidiFile& midi, const juce::File& file);
 
+// Copia del pattern in cui suona solo la lane indicata (per l'esportazione degli stem: un file per cella)
+Pattern isolateLane (const Pattern& pattern, int lane);
+
 // Rendering offline (SQ-10): suona il pattern dall'inizio per 'bars' battute con un motore gia' preparato
 // (prepare, snapshot pubblicato, parametri live impostati) e aggiunge 'tailSeconds' per le code di delay/riverbero.
 // Piu' veloce del tempo reale, senza passare dalla DAW.
