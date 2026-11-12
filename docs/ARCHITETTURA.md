@@ -92,17 +92,17 @@ Kit
 - `schemaVersion` con funzioni di migrazione.
 - Lo stato nel progetto della DAW contiene il riferimento al `.slkit` più lo stato non ancora salvato.
 
-## 5.1 Parametri e automazione (da introdurre prima di aggiungere altri effetti)
+## 5.1 Parametri e automazione (implementato)
 
-Oggi i parametri vivono in `Kit` e arrivano al motore tramite snapshot: non sono visibili alla DAW. Per rispettare AU-1…AU-11 serve un **registro dei parametri** unico:
+Tutti i valori automatizzabili sono parametri JUCE/VST3 raccolti in `ParamSet` (`Source/params/`):
 
-- Ogni parametro ha: ID stabile (es. `c012.filter.cutoff`), nome, gruppo (VST3 unit/`AudioProcessorParameterGroup`: *Cell A1 > Filter*), intervallo, curva, unità e testo del valore.
-- Il valore corrente è un atomico letto dal thread audio; l'interfaccia, la DAW (automazione), il MIDI learn e il sequencer (lock per step) scrivono sullo stesso valore, con regole di priorità (AU-9).
-- Il `Kit` salva i valori nel `.slkit`; allo stesso modo il caricamento di un kit imposta i parametri notificando la DAW.
-- Gli ID sono costruiti da posizione della cella + nome del parametro e non cambiano tra le versioni (AU-4).
-- Numero di parametri: ~35 per cella × fino a 128 celle (~4500) + master. JUCE e Cubase lo gestiscono, ma l'istanziazione va misurata (AU-5): se serve si limita il numero di celle esposte.
-
-Il motore continua a leggere uno snapshot per le parti non automatizzabili (campioni, mapping).
+- **ID stabili**: `c00.level`, `c00.filter.cutoff`, `c47.reverb.mix`, `master.level`… (cella a due cifre + nome). Non devono cambiare tra le versioni (AU-4): un test verifica un elenco di ID di riferimento.
+- **Nomi leggibili e gruppi**: "A1 Filter Cutoff", raggruppati come *Cell A1 > A1 Filter > ...* e *Master > ...*; il testo del valore include l'unità ("2400 Hz", "Gate", "On").
+- **Numero**: 38 parametri per cella × 48 celle + 26 del master = 1.850.
+- **Fonte di verità**: i parametri, non il `Kit`. Il thread audio li legge a ogni blocco (`ParamSet::fillLive` → `Engine::LiveParams`), quindi l'automazione funziona anche nell'export offline. Il `Kit` conserva i valori solo per il salvataggio (`writeToKit` prima di salvare, `readFromKit` dopo il caricamento).
+- **Interfaccia**: le manopole usano `SliderParameterAttachment` (e i corrispondenti per bottoni e combo): seguono l'automazione e aprono/chiudono i gesti verso la DAW (Write/Touch/Latch). I marker Start/End della forma d'onda aprono un gesto al trascinamento.
+- **Parti non automatizzabili**: campioni e mapping delle note (root/low/high) restano nello snapshot pubblicato dal thread UI.
+- Il sequencer (lock per step) e il MIDI learn scriveranno sugli stessi parametri (AU-9, AU-10).
 
 ## 6. Interfaccia e ridimensionamento
 

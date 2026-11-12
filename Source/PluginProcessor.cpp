@@ -4,9 +4,24 @@
 SampleLabProcessor::SampleLabProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Main", juce::AudioChannelSet::stereo(), true))
 {
+    // Parametri esposti alla DAW (automazione): gruppi per cella ed effetto, nomi leggibili, ID stabili
+    for (auto& group : params.releaseGroups())
+        addParameterGroup (std::move (group));
+
+    for (auto* p : params.all())
+        p->addListener (&dirtyListener);
+
     formats.registerBasicFormats();
     cellData.resize (kit.cells.size());
     publishKit (true);
+    params.readFromKit (kit);
+    dirty = false;
+}
+
+SampleLabProcessor::~SampleLabProcessor()
+{
+    for (auto* p : params.all())
+        p->removeListener (&dirtyListener);
 }
 
 void SampleLabProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
@@ -25,6 +40,10 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     juce::ScopedNoDenormals noDenormals;
 
     keyboardState.processNextMidiBuffer (midi, 0, buffer.getNumSamples(), true);
+
+    // Valori correnti dei parametri (manopole, automazione della DAW) letti a ogni blocco: l'automazione
+    // e' quindi applicata anche nell'export offline, senza passare dal thread dell'interfaccia.
+    params.fillLive (engine.live);
 
     buffer.clear();
     engine.process (buffer, midi);
@@ -75,17 +94,17 @@ void SampleLabProcessor::publishKit (bool newGeneration)
 
     auto snap = std::make_shared<sl::KitSnapshot>();
     snap->generation = generation;
-    snap->masterGain = sl::dbToGain (kit.masterDb);
-    snap->masterFx = kit.masterFx;
     snap->cells.reserve (kit.cells.size());
 
     for (int i = 0; i < kit.numCells(); ++i)
     {
+        const auto& c = kit.cells[(size_t) i];
         sl::CellRuntime r;
         r.cellIndex = i;
-        r.dsp = sl::toDsp (kit.cells[(size_t) i]);
-        r.fx = kit.cells[(size_t) i].fx;
         r.data = cellData[(size_t) i].get();
+        r.rootNote = c.rootNote;
+        r.lowNote = c.lowNote;
+        r.highNote = c.highNote;
         snap->cells.push_back (r);
     }
     engine.publish (std::move (snap));
@@ -119,10 +138,13 @@ bool SampleLabProcessor::loadSampleIntoCell (int cell, const juce::File& file, j
     auto& c = kit.cells[(size_t) cell];
     c.samplePath = key;
     c.name = file.getFileNameWithoutExtension();
-    c.start = 0.0f;
-    c.end = 1.0f;
     c.missing = false;
     cellData[(size_t) cell] = data;
+
+    // Un nuovo campione riparte con la regione intera (Start/End sono parametri automatizzabili)
+    const auto& refs = params.cell (cell);
+    refs.at (sl::CellF::Start)->setValueNotifyingHost (0.0f);
+    refs.at (sl::CellF::End)->setValueNotifyingHost (1.0f);
 
     cellEdited (cell);
     return true;
@@ -137,16 +159,12 @@ void SampleLabProcessor::clearCell (int cell)
     c.samplePath = {};
     c.name = {};
     c.missing = false;
-    c.start = 0.0f;
-    c.end = 1.0f;
     cellData[(size_t) cell] = nullptr;
-    cellEdited (cell);
-}
 
-void SampleLabProcessor::setMasterDb (float db)
-{
-    kit.masterDb = db;
-    cellEdited (-1);
+    const auto& refs = params.cell (cell);
+    refs.at (sl::CellF::Start)->setValueNotifyingHost (0.0f);
+    refs.at (sl::CellF::End)->setValueNotifyingHost (1.0f);
+    cellEdited (cell);
 }
 
 void SampleLabProcessor::cellEdited (int)
@@ -186,8 +204,9 @@ void SampleLabProcessor::newKit()
 {
     kit = sl::Kit::makeDefault();
     cellData.assign (kit.cells.size(), nullptr);
-    dirty = false;
     publishKit (true);
+    params.readFromKit (kit);
+    dirty = false;          // dopo readFromKit: impostare i parametri li marca come modificati
 }
 
 bool SampleLabProcessor::openKit (const juce::File& file, juce::String& error)
@@ -198,14 +217,16 @@ bool SampleLabProcessor::openKit (const juce::File& file, juce::String& error)
 
     kit = std::move (k);
     loadKitSamples();
-    dirty = false;
     publishKit (true);
+    params.readFromKit (kit);
+    dirty = false;
     addRecentKit (file);
     return true;
 }
 
 bool SampleLabProcessor::saveKit (const juce::File& file, juce::String& error)
 {
+    params.writeToKit (kit);        // i valori automatizzabili vivono nei parametri: si copiano nel kit prima di scrivere
     if (! sl::KitIO::save (kit, file, error))
         return false;
 
@@ -279,13 +300,14 @@ void SampleLabProcessor::clearRecentKits()
 
 void SampleLabProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
+    params.writeToKit (kit);
     juce::ValueTree state ("SampleLabState");
     state.setProperty ("uiWidth", uiWidth, nullptr);
     state.setProperty ("uiHeight", uiHeight, nullptr);
     state.setProperty ("uiZoom", uiZoom, nullptr);
     state.setProperty ("kitJson", sl::KitIO::toJson (kit, false), nullptr);   // percorsi assoluti
     state.setProperty ("kitFile", kit.file.getFullPathName(), nullptr);
-    state.setProperty ("dirty", dirty, nullptr);
+    state.setProperty ("dirty", dirty.load(), nullptr);
 
     juce::MemoryOutputStream stream (destData, false);
     state.writeToStream (stream);
@@ -311,8 +333,9 @@ void SampleLabProcessor::setStateInformation (const void* data, int sizeInBytes)
             k.file = juce::File (state.getProperty ("kitFile", juce::String()).toString());
             kit = std::move (k);
             loadKitSamples();
-            dirty = (bool) state.getProperty ("dirty", false);
             publishKit (true);
+            params.readFromKit (kit);
+            dirty = (bool) state.getProperty ("dirty", false);
         }
     }
 }

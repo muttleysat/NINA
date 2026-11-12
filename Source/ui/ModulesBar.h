@@ -6,15 +6,14 @@
 #include "Widgets.h"
 
 // Fila di moduli della scheda Main: AMP (inviluppo, level, pan), PITCH (tune, pitch) e MASTER (volume + meter).
-class ModulesBar final : public juce::Component
+// Le manopole sono collegate ai parametri della DAW: seguono l'automazione e ne registrano i gesti.
+class ModulesBar final : public juce::Component, private juce::Timer
 {
 public:
     explicit ModulesBar (SampleLabProcessor&);
 
     void setCell (int cell);
-    void refresh();                    // rilegge i parametri dal kit
-
-    std::function<void()> onEdited;
+    void refresh();                    // ricollega le manopole ai parametri della cella selezionata
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -24,27 +23,25 @@ private:
     {
         std::unique_ptr<KnobBox> box;
         int module = 0;
-        std::function<float (const sl::CellParams&)> get;
-        std::function<void (sl::CellParams&, float)> set;
+        sl::CellF which = sl::CellF::Level;
+        std::unique_ptr<juce::SliderParameterAttachment> attachment;
     };
 
     enum Module { Amp = 0, Pitch, Master, numModules };
 
-    void addKnob (int module, const juce::String& title, double min, double max, double step, double def, double skewMid,
-                  std::function<float (const sl::CellParams&)> get,
-                  std::function<void (sl::CellParams&, float)> set,
-                  const juce::String& suffix = {});
-    void edited();
+    void addKnob (int module, const juce::String& title, sl::CellF which);
+    void timerCallback() override;
     void updateEnvelope();
 
     SampleLabProcessor& processor;
     int cell = 0;
-    bool updating = false;
 
     std::vector<Param> params;
     EnvelopeView envelope;
     KnobBox masterKnob { "Volume" };
+    std::unique_ptr<juce::SliderParameterAttachment> masterAttachment;
     LevelMeter meter;
 
+    float lastEnv[5] = { -1, -1, -1, -1, -1 };
     juce::Rectangle<int> moduleBounds[numModules];
 };

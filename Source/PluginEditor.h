@@ -10,7 +10,8 @@
 #include "ui/SampleBrowser.h"
 
 class SampleLabEditor final : public juce::AudioProcessorEditor,
-                              public juce::DragAndDropContainer
+                              public juce::DragAndDropContainer,
+                              private juce::Timer
 {
 public:
     explicit SampleLabEditor (SampleLabProcessor&);
@@ -21,6 +22,7 @@ public:
     void mouseDown (const juce::MouseEvent&) override;
 
 private:
+    void timerCallback() override;
     void showTab (int tab);
     juce::Rectangle<int> tabRect (int index) const;
     void showSizeMenu();

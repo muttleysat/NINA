@@ -12,7 +12,18 @@ class Engine
 {
 public:
     static constexpr int kMaxVoices = 64;
-    static constexpr int kMaxCells = 128;
+    static constexpr int kMaxCells = 48;    // griglia 4x12; tutti i parametri di queste celle sono automatizzabili
+
+    // Valori automatizzabili correnti (cella per cella + master). Li scrive chi chiama process(), nello stesso thread,
+    // subito prima di ogni blocco (il processore li legge dai parametri della DAW). Nessuna copia dal thread UI.
+    struct LiveParams
+    {
+        std::array<CellDsp, kMaxCells> dsp;
+        std::array<FxParams, kMaxCells> fx;
+        FxParams masterFx;
+        float masterGain = 1.0f;
+    };
+    LiveParams live;
 
     // Alloca gli stati degli effetti: da chiamare fuori dal thread audio (prepareToPlay).
     void prepare (double sampleRate, int maxBlockSize = 1024);
@@ -40,6 +51,7 @@ public:
     }
 
 private:
+    CellDsp liveDsp (int cell) const noexcept;       // parametri live + mapping note dello snapshot
     void noteOn (int note, float velocity) noexcept;
     void noteOff (int note) noexcept;
     void renderVoices (float* l, float* r, int start, int count) noexcept;
@@ -65,5 +77,6 @@ private:
     std::array<Voice, kMaxVoices> voices;
     std::array<std::atomic<int>, kMaxCells> activity {};
     std::atomic<float> peakL { 0.0f }, peakR { 0.0f };
+    std::atomic<float> previewGain { 1.0f };
 };
 }

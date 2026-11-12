@@ -29,6 +29,8 @@ private:
     juce::TextButton prevButton { "<" }, nextButton { ">" }, loadButton { "Load" };
     juce::TextButton modeButtons[3];
     juce::ToggleButton reverseButton { "Reverse" };
+    std::unique_ptr<juce::ParameterAttachment> modeAttachment;            // modalita' e reverse sono parametri automatizzabili
+    std::unique_ptr<juce::ButtonParameterAttachment> reverseAttachment;
 
     // Mapping MIDI della cella: nota originale del campione e intervallo di tasti che la fanno suonare
     juce::Slider rootSlider, lowSlider, highSlider;

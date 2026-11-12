@@ -5,11 +5,17 @@
 
 namespace sl
 {
+// "A1", "B7"...: riga (lettera) e colonna (numero) della cella
+inline juce::String cellLabel (int cell, int cols)
+{
+    return juce::String::charToString ((juce::juce_wchar) ('A' + cell / cols)) + juce::String (cell % cols + 1);
+}
+
 struct Kit
 {
     static constexpr int kSchemaVersion = 1;
     static constexpr int kFirstNote = 36;   // C1 (convenzione C3 = 60, come Cubase)
-    static constexpr int kMaxCells = 128;
+    static constexpr int kMaxCells = 48;    // griglia 4x12: tutti i parametri sono automatizzabili (vedi ParamSet)
 
     juce::String name = "Untitled";
     int rows = 4, cols = 12;

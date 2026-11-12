@@ -15,12 +15,14 @@ public:
     juce::uint64 getAge() const noexcept { return age; }
     TriggerMode getMode() const noexcept { return dsp.mode; }
 
-    void start (const CellRuntime& cell, int noteNumber, float velocity01, double outputSampleRate, juce::uint64 ageStamp) noexcept;
+    void start (const SampleData* sample, const CellDsp& params, int cell, int noteNumber, float velocity01,
+                double outputSampleRate, juce::uint64 ageStamp) noexcept;
     void release() noexcept;
     void kill() noexcept { active = false; }
 
-    // Applica i parametri aggiornati della cella a una voce gia' in riproduzione (pitch, tune, level, pan, inviluppo, regione).
-    void updateParams (const CellRuntime& cell) noexcept;
+    // Applica i parametri aggiornati (automazione, manopole) a una voce gia' in riproduzione:
+    // pitch, tune, level, pan, inviluppo, regione. Non fa nulla se i valori sono invariati.
+    void updateDsp (const CellDsp& params) noexcept;
 
     // Somma l'uscita nei buffer l / r
     void render (float* l, float* r, int numSamples) noexcept;

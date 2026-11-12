@@ -122,6 +122,8 @@ void WaveformView::mouseMove (const juce::MouseEvent& e)
 void WaveformView::mouseDown (const juce::MouseEvent& e)
 {
     dragging = sample != nullptr ? handleAt (e.x) : Handle::None;
+    if (dragging != Handle::None && onRegionDragStart)
+        onRegionDragStart();
 }
 
 void WaveformView::mouseDrag (const juce::MouseEvent& e)

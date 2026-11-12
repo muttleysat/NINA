@@ -42,14 +42,6 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
         refreshTopBar();
     };
 
-    auto edited = [this]
-    {
-        grid.repaint();
-        refreshTopBar();
-    };
-    waveStrip.onEdited = edited;
-    modules.onEdited = edited;
-    fxPanel.onEdited = edited;
     cellPanel.onEdited = [this]
     {
         grid.repaint();
@@ -62,10 +54,18 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     setSize (processor.uiWidth, processor.uiHeight);
     sizeButton.setButtonText ("Size " + juce::String (juce::roundToInt (processor.uiZoom * 100.0f)) + "%");
     refreshAll();
+    startTimerHz (10);
+}
+
+// Il nome del kit mostra l'asterisco anche quando un parametro cambia dall'automazione o dal MIDI
+void SampleLabEditor::timerCallback()
+{
+    refreshTopBar();
 }
 
 SampleLabEditor::~SampleLabEditor()
 {
+    stopTimer();
     if (&juce::LookAndFeel::getDefaultLookAndFeel() == &lnf)
         juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
 }

@@ -3,40 +3,65 @@
 WaveStrip::WaveStrip (SampleLabProcessor& p) : processor (p)
 {
     addAndMakeVisible (waveform);
+
+    // Gesto verso la DAW: inizia quando si afferra un marker, finisce quando si rilascia
+    waveform.onRegionDragStart = [this]
+    {
+        startParam()->beginChangeGesture();
+        endParam()->beginChangeGesture();
+    };
     waveform.onRegionChanged = [this] (float s, float e)
     {
-        auto& c = processor.getKit().cells[(size_t) cell];
-        c.start = s;
-        c.end = e;
-        edited();
+        startParam()->setValueNotifyingHost (startParam()->convertTo0to1 (s));
+        endParam()->setValueNotifyingHost (endParam()->convertTo0to1 (e));
+        shownStart = s;
+        shownEnd = e;
+        repaint (readout);
     };
+    waveform.onRegionCommitted = [this]
+    {
+        startParam()->endChangeGesture();
+        endParam()->endChangeGesture();
+    };
+
     setCell (0);
+    startTimerHz (20);
 }
+
+juce::AudioParameterFloat* WaveStrip::startParam() const { return processor.getParams().cell (cell).at (sl::CellF::Start); }
+juce::AudioParameterFloat* WaveStrip::endParam() const { return processor.getParams().cell (cell).at (sl::CellF::End); }
 
 void WaveStrip::setCell (int c)
 {
-    cell = juce::jlimit (0, juce::jmax (0, processor.getKit().numCells() - 1), c);
+    cell = juce::jlimit (0, sl::kNumCells - 1, c);
     refresh();
 }
 
 void WaveStrip::refresh()
 {
-    if (cell >= processor.getKit().numCells())
-        cell = 0;
-
     const auto& c = processor.getKit().cells[(size_t) cell];
     waveform.setSample (processor.getCellData (cell), juce::Colour (c.colour));
-    waveform.setRegion (c.start, c.end);
+    shownStart = startParam()->get();
+    shownEnd = endParam()->get();
+    waveform.setRegion (shownStart, shownEnd);
     waveform.setEnabled (c.hasSample() && ! c.missing);
     repaint();
 }
 
-void WaveStrip::edited()
+void WaveStrip::timerCallback()
 {
-    processor.cellEdited (cell);
-    repaint (readout);
-    if (onEdited)
-        onEdited();
+    // Start/End possono cambiare dall'automazione della DAW: si aggiornano marker e letture
+    if (waveform.isDragging())
+        return;
+
+    const float s = startParam()->get(), e = endParam()->get();
+    if (s != shownStart || e != shownEnd)
+    {
+        shownStart = s;
+        shownEnd = e;
+        waveform.setRegion (s, e);
+        repaint (readout);
+    }
 }
 
 double WaveStrip::lengthMs() const
@@ -61,7 +86,7 @@ void WaveStrip::paint (juce::Graphics& g)
     auto inner = idBox.reduced ((int) (10 * s), (int) (8 * s));
     g.setColour (col);
     g.setFont (juce::FontOptions (juce::jmax (12.0f, 19.0f * s), juce::Font::bold));
-    g.drawText (theme::cellId (cell, kit.cols), inner.removeFromTop ((int) (24 * s)), juce::Justification::topLeft);
+    g.drawText (sl::cellLabel (cell, kit.cols), inner.removeFromTop ((int) (24 * s)), juce::Justification::topLeft);
     g.setColour (theme::text.withAlpha (0.8f));
     g.setFont (juce::FontOptions (juce::jmax (9.0f, 12.0f * s)));
     g.drawFittedText (c.hasSample() ? c.name : juce::String ("(empty)"), inner, juce::Justification::topLeft, 2);
@@ -76,7 +101,7 @@ void WaveStrip::paint (juce::Graphics& g)
     g.drawRoundedRectangle (readout.toFloat().reduced (0.5f), 8.0f * s, 1.0f);
 
     const double len = lengthMs();
-    const double st = (double) c.start * len, en = (double) c.end * len;
+    const double st = (double) startParam()->get() * len, en = (double) endParam()->get() * len;
     auto fmt = [] (double ms) { return ms >= 1000.0 ? juce::String (ms / 1000.0, 3) + " s" : juce::String (ms, 1) + " ms"; };
     const juce::String vals[3] = { fmt (st), fmt (en), fmt (en - st) };
     const char* names[3] = { "Start", "End", "Length" };

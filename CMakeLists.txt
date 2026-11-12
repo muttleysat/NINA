@@ -43,6 +43,7 @@ set(SAMPLELAB_CORE_SOURCES
     Source/engine/SampleData.cpp
     Source/engine/Voice.cpp
     Source/engine/FxChain.cpp
+    Source/params/ParamSet.cpp
     Source/engine/Engine.cpp
     Source/kit/KitIO.cpp
 )

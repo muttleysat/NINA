@@ -10,8 +10,11 @@ public:
     void setSample (sl::SampleDataPtr data, juce::Colour colour);
     void setRegion (float start, float end);
 
+    std::function<void()> onRegionDragStart;                         // un marker viene afferrato (inizio gesto)
     std::function<void (float start, float end)> onRegionChanged;   // durante il trascinamento
-    std::function<void()> onRegionCommitted;
+    std::function<void()> onRegionCommitted;                         // marker rilasciato (fine gesto)
+
+    bool isDragging() const { return dragging != Handle::None; }
 
     void paint (juce::Graphics&) override;
     void resized() override { peaksDirty = true; }

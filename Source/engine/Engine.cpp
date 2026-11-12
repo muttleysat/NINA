@@ -25,16 +25,14 @@ void Engine::prepare (double sr, int maxBlockSize)
 
 void Engine::playPreview (const SampleData* data, float gain)
 {
+    previewGain.store (gain, std::memory_order_relaxed);
+
     auto snap = std::make_shared<KitSnapshot>();
     if (data != nullptr)
     {
         CellRuntime r;
         r.cellIndex = -1;
         r.data = data;
-        r.dsp.gain = gain;
-        r.dsp.rootNote = r.dsp.lowNote = r.dsp.highNote = 60;
-        r.dsp.attack = 0.001f;
-        r.dsp.release = 0.02f;
         snap->cells.push_back (r);
     }
     previewExchange.publish (std::move (snap));
@@ -45,6 +43,20 @@ void Engine::stopPreview()
     playPreview (nullptr, 1.0f);
 }
 
+// Parametri live della cella (automazione) + mapping delle note preso dallo snapshot
+CellDsp Engine::liveDsp (int cell) const noexcept
+{
+    CellDsp d = live.dsp[(size_t) cell];
+    if (current != nullptr && cell < (int) current->cells.size())
+    {
+        const auto& c = current->cells[(size_t) cell];
+        d.rootNote = c.rootNote;
+        d.lowNote = juce::jmin (c.lowNote, c.highNote);
+        d.highNote = juce::jmax (c.lowNote, c.highNote);
+    }
+    return d;
+}
+
 void Engine::noteOn (int note, float velocity) noexcept
 {
     if (current == nullptr)
@@ -52,7 +64,12 @@ void Engine::noteOn (int note, float velocity) noexcept
 
     for (const auto& cell : current->cells)
     {
-        if (cell.data == nullptr || note < cell.dsp.lowNote || note > cell.dsp.highNote)
+        const int c = cell.cellIndex;
+        if (cell.data == nullptr || c < 0 || c >= kMaxCells)
+            continue;
+
+        const auto d = liveDsp (c);
+        if (note < d.lowNote || note > d.highNote)
             continue;
 
         // Voce libera, altrimenti si ruba la piu' vecchia
@@ -68,7 +85,7 @@ void Engine::noteOn (int note, float velocity) noexcept
                     target = &v;
         }
 
-        target->start (cell, note, velocity, sampleRate, ++ageCounter);
+        target->start (cell.data, d, c, note, velocity, sampleRate, ++ageCounter);
     }
 }
 
@@ -105,7 +122,7 @@ void Engine::renderChunk (float* l, float* r, int n) noexcept
     for (int c = 0; c < numCells; ++c)
     {
         const bool voiceOn = hasVoice[(size_t) c];
-        const auto& fx = current->cells[(size_t) c].fx;
+        const auto& fx = live.fx[(size_t) c];
 
         if (! fx.anyOn())
         {
@@ -141,21 +158,11 @@ void Engine::renderChunk (float* l, float* r, int n) noexcept
 
 void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi) noexcept
 {
-    if (exchange.tryAcquire (current) && current != nullptr)
+    if (exchange.tryAcquire (current) && current != nullptr && current->generation != lastGeneration)
     {
-        if (current->generation != lastGeneration)
-        {
-            for (auto& v : voices)
-                v.kill();
-            lastGeneration = current->generation;
-        }
-        else
-        {
-            // Stesso kit con parametri modificati: le voci in corso seguono subito i nuovi valori
-            for (auto& v : voices)
-                if (v.isActive() && v.getCellIndex() >= 0 && v.getCellIndex() < (int) current->cells.size())
-                    v.updateParams (current->cells[(size_t) v.getCellIndex()]);
-        }
+        for (auto& v : voices)
+            v.kill();
+        lastGeneration = current->generation;
     }
 
     if (buffer.getNumChannels() < 1)
@@ -170,7 +177,14 @@ void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& 
     {
         previewVoice.kill();
         if (! previewCurrent->cells.empty())
-            previewVoice.start (previewCurrent->cells[0], 60, 1.0f, sampleRate, 0);
+        {
+            CellDsp d;
+            d.gain = previewGain.load (std::memory_order_relaxed);
+            d.rootNote = d.lowNote = d.highNote = 60;
+            d.attack = 0.001f;
+            d.release = 0.02f;
+            previewVoice.start (previewCurrent->cells[0].data, d, -1, 60, 1.0f, sampleRate, 0);
+        }
     }
     previewVoice.render (l, r, numSamples);
 
@@ -188,6 +202,11 @@ void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& 
 
     if (current == nullptr)
         return;
+
+    // Le voci in corso seguono subito i valori automatizzati / le manopole
+    for (auto& v : voices)
+        if (v.isActive() && v.getCellIndex() >= 0 && v.getCellIndex() < kMaxCells)
+            v.updateDsp (liveDsp (v.getCellIndex()));
 
     int pos = 0;
     for (const auto meta : midi)
@@ -208,10 +227,10 @@ void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& 
     renderVoices (l, r, pos, numSamples - pos);
 
     // Effetti globali del kit, poi volume master
-    masterFx.process (l, r, numSamples, current->masterFx);
+    masterFx.process (l, r, numSamples, live.masterFx);
 
-    if (current->masterGain != 1.0f)
-        buffer.applyGain (current->masterGain);
+    if (live.masterGain != 1.0f)
+        buffer.applyGain (live.masterGain);
 
     for (auto& a : activity)
         a.store (0, std::memory_order_relaxed);

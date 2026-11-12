@@ -18,22 +18,14 @@ CellPanel::CellPanel (SampleLabProcessor& p) : processor (p)
         b.setRadioGroupId (4711);
         b.onClick = [this, i]
         {
-            if (updating) return;
-            processor.getKit().cells[(size_t) cell].mode = (sl::TriggerMode) i;
-            processor.cellEdited (cell);
-            if (onEdited) onEdited();
+            // Gesto completo verso la DAW (registrabile in automazione)
+            if (modeAttachment != nullptr)
+                modeAttachment->setValueAsCompleteGesture ((float) i);
         };
         addAndMakeVisible (b);
     }
 
     reverseButton.setColour (juce::ToggleButton::textColourId, theme::text);
-    reverseButton.onClick = [this]
-    {
-        if (updating) return;
-        processor.getKit().cells[(size_t) cell].reverse = reverseButton.getToggleState();
-        processor.cellEdited (cell);
-        if (onEdited) onEdited();
-    };
     addAndMakeVisible (reverseButton);
 
     // Selettori delle note (nome nota in stile Cubase: C3 = 60)
@@ -73,10 +65,20 @@ void CellPanel::refresh()
         cell = 0;
 
     const auto& c = processor.getKit().cells[(size_t) cell];
+
+    // Modalita' di trigger e reverse seguono i parametri della cella (automazione inclusa)
+    const auto& refs = processor.getParams().cell (cell);
+    reverseAttachment.reset();
+    reverseAttachment = std::make_unique<juce::ButtonParameterAttachment> (*refs.reverse, reverseButton);
+    modeAttachment.reset();
+    modeAttachment = std::make_unique<juce::ParameterAttachment> (*refs.mode, [this] (float v)
+    {
+        for (int i = 0; i < 3; ++i)
+            modeButtons[i].setToggleState ((int) std::lround (v) == i, juce::dontSendNotification);
+    });
+    modeAttachment->sendInitialUpdate();
+
     updating = true;
-    for (int i = 0; i < 3; ++i)
-        modeButtons[i].setToggleState ((int) c.mode == i, juce::dontSendNotification);
-    reverseButton.setToggleState (c.reverse, juce::dontSendNotification);
     rootSlider.setValue (c.rootNote, juce::dontSendNotification);
     lowSlider.setValue (c.lowNote, juce::dontSendNotification);
     highSlider.setValue (c.highNote, juce::dontSendNotification);

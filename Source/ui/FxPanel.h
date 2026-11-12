@@ -6,8 +6,8 @@
 #include "Widgets.h"
 
 // Scheda FX: catena di effetti (Saturation > LoFi > Filter > Compressor > Delay > Reverb) della cella
-// selezionata oppure globale del kit (Master).
-class FxPanel final : public juce::Component
+// selezionata oppure globale del kit (Master). Tutti i controlli sono parametri automatizzabili.
+class FxPanel final : public juce::Component, private juce::Timer
 {
 public:
     explicit FxPanel (SampleLabProcessor&);
@@ -15,47 +15,40 @@ public:
     void setCell (int cell);
     void refresh();
 
-    std::function<void()> onEdited;
-
     void paint (juce::Graphics&) override;
     void resized() override;
 
 private:
-    using Getter = std::function<float (const sl::FxParams&)>;
-    using Setter = std::function<void (sl::FxParams&, float)>;
-
     struct Knob
     {
         std::unique_ptr<KnobBox> box;
-        Getter get;
-        Setter set;
+        sl::FxF which;
+        std::unique_ptr<juce::SliderParameterAttachment> attachment;
     };
 
     struct Card
     {
         juce::String title;
         float units = 3.0f;
+        sl::FxB effect = sl::FxB::Sat;
         std::unique_ptr<juce::ToggleButton> power;
-        std::function<bool (const sl::FxParams&)> getOn;
-        std::function<void (sl::FxParams&, bool)> setOn;
-        std::unique_ptr<juce::ComboBox> combo;                // solo per il filtro (tipo)
+        std::unique_ptr<juce::ButtonParameterAttachment> powerAttachment;
+        std::unique_ptr<juce::ComboBox> combo;                 // solo per il filtro (tipo)
+        std::unique_ptr<juce::ComboBoxParameterAttachment> comboAttachment;
         std::vector<Knob> knobs;
         juce::Rectangle<int> bounds;
     };
 
-    Card& addCard (const juce::String& title, float units,
-                   std::function<bool (const sl::FxParams&)> getOn, std::function<void (sl::FxParams&, bool)> setOn);
-    void addKnob (Card&, const juce::String& title, double min, double max, double step, double def, double skewMid,
-                  Getter, Setter, const juce::String& suffix = {});
-
-    sl::FxParams& target();
-    void edited();
+    Card& addCard (const juce::String& title, float units, sl::FxB effect);
+    void addKnob (Card&, const juce::String& title, sl::FxF which);
+    const sl::FxRefs& refs() const;
     void updateHeader();
+    void timerCallback() override;      // ridisegna il bordo degli effetti accesi/spenti dall'automazione
 
     SampleLabProcessor& processor;
     int cell = 0;
     bool masterTarget = false;
-    bool updating = false;
+    unsigned lastPowerMask = 0;
 
     juce::TextButton cellButton, masterButton { "Master" };
     std::vector<std::unique_ptr<Card>> cards;

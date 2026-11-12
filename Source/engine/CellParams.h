@@ -51,6 +51,8 @@ struct CellDsp
     TriggerMode mode = TriggerMode::OneShot;
     float attack = 0.0005f, hold = 0.0f, decay = 0.1f, sustain = 1.0f, release = 0.02f;
     int rootNote = 36, lowNote = 36, highNote = 36;
+
+    bool operator== (const CellDsp&) const = default;
 };
 
 inline float dbToGain (float db) { return db <= -60.0f ? 0.0f : std::pow (10.0f, db / 20.0f); }

@@ -3,102 +3,75 @@
 ModulesBar::ModulesBar (SampleLabProcessor& p)
     : processor (p), meter ([this] { return processor.getMasterLevels(); })
 {
-    using P = sl::CellParams;
-    addKnob (Amp, "Attack", 0, 2, 0.001, 0.0005, 0.1, [] (const P& c) { return c.attack; }, [] (P& c, float v) { c.attack = v; }, " s");
-    addKnob (Amp, "Hold", 0, 2, 0.001, 0, 0.1, [] (const P& c) { return c.hold; }, [] (P& c, float v) { c.hold = v; }, " s");
-    addKnob (Amp, "Decay", 0, 5, 0.001, 0.1, 0.5, [] (const P& c) { return c.decay; }, [] (P& c, float v) { c.decay = v; }, " s");
-    addKnob (Amp, "Sustain", 0, 1, 0.01, 1, -1, [] (const P& c) { return c.sustain; }, [] (P& c, float v) { c.sustain = v; });
-    addKnob (Amp, "Release", 0, 5, 0.001, 0.02, 0.5, [] (const P& c) { return c.release; }, [] (P& c, float v) { c.release = v; }, " s");
-    addKnob (Amp, "Level", -60, 12, 0.1, 0, -1, [] (const P& c) { return c.levelDb; }, [] (P& c, float v) { c.levelDb = v; }, " dB");
-    addKnob (Amp, "Pan", -1, 1, 0.01, 0, -1, [] (const P& c) { return c.pan; }, [] (P& c, float v) { c.pan = v; });
-
-    addKnob (Pitch, "Tune", -100, 100, 1, 0, -1, [] (const P& c) { return c.tuneCents; }, [] (P& c, float v) { c.tuneCents = v; }, " ct");
-    addKnob (Pitch, "Pitch", -24, 24, 1, 0, -1, [] (const P& c) { return c.pitchSemis; }, [] (P& c, float v) { c.pitchSemis = v; }, " st");
+    using C = sl::CellF;
+    addKnob (Amp, "Attack", C::Attack);
+    addKnob (Amp, "Hold", C::Hold);
+    addKnob (Amp, "Decay", C::Decay);
+    addKnob (Amp, "Sustain", C::Sustain);
+    addKnob (Amp, "Release", C::Release);
+    addKnob (Amp, "Level", C::Level);
+    addKnob (Amp, "Pan", C::Pan);
+    addKnob (Pitch, "Tune", C::Tune);
+    addKnob (Pitch, "Pitch", C::Pitch);
 
     addAndMakeVisible (envelope);
-
-    // Master (volume del kit, non legato alla cella selezionata)
-    masterKnob.slider.setRange (-60.0, 6.0, 0.1);
-    masterKnob.slider.setDoubleClickReturnValue (true, 0.0);
-    masterKnob.slider.setTextValueSuffix (" dB");
-    masterKnob.slider.setNumDecimalPlacesToDisplay (1);
-    masterKnob.slider.onValueChange = [this]
-    {
-        if (updating) return;
-        processor.setMasterDb ((float) masterKnob.slider.getValue());
-        if (onEdited) onEdited();
-    };
     addAndMakeVisible (masterKnob);
     addAndMakeVisible (meter);
 
     setCell (0);
+    startTimerHz (15);
 }
 
-void ModulesBar::addKnob (int module, const juce::String& title, double min, double max, double step, double def, double skewMid,
-                          std::function<float (const sl::CellParams&)> get,
-                          std::function<void (sl::CellParams&, float)> set,
-                          const juce::String& suffix)
+void ModulesBar::addKnob (int module, const juce::String& title, sl::CellF which)
 {
     Param p;
     p.box = std::make_unique<KnobBox> (title);
     p.module = module;
-    p.get = std::move (get);
-    p.set = std::move (set);
-
-    auto& s = p.box->slider;
-    s.setRange (min, max, step);
-    if (skewMid > 0.0)
-        s.setSkewFactorFromMidPoint (skewMid);
-    s.setDoubleClickReturnValue (true, def);
-    s.setTextValueSuffix (suffix);
-    s.setNumDecimalPlacesToDisplay (step >= 1.0 ? 0 : (step >= 0.1 ? 1 : 2));
-
-    const int index = (int) params.size();
-    s.onValueChange = [this, index]
-    {
-        if (updating) return;
-        auto& prm = params[(size_t) index];
-        prm.set (processor.getKit().cells[(size_t) cell], (float) prm.box->slider.getValue());
-        edited();
-    };
-
+    p.which = which;
     addAndMakeVisible (*p.box);
     params.push_back (std::move (p));
 }
 
-void ModulesBar::edited()
-{
-    processor.cellEdited (cell);
-    updateEnvelope();
-    if (onEdited)
-        onEdited();
-}
-
-void ModulesBar::updateEnvelope()
-{
-    const auto& c = processor.getKit().cells[(size_t) cell];
-    envelope.setParams (c.attack, c.hold, c.decay, c.sustain, c.release);
-}
-
 void ModulesBar::setCell (int c)
 {
-    cell = juce::jlimit (0, juce::jmax (0, processor.getKit().numCells() - 1), c);
+    cell = juce::jlimit (0, sl::kNumCells - 1, c);
     refresh();
 }
 
 void ModulesBar::refresh()
 {
-    if (cell >= processor.getKit().numCells())
-        cell = 0;
+    const auto& refs = processor.getParams().cell (cell);
 
-    const auto& c = processor.getKit().cells[(size_t) cell];
-    updating = true;
+    // Attachment: il valore segue il parametro (automazione inclusa) e ogni gesto e' segnalato alla DAW
     for (auto& p : params)
-        p.box->slider.setValue (p.get (c), juce::dontSendNotification);
-    masterKnob.slider.setValue (processor.getKit().masterDb, juce::dontSendNotification);
-    updating = false;
+    {
+        p.attachment.reset();
+        p.attachment = std::make_unique<juce::SliderParameterAttachment> (*refs.at (p.which), p.box->slider);
+    }
+
+    masterAttachment.reset();
+    masterAttachment = std::make_unique<juce::SliderParameterAttachment> (*processor.getParams().masterLevel(), masterKnob.slider);
+
     updateEnvelope();
     repaint();
+}
+
+void ModulesBar::timerCallback()
+{
+    updateEnvelope();       // il disegno dell'inviluppo segue anche i valori automatizzati
+}
+
+void ModulesBar::updateEnvelope()
+{
+    const auto& r = processor.getParams().cell (cell);
+    const float v[5] = { r.at (sl::CellF::Attack)->get(), r.at (sl::CellF::Hold)->get(), r.at (sl::CellF::Decay)->get(),
+                         r.at (sl::CellF::Sustain)->get(), r.at (sl::CellF::Release)->get() };
+    bool changed = false;
+    for (int i = 0; i < 5; ++i)
+        if (v[i] != lastEnv[i]) { lastEnv[i] = v[i]; changed = true; }
+
+    if (changed)
+        envelope.setParams (v[0], v[1], v[2], v[3], v[4]);
 }
 
 void ModulesBar::paint (juce::Graphics& g)

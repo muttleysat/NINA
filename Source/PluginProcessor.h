@@ -6,12 +6,13 @@
 #include <atomic>
 #include "engine/Engine.h"
 #include "kit/KitIO.h"
+#include "params/ParamSet.h"
 
 class SampleLabProcessor final : public juce::AudioProcessor
 {
 public:
     SampleLabProcessor();
-    ~SampleLabProcessor() override = default;
+    ~SampleLabProcessor() override;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
@@ -36,10 +37,15 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    // ---- Parametri automatizzabili (fonte di verita' dei valori) ----
+    const sl::ParamSet& getParams() const { return params; }
+
     // ---- Kit (da usare solo dal thread messaggi) ----
+    // Attenzione: i valori automatizzabili (level, pan, inviluppo, effetti...) stanno nei parametri;
+    // il kit li contiene solo dopo un salvataggio. Per mostrarli nell'interfaccia usare getParams().
     sl::Kit& getKit() { return kit; }
     const sl::Kit& getKit() const { return kit; }
-    bool isDirty() const { return dirty; }
+    bool isDirty() const { return dirty.load(); }
 
     bool loadSampleIntoCell (int cell, const juce::File& file, juce::String& error);
     void clearCell (int cell);
@@ -55,7 +61,6 @@ public:
     void removeRecentKit (const juce::String& path);
     void clearRecentKits();
 
-    void setMasterDb (float db);                   // volume master del kit
     std::pair<float, float> getMasterLevels() const { return engine.getMasterLevels(); }
 
     // Anteprima dei file del browser (caricamento in background, riproduzione su una voce dedicata)
@@ -79,6 +84,16 @@ private:
     void addRecentKit (const juce::File& file);
     juce::PropertiesFile& getSettings() const;
 
+    // Segna il kit come modificato quando cambia un parametro (da qualsiasi thread: UI, automazione, MIDI)
+    struct DirtyListener final : juce::AudioProcessorParameter::Listener
+    {
+        explicit DirtyListener (std::atomic<bool>& f) : flag (f) {}
+        void parameterValueChanged (int, float) override { flag.store (true); }
+        void parameterGestureChanged (int, bool) override {}
+        std::atomic<bool>& flag;
+    };
+
+    sl::ParamSet params;
     sl::Engine engine;
     juce::MidiKeyboardState keyboardState;
     juce::AudioFormatManager formats;
@@ -86,7 +101,8 @@ private:
     sl::Kit kit = sl::Kit::makeDefault();
     std::vector<sl::SampleDataPtr> cellData;
     std::map<juce::String, sl::SampleDataPtr> sampleCache;   // i campioni restano in memoria per la sessione
-    bool dirty = false;
+    std::atomic<bool> dirty { false };
+    DirtyListener dirtyListener { dirty };
     int generation = 0;
 
     mutable std::unique_ptr<juce::ApplicationProperties> appProps;

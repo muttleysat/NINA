@@ -1,5 +1,6 @@
 #include "engine/Engine.h"
 #include "kit/KitIO.h"
+#include "params/ParamSet.h"
 #include <set>
 
 namespace
@@ -43,17 +44,23 @@ struct Rig
     void setCells (const std::vector<std::pair<CellParams, SampleDataPtr>>& cells, const FxParams& masterFx = {})
     {
         auto snap = std::make_shared<KitSnapshot>();
-        snap->masterFx = masterFx;
+        engine.live = Engine::LiveParams {};
+        engine.live.masterFx = masterFx;
         int i = 0;
         for (auto& [p, d] : cells)
         {
             keep.push_back (d);
             CellRuntime r;
-            r.cellIndex = i++;
-            r.dsp = toDsp (p);
-            r.fx = p.fx;
+            r.cellIndex = i;
             r.data = d.get();
+            r.rootNote = p.rootNote;
+            r.lowNote = p.lowNote;
+            r.highNote = p.highNote;
             snap->cells.push_back (r);
+
+            engine.live.dsp[(size_t) i] = toDsp (p);     // i valori automatizzabili vanno nei parametri live
+            engine.live.fx[(size_t) i] = p.fx;
+            ++i;
         }
         engine.publish (snap);
     }
@@ -448,6 +455,165 @@ public:
             expect (loaded.masterFx.reverbOn);
             expectWithinAbsoluteError (loaded.masterFx.reverbSize, 0.9f, 0.001f);
             tmp.deleteRecursively();
+        }
+
+        // ------------------------------------------------- Parametri / automazione
+
+        // Un ParamSet con i suoi gruppi, tenuti in vita come farebbe il processore
+        struct ParamRig
+        {
+            ParamSet set;
+            juce::AudioProcessorParameterGroup root;
+            ParamRig()
+            {
+                for (auto& g : set.releaseGroups())
+                    root.addChild (std::move (g));
+            }
+            juce::RangedAudioParameter* byId (const juce::String& id)
+            {
+                for (auto* p : root.getParameters (true))
+                    if (auto* r = dynamic_cast<juce::RangedAudioParameter*> (p); r != nullptr && r->getParameterID() == id)
+                        return r;
+                return nullptr;
+            }
+        };
+
+        beginTest ("Params: every control is exposed with a unique stable ID");
+        {
+            ParamRig pr;
+            auto all = pr.root.getParameters (true);
+            expectEquals ((int) all.size(), 48 * 38 + 26);     // 48 celle x 38 + master 26
+
+            std::set<juce::String> ids;
+            for (auto* p : all)
+                if (auto* r = dynamic_cast<juce::RangedAudioParameter*> (p))
+                    ids.insert (r->getParameterID());
+            expectEquals ((int) ids.size(), (int) all.size());
+
+            // ID che non devono mai cambiare tra le versioni (retrocompatibilita' dei progetti)
+            for (auto* id : { "c00.level", "c00.pan", "c00.start", "c00.end", "c00.attack", "c00.reverse", "c00.mode",
+                              "c00.filter.cutoff", "c00.filter.type", "c00.filter.on", "c00.delay.time", "c47.reverb.mix",
+                              "c11.comp.threshold", "master.level", "master.filter.cutoff" })
+                expect (pr.byId (id) != nullptr, juce::String ("missing id ") + id);
+        }
+
+        beginTest ("Params: names are readable (no CC numbers) and values carry units");
+        {
+            ParamRig pr;
+            auto* cutoff = pr.byId ("c00.filter.cutoff");
+            expectEquals (cutoff->getName (100), juce::String ("A1 Filter Cutoff"));
+            expectEquals (pr.byId ("c13.level")->getName (100), juce::String ("B2 Level"));
+            expectEquals (pr.byId ("c00.mode")->getName (100), juce::String ("A1 Trigger Mode"));
+            expectEquals (pr.byId ("master.reverb.mix")->getName (100), juce::String ("Master Reverb Mix"));
+
+            cutoff->setValueNotifyingHost (cutoff->convertTo0to1 (2400.0f));
+            expectEquals (cutoff->getText (cutoff->getValue(), 20), juce::String ("2400 Hz"));
+            expectEquals (pr.byId ("c00.mode")->getText (1.0f / 2.0f, 20), juce::String ("Gate"));
+            expectEquals (pr.byId ("c00.delay.on")->getText (1.0f, 20), juce::String ("On"));
+        }
+
+        beginTest ("Params: parameters are grouped by cell and effect");
+        {
+            ParamRig pr;
+            // Il gruppo radice contiene un gruppo per cella piu' il master
+            int groups = 0;
+            for (auto* node : pr.root)
+                if (node->getGroup() != nullptr)
+                    ++groups;
+            expectEquals (groups, 49);
+
+            // Il cutoff del filtro della cella A1 sta in "Cell A1" > "A1 Filter"
+            juce::StringArray path;
+            for (auto* g : pr.root.getGroupsForParameter (pr.byId ("c00.filter.cutoff")))
+                path.add (g->getName());
+            expect (path.contains ("Cell A1"), "path: " + path.joinIntoString (" > "));
+            expect (path.contains ("A1 Filter"), "path: " + path.joinIntoString (" > "));
+        }
+
+        beginTest ("Params: audio thread sees automated values (live params)");
+        {
+            ParamRig pr;
+            auto set = [&] (const char* id, float v) { auto* p = pr.byId (id); p->setValueNotifyingHost (p->convertTo0to1 (v)); };
+            set ("c02.level", -6.0f);
+            set ("c02.pan", 0.5f);
+            set ("c02.filter.cutoff", 1000.0f);
+            set ("c02.filter.on", 1.0f);
+            set ("c02.filter.type", 2.0f);
+            set ("c02.mode", 1.0f);
+            set ("c02.reverse", 1.0f);
+            set ("c02.delay.on", 1.0f);
+            set ("master.level", -12.0f);
+            set ("master.reverb.on", 1.0f);
+
+            Engine::LiveParams live;
+            pr.set.fillLive (live);
+            expectWithinAbsoluteError (live.dsp[2].gain, std::pow (10.0f, -6.0f / 20.0f), 0.001f);
+            expectWithinAbsoluteError (live.dsp[2].pan, 0.5f, 0.01f);
+            expect (live.dsp[2].mode == TriggerMode::Gate);
+            expect (live.dsp[2].reverse);
+            expect (live.fx[2].filterOn);
+            expectEquals (live.fx[2].filterType, 2);
+            expectWithinAbsoluteError (live.fx[2].cutoff, 1000.0f, 1.0f);
+            expect (live.fx[2].delayOn);
+            expect (! live.fx[3].filterOn);                     // le altre celle non cambiano
+            expect (live.masterFx.reverbOn);
+            expectWithinAbsoluteError (live.masterGain, std::pow (10.0f, -12.0f / 20.0f), 0.001f);
+        }
+
+        beginTest ("Params: a live parameter change is heard (cutoff automation on a playing cell)");
+        {
+            ParamRig pr;
+            Rig r;
+            auto sine = makeSine (8000, 2.0);
+            auto p = cell (36, TriggerMode::Loop);
+            r.setCells ({ { p, sine } });
+
+            pr.set.fillLive (r.engine.live);                    // tutto spento: passa
+            // Dopo setCells i valori live sono quelli del test; riporta i parametri nel motore
+            r.engine.live.dsp[0] = toDsp (p);
+            r.render (4096, noteOn (36));
+            expect (peak (r.render (4096, {}), 0, 4096) > 0.5f);
+
+            auto set = [&] (const char* id, float v) { auto* q = pr.byId (id); q->setValueNotifyingHost (q->convertTo0to1 (v)); };
+            set ("c00.filter.on", 1.0f);
+            set ("c00.filter.cutoff", 200.0f);
+            Engine::LiveParams live = r.engine.live;
+            pr.set.fillLive (live);
+            r.engine.live.fx[0] = live.fx[0];                   // come farebbe il processore a ogni blocco
+            r.render (2048, {});
+            expect (peak (r.render (4096, {}), 0, 4096) < 0.1f, "8 kHz must be filtered after automating the cutoff");
+        }
+
+        beginTest ("Params: kit values round-trip through the parameters");
+        {
+            ParamRig pr;
+            auto kit = Kit::makeDefault();
+            kit.cells[5].levelDb = -9.0f;
+            kit.cells[5].pitchSemis = 7.0f;
+            kit.cells[5].mode = TriggerMode::Loop;
+            kit.cells[5].reverse = true;
+            kit.cells[5].fx.delayOn = true;
+            kit.cells[5].fx.delayTime = 333.0f;
+            kit.cells[5].fx.filterType = 1;
+            kit.masterDb = -3.0f;
+            kit.masterFx.compOn = true;
+            kit.masterFx.compRatio = 8.0f;
+
+            pr.set.readFromKit (kit);
+
+            auto fresh = Kit::makeDefault();
+            pr.set.writeToKit (fresh);
+            expectWithinAbsoluteError (fresh.cells[5].levelDb, -9.0f, 0.06f);
+            expectWithinAbsoluteError (fresh.cells[5].pitchSemis, 7.0f, 0.01f);
+            expect (fresh.cells[5].mode == TriggerMode::Loop);
+            expect (fresh.cells[5].reverse);
+            expect (fresh.cells[5].fx.delayOn);
+            expectWithinAbsoluteError (fresh.cells[5].fx.delayTime, 333.0f, 1.0f);
+            expectEquals (fresh.cells[5].fx.filterType, 1);
+            expectWithinAbsoluteError (fresh.masterDb, -3.0f, 0.06f);
+            expect (fresh.masterFx.compOn);
+            expectWithinAbsoluteError (fresh.masterFx.compRatio, 8.0f, 0.06f);
+            expect (! fresh.cells[6].fx.anyOn());
         }
 
         beginTest ("Default kit maps C1 upwards in order");

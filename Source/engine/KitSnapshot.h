@@ -6,20 +6,20 @@
 
 namespace sl
 {
+// Parte "statica" di una cella, letta dal thread audio: campione e mapping delle note.
+// I valori automatizzabili (level, pan, inviluppo, effetti...) non stanno qui: si leggono in tempo reale
+// dai parametri (vedi Engine::LiveParams).
 struct CellRuntime
 {
     int cellIndex = -1;
-    CellDsp dsp;
-    FxParams fx;
-    const SampleData* data = nullptr;  // i campioni restano vivi per tutta la vita del processore
+    const SampleData* data = nullptr;   // i campioni restano vivi per tutta la vita del processore
+    int rootNote = 36, lowNote = 36, highNote = 36;
 };
 
-// Fotografia immutabile dello stato del kit, letta dal thread audio.
+// Fotografia immutabile dei campioni e del mapping del kit.
 struct KitSnapshot
 {
     std::vector<CellRuntime> cells;
-    float masterGain = 1.0f;
-    FxParams masterFx;
     int generation = 0;                 // cambia quando si carica/crea un kit: ferma le voci attive
 };
 

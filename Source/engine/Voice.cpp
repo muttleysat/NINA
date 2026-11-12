@@ -15,15 +15,16 @@ inline float hermite (const float* d, int n, int i0, float f) noexcept
 }
 }
 
-void Voice::start (const CellRuntime& cell, int noteNumber, float velocity01, double outSR, juce::uint64 ageStamp) noexcept
+void Voice::start (const SampleData* sample, const CellDsp& params, int cell, int noteNumber, float velocity01,
+                   double outSR, juce::uint64 ageStamp) noexcept
 {
     active = false;
-    if (cell.data == nullptr)
+    if (sample == nullptr)
         return;
 
-    data = cell.data;
-    dsp = cell.dsp;
-    cellIndex = cell.cellIndex;
+    data = sample;
+    dsp = params;
+    cellIndex = cell;
     note = noteNumber;
     age = ageStamp;
     sampleRate = outSR;
@@ -60,18 +61,12 @@ void Voice::computeDerived() noexcept
     decayDec = (1.0f - sustainLevel) / (float) juce::jmax (1.0, (double) dsp.decay * sampleRate);
 }
 
-void Voice::updateParams (const CellRuntime& cell) noexcept
+void Voice::updateDsp (const CellDsp& params) noexcept
 {
-    if (! active)
+    if (! active || params == dsp)
         return;
 
-    if (cell.data != data)              // il campione della cella e' stato sostituito
-    {
-        active = false;
-        return;
-    }
-
-    dsp = cell.dsp;
+    dsp = params;
     computeDerived();
     pos = juce::jlimit ((double) regionStart, (double) (regionEnd - 1), pos);
 
