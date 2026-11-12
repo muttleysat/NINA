@@ -13,6 +13,18 @@ SampleBrowser::SampleBrowser()
     };
     addAndMakeVisible (rootBox);
 
+    searchBox.setFont (juce::FontOptions (14.0f));
+    searchBox.setJustification (juce::Justification::centredLeft);
+    searchBox.setIndents (8, 0);
+    searchBox.setTextToShowWhenEmpty ("Search samples...", theme::textDim);
+    searchBox.setTooltip ("Filter the files shown in the folders by name");
+    searchBox.onTextChange = [this]
+    {
+        filter.setText (searchBox.getText());
+        contents.refresh();
+    };
+    addAndMakeVisible (searchBox);
+
     tree.setDragAndDropDescription ("SLFILE");
     tree.setColour (juce::FileTreeComponent::backgroundColourId, theme::background);
     tree.setColour (juce::FileTreeComponent::textColourId, theme::text);
@@ -91,6 +103,8 @@ void SampleBrowser::resized()
     const float s = theme::scaleFor (*this);
     auto area = getLocalBounds().reduced ((int) (6 * s));
     rootBox.setBounds (area.removeFromTop ((int) (26 * s)));
+    area.removeFromTop ((int) (4 * s));
+    searchBox.setBounds (area.removeFromTop ((int) (26 * s)));
     area.removeFromTop ((int) (6 * s));
 
     auto footer = area.removeFromBottom ((int) (28 * s));

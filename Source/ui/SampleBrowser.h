@@ -42,8 +42,36 @@ private:
     void rebuildRoots();
     void setRoot (const juce::File&);
 
+    // Filtro sui formati audio e sul testo della ricerca (il filtro e' chiamato dal thread del browser)
+    class AudioSearchFilter final : public juce::FileFilter
+    {
+    public:
+        AudioSearchFilter() : FileFilter ("Audio files") {}
+
+        bool isFileSuitable (const juce::File& f) const override
+        {
+            if (! f.hasFileExtension ("wav;aif;aiff;flac;ogg;mp3"))
+                return false;
+            const juce::ScopedLock l (lock);
+            return text.isEmpty() || f.getFileName().toLowerCase().contains (text);
+        }
+
+        bool isDirectorySuitable (const juce::File&) const override { return true; }
+
+        void setText (const juce::String& t)
+        {
+            const juce::ScopedLock l (lock);
+            text = t.trim().toLowerCase();
+        }
+
+    private:
+        mutable juce::CriticalSection lock;
+        juce::String text;
+    };
+
     juce::TimeSliceThread thread { "Sample browser" };
-    juce::WildcardFileFilter filter { "*.wav;*.aif;*.aiff;*.flac;*.ogg;*.mp3", "*", "Audio files" };
+    AudioSearchFilter filter;
+    juce::TextEditor searchBox;
     juce::DirectoryContentsList contents { &filter, thread };
     juce::FileTreeComponent tree { contents };
 

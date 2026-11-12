@@ -1,16 +1,8 @@
 #include "SeqPanel.h"
+#include "Widgets.h"
 
 namespace
 {
-const char* lockNames[(size_t) sl::FxF::Count] = {
-    "Sat Drive", "Sat Mix", "LoFi Bits", "LoFi Rate", "LoFi Mix", "Filter Cutoff", "Filter Reso",
-    "Comp Threshold", "Comp Ratio", "Comp Attack", "Comp Release", "Comp Makeup",
-    "Delay Time", "Delay Feedback", "Delay Mix", "Reverb Size", "Reverb Damp", "Reverb Mix" };
-
-// Dopo i 18 valori, gli interruttori degli effetti: un lock puo' accendere o spegnere un effetto solo per quello step
-const char* lockOnNames[(size_t) sl::FxB::Count] = {
-    "Saturation On/Off", "LoFi On/Off", "Filter On/Off", "Compressor On/Off", "Delay On/Off", "Reverb On/Off" };
-
 constexpr int kPageSize = 16;
 
 // Picchi assoluti (0..1) del campione, uno per colonna: per le mini forme d'onda
@@ -140,6 +132,30 @@ private:
     bool playing = false;
     std::vector<float> peaks;
 };
+
+// Doppio clic su una manopola: toglie il blocco dallo step
+struct DoubleClickHandler final : juce::MouseListener
+{
+    std::function<void()> onDouble;
+    void mouseDoubleClick (const juce::MouseEvent&) override { if (onDouble) onDouble(); }
+};
+
+const char* lockedParamName (sl::FxF f)
+{
+    switch (f)
+    {
+        case sl::FxF::Drive: return "Drive";
+        case sl::FxF::SatMix: return "Mix";
+        case sl::FxF::Bits: return "Bits";
+        case sl::FxF::Downsample: return "Rate";
+        case sl::FxF::LofiMix: return "Mix";
+        case sl::FxF::Cutoff: return "Cutoff";
+        case sl::FxF::Resonance: return "Reso";
+        case sl::FxF::DelayMix: return "Send";
+        case sl::FxF::ReverbMix: return "Send";
+        default: return "";
+    }
+}
 }
 
 // ------------------------------------------------------------------------ Step
@@ -169,33 +185,35 @@ public:
     void paint (juce::Graphics& g) override
     {
         const float s = theme::scaleFor (*this);
-        const auto b = getLocalBounds().toFloat().reduced (1.5f * s);
+        const auto b = getLocalBounds().toFloat().reduced (1.6f * s);
 
-        g.setColour (state.beyond ? theme::panel : (state.beat ? theme::panelHi.brighter (0.07f) : theme::panelHi));
-        g.fillRoundedRectangle (b, 5.0f * s);
+        g.setColour (state.beyond ? theme::panel : (state.beat ? theme::panelHi.brighter (0.08f) : theme::panelHi));
+        g.fillRoundedRectangle (b, 6.0f * s);
         if (state.beyond)
             return;                                            // oltre la lunghezza della lane
 
         if (state.on)
         {
-            // L'altezza della barra e' la velocity
-            const float h = b.getHeight() * (0.25f + 0.75f * (float) state.velocity / 127.0f);
-            g.setColour (theme::accent);
-            g.fillRoundedRectangle (b.withTop (b.getBottom() - h), 5.0f * s);
+            // Quadrato arancione pieno; l'altezza chiara in basso e' la velocity
+            g.setColour (theme::accent.withAlpha (0.55f));
+            g.fillRoundedRectangle (b, 6.0f * s);
+            const float h = b.getHeight() * (0.2f + 0.8f * (float) state.velocity / 127.0f);
+            g.setGradientFill (juce::ColourGradient (theme::accentSoft, 0.0f, b.getBottom() - h, theme::accent, 0.0f, b.getBottom(), false));
+            g.fillRoundedRectangle (b.withTop (b.getBottom() - h), 6.0f * s);
         }
         if (state.current)
         {
             g.setColour (theme::text.withAlpha (0.95f));
-            g.drawRoundedRectangle (b, 5.0f * s, 1.6f);
+            g.drawRoundedRectangle (b, 6.0f * s, 1.8f);
         }
         if (state.selected)
         {
-            g.setColour (theme::accentSoft);
-            g.drawRoundedRectangle (b.expanded (0.5f), 5.0f * s, 2.0f);
+            g.setColour (theme::text);
+            g.drawRoundedRectangle (b.expanded (1.0f), 6.0f * s, 2.2f);
         }
 
         g.setFont (juce::FontOptions (juce::jmax (8.0f, 9.5f * s), juce::Font::bold));
-        g.setColour (theme::background);
+        g.setColour (juce::Colour (0xff1a1006));
         if (state.on && state.locked)
             g.fillEllipse (b.getRight() - 9.0f * s, b.getY() + 3.0f * s, 6.0f * s, 6.0f * s);
         if (state.on && state.ratchet > 1)
@@ -254,29 +272,33 @@ public:
     {
         const auto& l = owner.pat().lanes[(size_t) lane];
 
-        for (auto* b : { &muteButton, &soloButton, &removeButton })
+        for (auto* b : { &muteButton, &soloButton, &removeButton, &fxButton })
             addAndMakeVisible (*b);
         muteButton.setClickingTogglesState (true);
         soloButton.setClickingTogglesState (true);
         muteButton.setToggleState (l.mute, juce::dontSendNotification);
         soloButton.setToggleState (l.solo, juce::dontSendNotification);
-        // FX: acceso = la riga usa gli effetti della cella (default); spento = la riga suona "dry" (gli step possono riaccenderli con i lock)
-        fxButton.setClickingTogglesState (true);
-        fxButton.setToggleState (! l.dry, juce::dontSendNotification);
-        fxButton.setTooltip ("On: this lane uses the cell's effects. Off: it plays dry (a step lock can switch an effect back on).");
-        fxButton.onClick = [this] { owner.pat().lanes[(size_t) lane].dry = ! fxButton.getToggleState(); owner.edited(); };
-        addAndMakeVisible (fxButton);
+        muteButton.setTooltip ("Mute this lane");
+        soloButton.setTooltip ("Solo this lane");
         muteButton.onClick = [this] { owner.pat().lanes[(size_t) lane].mute = muteButton.getToggleState(); owner.edited(); };
         soloButton.onClick = [this] { owner.pat().lanes[(size_t) lane].solo = soloButton.getToggleState(); owner.edited(); };
+        removeButton.setTooltip ("Remove this lane from the sequencer");
         removeButton.onClick = [this]
         {
             const int cell = owner.pat().lanes[(size_t) lane].cell;
             juce::MessageManager::callAsync ([o = &owner, cell] { o->processor.removeLaneForCell (cell); o->selLane = -1; o->refresh(); });
         };
 
+        // FX: acceso = la riga usa gli effetti della cella (default); spento = la riga suona senza effetti per colpo
+        fxButton.setClickingTogglesState (true);
+        fxButton.setToggleState (! l.dry, juce::dontSendNotification);
+        fxButton.setTooltip ("On: this lane uses the cell's effects. Off: it plays without the filter/saturation/LoFi and delay/reverb sends.");
+        fxButton.onClick = [this] { owner.pat().lanes[(size_t) lane].dry = ! fxButton.getToggleState(); owner.edited(); };
+
         for (int i = 0; i < sl::kNumDivisions; ++i)
             divisionBox.addItem (sl::kDivisionNames[i], i + 1);
         divisionBox.setSelectedId (l.division + 1, juce::dontSendNotification);
+        divisionBox.setTooltip ("Step resolution of this lane");
         divisionBox.onChange = [this] { owner.pat().lanes[(size_t) lane].division = divisionBox.getSelectedId() - 1; owner.edited(); };
         addAndMakeVisible (divisionBox);
 
@@ -300,6 +322,12 @@ public:
         removeButton.setButtonText ("x");
     }
 
+    ~LaneRow() override
+    {
+        if (held)
+            owner.processor.getKeyboardState().noteOff (1, heldNote, 0.0f);
+    }
+
     void update (int currentStep)
     {
         const auto& l = owner.pat().lanes[(size_t) lane];
@@ -318,7 +346,7 @@ public:
                 st.hasProb = s.probability < 100;
                 st.selected = owner.selLane == lane && owner.selStep == idx;
                 st.current = idx == currentStep;
-                st.beat = (c % 4) == 0;
+                st.beat = ((idx / 4) % 2) == 0;                 // gruppi di 4 step alternati chiaro/scuro
             }
             steps[(size_t) c]->setState (st);
         }
@@ -342,8 +370,8 @@ public:
             peaksWidth = w;
             peaksCell = l.cell;
         }
-        g.setColour (theme::panelHi.withAlpha (held ? 0.9f : 0.5f));
-        g.fillRoundedRectangle (labelRect.toFloat(), 5.0f * s);
+        g.setColour (theme::panelHi.withAlpha (held ? 0.95f : 0.55f));
+        g.fillRoundedRectangle (labelRect.toFloat(), 6.0f * s);
         drawPeaks (g, peaks, labelRect.toFloat().reduced (0.0f, 3.0f * s), juce::Colour (c.colour).withAlpha (held ? 0.5f : 0.28f));
 
         g.setColour (juce::Colour (c.colour));
@@ -364,24 +392,30 @@ public:
         muteButton.setBounds (header.removeFromLeft (bw));
         header.removeFromLeft ((int) (2 * s));
         soloButton.setBounds (header.removeFromLeft (bw));
+        header.removeFromLeft ((int) (2 * s));
+        fxButton.setBounds (header.removeFromLeft ((int) (28 * s)));
         header.removeFromLeft ((int) (6 * s));
         removeButton.setBounds (header.removeFromRight (bw));
         header.removeFromRight ((int) (4 * s));
-        lengthSlider.setBounds (header.removeFromRight ((int) (70 * s)));
+        lengthSlider.setBounds (header.removeFromRight ((int) (74 * s)));
         header.removeFromRight ((int) (4 * s));
-        divisionBox.setBounds (header.removeFromRight ((int) (62 * s)));
-        header.removeFromRight ((int) (4 * s));
-        fxButton.setBounds (header.removeFromRight ((int) (28 * s)));
+        divisionBox.setBounds (header.removeFromRight ((int) (88 * s)));
         header.removeFromRight ((int) (6 * s));
         labelRect = header;
 
-        area.removeFromLeft ((int) (6 * s));
-        const int w = area.getWidth() / kPageSize;
-        for (auto& b : steps)
-            b->setBounds (area.removeFromLeft (w));
+        // Colonne di step con uno spazio ogni 4 (si leggono i beat)
+        area.removeFromLeft ((int) (8 * s));
+        const int gap = (int) (7 * s);
+        const int w = (area.getWidth() - 3 * gap) / kPageSize;
+        for (int i = 0; i < kPageSize; ++i)
+        {
+            steps[(size_t) i]->setBounds (area.removeFromLeft (w));
+            if (i % 4 == 3 && i < kPageSize - 1)
+                area.removeFromLeft (gap);
+        }
     }
 
-    int headerWidth() const { return (int) (310 * theme::scaleFor (*this)); }
+    int headerWidth() const { return (int) (368 * theme::scaleFor (*this)); }
 
     // Un clic sul nome della riga fa suonare la cella (anteprima del campione)
     void mouseDown (const juce::MouseEvent& e) override
@@ -408,11 +442,7 @@ public:
         repaint (labelRect);
     }
 
-    ~LaneRow() override
-    {
-        if (held)
-            owner.processor.getKeyboardState().noteOff (1, heldNote, 0.0f);
-    }
+    juce::Rectangle<int> getStepColumn (int c) const { return steps[(size_t) c]->getBounds(); }
 
 private:
     SeqPanel& owner;
@@ -446,7 +476,7 @@ public:
         resized();
     }
 
-    int rowHeight() const { return juce::jmax (26, (int) (40 * theme::scaleFor (*this))); }
+    int rowHeight() const { return juce::jmax (28, (int) (42 * theme::scaleFor (*this))); }
     int desiredHeight() const { return (int) rows.size() * rowHeight(); }
 
     void updateAll()
@@ -466,6 +496,12 @@ public:
         }
     }
 
+    // Posizione orizzontale della colonna c (nel sistema di coordinate della lista), per il righello dei beat
+    juce::Rectangle<int> columnBounds (int c) const
+    {
+        return rows.empty() ? juce::Rectangle<int>() : rows.front()->getStepColumn (c);
+    }
+
     void resized() override
     {
         const int rh = rowHeight();
@@ -478,6 +514,24 @@ private:
     std::vector<std::unique_ptr<LaneRow>> rows;
 };
 
+// ----------------------------------------------------------- Carte effetti dello step
+
+struct SeqPanel::FxKnob
+{
+    std::unique_ptr<KnobBox> box;
+    sl::FxF which;
+    DoubleClickHandler handler;
+};
+
+struct SeqPanel::FxCard
+{
+    juce::String title;
+    sl::FxB effect = sl::FxB::Sat;
+    juce::ToggleButton power;
+    std::vector<std::unique_ptr<FxKnob>> knobs;
+    juce::Rectangle<int> bounds;
+};
+
 // ------------------------------------------------------------------- SeqPanel
 
 SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
@@ -487,10 +541,10 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     viewport.setScrollBarsShown (true, false);
     addAndMakeVisible (viewport);
 
-    for (auto* b : { &playButton, &addButton, &midiButton, &wavButton, &reseedButton })
+    // Il Play/Stop e' nella barra in alto dell'applicazione (e con la barra spaziatrice)
+    for (auto* b : { &addButton, &midiButton, &wavButton, &reseedButton, &prevPattern, &nextPattern })
         addAndMakeVisible (*b);
 
-    playButton.onClick = [this] { processor.setSequencerRunning (! processor.isSequencerRunning()); };
     addButton.onClick = [this] { showAddMenu(); };
     midiButton.onClick = [this] { exportMidi(); };
     wavButton.onClick = [this] { bounceWav(); };
@@ -498,7 +552,7 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     reseedButton.onClick = [this] { pat().seed = (std::uint32_t) juce::Random::getSystemRandom().nextInt(); edited(); };
 
     for (int i = 0; i < sl::kNumPatterns; ++i)
-        patternBox.addItem (juce::String (i + 1) + "  " + processor.getKit().patterns[(size_t) i].name, i + 1);
+        patternBox.addItem (processor.getKit().patterns[(size_t) i].name, i + 1);
     patternBox.onChange = [this]
     {
         processor.setActivePattern (patternBox.getSelectedId() - 1);
@@ -506,10 +560,13 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
         refresh();
     };
     addAndMakeVisible (patternBox);
+    prevPattern.onClick = [this] { patternBox.setSelectedId (juce::jmax (1, patternBox.getSelectedId() - 1)); };
+    nextPattern.onClick = [this] { patternBox.setSelectedId (juce::jmin (sl::kNumPatterns, patternBox.getSelectedId() + 1)); };
 
     for (const char* t : { "1 bar", "2 bars", "4 bars", "8 bars" })
         barsBox.addItem (t, barsBox.getNumItems() + 1);
     barsBox.setSelectedId (2, juce::dontSendNotification);
+    barsBox.setTooltip ("Length used by Export MIDI and Bounce WAV");
     addAndMakeVisible (barsBox);
 
     swingSlider.setSliderStyle (juce::Slider::LinearHorizontal);
@@ -526,92 +583,106 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
         b.setButtonText (pageNames[i]);
         b.setClickingTogglesState (true);
         b.setRadioGroupId (4713);
-        b.onClick = [this, i] { page = i; lanes->updateAll(); };
+        b.onClick = [this, i] { page = i; lanes->updateAll(); repaint (rulerRect); };
         addAndMakeVisible (b);
     }
     pageButtons[0].setToggleState (true, juce::dontSendNotification);
 
-    // Editor dello step
-    auto setup = [this] (juce::Slider& s, double lo, double hi, double step, const juce::String& suffix)
+    // ---- Editor dello step: manopole ----
+    auto knob = [this] (KnobBox& k, double lo, double hi, const juce::String& suffix, std::function<void (sl::Step&, float)> apply)
     {
-        s.setSliderStyle (juce::Slider::LinearHorizontal);
-        s.setRange (lo, hi, step);
-        s.setTextValueSuffix (suffix);
-        s.setTextBoxStyle (juce::Slider::TextBoxRight, false, 64, 20);
-        addAndMakeVisible (s);
-    };
-    setup (velocitySlider, 1, 127, 1, "");
-    setup (probSlider, 0, 100, 1, " %");
-    setup (nudgeSlider, -50, 50, 1, " %");
-    setup (gateSlider, 5, 100, 1, " %");
-    setup (pitchSlider, -24, 24, 1, " st");
-    setup (lockSlider, 0, 1, 0.01, "");
-
-    auto onStep = [this] (auto fn)
-    {
-        return [this, fn]
+        k.slider.setRange (lo, hi, 1.0);
+        k.slider.setTextValueSuffix (suffix);
+        k.slider.setNumDecimalPlacesToDisplay (0);
+        k.slider.onValueChange = [this, apply, &k]
         {
-            if (updatingEditor || selLane < 0 || selStep < 0 || selLane >= (int) pat().lanes.size())
-                return;
-            fn (pat().lanes[(size_t) selLane].steps[(size_t) selStep]);
-            edited();
+            if (updatingEditor) return;
+            if (auto* s = selectedStep())
+            {
+                apply (*s, (float) k.slider.getValue());
+                edited();
+                lanes->updateAll();
+            }
         };
+        addAndMakeVisible (k);
     };
-    velocitySlider.onValueChange = onStep ([this] (sl::Step& s) { s.velocity = (std::uint8_t) velocitySlider.getValue(); });
-    probSlider.onValueChange = onStep ([this] (sl::Step& s) { s.probability = (std::uint8_t) probSlider.getValue(); });
-    nudgeSlider.onValueChange = onStep ([this] (sl::Step& s) { s.nudge = (float) nudgeSlider.getValue() / 100.0f; });
-    gateSlider.onValueChange = onStep ([this] (sl::Step& s) { s.gate = (float) gateSlider.getValue() / 100.0f; });
-    pitchSlider.onValueChange = onStep ([this] (sl::Step& s) { s.pitch = (std::int8_t) pitchSlider.getValue(); });
+    knob (velocityKnob, 1, 127, "", [] (sl::Step& s, float v) { s.velocity = (std::uint8_t) v; });
+    knob (probKnob, 0, 100, " %", [] (sl::Step& s, float v) { s.probability = (std::uint8_t) v; });
+    knob (nudgeKnob, -50, 50, " %", [] (sl::Step& s, float v) { s.nudge = v / 100.0f; });
+    knob (gateKnob, 5, 100, " %", [] (sl::Step& s, float v) { s.gate = v / 100.0f; });
+    knob (pitchKnob, -24, 24, " st", [] (sl::Step& s, float v) { s.pitch = (std::int8_t) v; });
+    knob (ratchetKnob, 1, 4, "x", [] (sl::Step& s, float v) { s.ratchet = (std::uint8_t) v; });
 
-    for (int i = 1; i <= 4; ++i)
-        ratchetBox.addItem (i == 1 ? juce::String ("No ratchet") : "Ratchet x" + juce::String (i), i);
-    ratchetBox.onChange = onStep ([this] (sl::Step& s) { s.ratchet = (std::uint8_t) ratchetBox.getSelectedId(); });
-    addAndMakeVisible (ratchetBox);
-
-    // Comportamento dello step: reverse e modalita' di riproduzione (come la cella, oppure one-shot/gate/loop)
-    reverseToggle.onClick = onStep ([this] (sl::Step& s) { s.reverse = reverseToggle.getToggleState(); });
+    reverseToggle.setTooltip ("Play the cell backwards on this step (combines with the cell's own Reverse)");
+    reverseToggle.onClick = [this]
+    {
+        if (updatingEditor) return;
+        if (auto* s = selectedStep()) { s->reverse = reverseToggle.getToggleState(); edited(); }
+    };
     addAndMakeVisible (reverseToggle);
 
-    stepModeBox.addItem ("Mode: as cell", 1);
-    stepModeBox.addItem ("Mode: one-shot", 2);
-    stepModeBox.addItem ("Mode: gate", 3);
-    stepModeBox.addItem ("Mode: loop", 4);
-    stepModeBox.onChange = onStep ([this] (sl::Step& s) { s.mode = (std::int8_t) (stepModeBox.getSelectedId() - 2); });
+    stepModeBox.addItem ("As cell", 1);
+    stepModeBox.addItem ("One-shot", 2);
+    stepModeBox.addItem ("Gate", 3);
+    stepModeBox.addItem ("Loop", 4);
+    stepModeBox.setTooltip ("Trigger mode for this step: the cell's own mode, or one-shot / gate / loop");
+    stepModeBox.onChange = [this]
+    {
+        if (updatingEditor) return;
+        if (auto* s = selectedStep()) { s->mode = (std::int8_t) (stepModeBox.getSelectedId() - 2); edited(); }
+    };
     addAndMakeVisible (stepModeBox);
 
-    // Parameter lock: parametro dell'effetto (o interruttore on/off) + valore solo per questo step
-    // Elenco raggruppato per effetto: "On/Off" e poi i suoi parametri. Bloccare un parametro accende l'effetto per lo step.
-    const char* fxTitles[(size_t) sl::FxB::Count] = { "SATURATION", "LOFI", "FILTER", "COMPRESSOR", "DELAY", "REVERB" };
-    for (int b = 0; b < (int) sl::FxB::Count; ++b)
-    {
-        lockParamBox.addSectionHeading (fxTitles[b]);
-        lockParamBox.addItem (lockOnNames[b], sl::lockIndex ((sl::FxB) b) + 1);
-        for (int f = 0; f < (int) sl::FxF::Count; ++f)
-            if ((int) sl::fxOwner ((sl::FxF) f) == b)
-                lockParamBox.addItem (lockNames[f], f + 1);
-    }
-    lockParamBox.setTooltip ("Parameter to lock for this step. Locking a value also switches that effect on for the step, "
-                             "even if it is off on the cell.");
-    lockParamBox.setSelectedId (6, juce::dontSendNotification);           // Filter Cutoff
-    lockParamBox.onChange = [this] { updateLockControls(); };
-    addAndMakeVisible (lockParamBox);
-
-    lockSlider.onValueChange = [this] { applyLockSlider (true); };
-    lockToggle.onClick = [this] { applyLockSlider (false); };
-    addAndMakeVisible (lockToggle);
-
-    // Si possono bloccare piu' parametri sullo stesso step: scegline uno, regolalo, poi scegli il successivo.
-    clearLocksButton.setTooltip ("Remove every lock from this step");
+    clearLocksButton.setTooltip ("Remove every effect lock from this step (the effects go back to the cell's values)");
     clearLocksButton.onClick = [this]
     {
-        if (selLane < 0 || selStep < 0 || selLane >= (int) pat().lanes.size())
-            return;
-        pat().lanes[(size_t) selLane].steps[(size_t) selStep].lockMask = 0;
-        edited();
-        updateLockControls();
-        repaint();
+        if (auto* s = selectedStep()) { s->lockMask = 0; edited(); refreshEditor(); }
     };
     addAndMakeVisible (clearLocksButton);
+
+    // ---- Effetti per colpo: saturazione, LoFi, filtro, delay e riverbero (mandate) ----
+    auto addCard = [this] (const char* title, sl::FxB effect, std::initializer_list<std::pair<const char*, sl::FxF>> knobList)
+    {
+        auto card = std::make_unique<FxCard>();
+        card->title = title;
+        card->effect = effect;
+        card->power.setTooltip ("Effect on/off for this step (grey = follows the cell). Moving a knob switches it on for the step.");
+        auto* raw = card.get();
+        card->power.onClick = [this, raw] { onFxPower (*raw); };
+        addAndMakeVisible (card->power);
+
+        for (const auto& [name, f] : knobList)
+        {
+            auto k = std::make_unique<FxKnob>();
+            k->box = std::make_unique<KnobBox> (name);
+            k->which = f;
+
+            const auto* param = processor.getParams().masterFx().at (f);     // stesso intervallo per ogni cella
+            const auto range = param->getNormalisableRange();
+            auto& s = k->box->slider;
+            s.setRange ((double) range.start, (double) range.end, (double) range.interval);
+            s.setSkewFactor ((double) range.skew);
+            const juce::AudioProcessorParameter* paramBase = param;          // getText e' pubblico nella classe base
+            s.textFromValueFunction = [param, paramBase] (double v) { return paramBase->getText (param->convertTo0to1 ((float) v), 0); };
+            s.valueFromTextFunction = [] (const juce::String& t) { return (double) t.getFloatValue(); };
+            s.setDoubleClickReturnValue (false, 0.0);                        // il doppio clic toglie il blocco (vedi sotto)
+
+            const size_t index = card->knobs.size();
+            s.onValueChange = [this, raw, index] { if (! updatingEditor) onFxKnob (*raw, index); };
+            k->handler.onDouble = [this, raw, index] { clearKnobLock (*raw, index); };
+            s.addMouseListener (&k->handler, false);
+
+            addAndMakeVisible (*k->box);
+            card->knobs.push_back (std::move (k));
+        }
+        fxCards.push_back (std::move (card));
+    };
+    using F = sl::FxF;
+    addCard ("Saturation", sl::FxB::Sat, { { "Drive", F::Drive }, { "Mix", F::SatMix } });
+    addCard ("LoFi", sl::FxB::Lofi, { { "Bits", F::Bits }, { "Rate", F::Downsample }, { "Mix", F::LofiMix } });
+    addCard ("Filter", sl::FxB::Filter, { { "Cutoff", F::Cutoff }, { "Reso", F::Resonance } });
+    addCard ("Delay", sl::FxB::Delay, { { "Send", F::DelayMix } });
+    addCard ("Reverb", sl::FxB::Reverb, { { "Send", F::ReverbMix } });
 
     refresh();
     startTimerHz (30);
@@ -633,8 +704,97 @@ void SeqPanel::edited()
     processor.patternEdited();
 }
 
+sl::Step* SeqPanel::selectedStep()
+{
+    if (selLane < 0 || selLane >= (int) pat().lanes.size() || selStep < 0 || selStep >= sl::kMaxSteps)
+        return nullptr;
+    return &pat().lanes[(size_t) selLane].steps[(size_t) selStep];
+}
+
+int SeqPanel::selectedCell() const
+{
+    return selLane >= 0 && selLane < (int) pat().lanes.size() ? pat().lanes[(size_t) selLane].cell : -1;
+}
+
+float SeqPanel::cellValue (int cell, sl::FxF f) const
+{
+    return cell >= 0 ? processor.getParams().cell (cell).fx.at (f)->get() : processor.getParams().masterFx().at (f)->get();
+}
+
+// Effetto attivo per lo step: lock esplicito acceso/spento, altrimenti acceso se un suo valore e' bloccato, altrimenti come la cella
+bool SeqPanel::effectOn (const sl::Step& s, sl::FxB b, int cell) const
+{
+    const int sw = sl::lockIndex (b);
+    if (s.hasLock (sw))
+        return s.lockValues[(size_t) sw] >= 0.5f;
+    for (int f = 0; f < (int) sl::FxF::Count; ++f)
+        if (sl::fxOwner ((sl::FxF) f) == b && sl::isPerHitLockable ((sl::FxF) f) && s.hasLock (f))
+            return true;
+    return cell >= 0 ? processor.getParams().cell (cell).fx.power (b)->get() : false;
+}
+
+void SeqPanel::onFxKnob (FxCard& card, size_t knob)
+{
+    auto* s = selectedStep();
+    if (s == nullptr)
+        return;
+
+    const auto f = card.knobs[knob]->which;
+    s->setLock (f, (float) card.knobs[knob]->box->slider.getValue());     // muovere la manopola blocca il valore su questo step
+
+    const int sw = sl::lockIndex (card.effect);
+    if (s->hasLock (sw) && s->lockValues[(size_t) sw] < 0.5f)             // se l'effetto era forzato spento, il valore lo riaccende
+        s->clearLock (sw);
+
+    edited();
+    refreshEditor();
+}
+
+void SeqPanel::clearKnobLock (FxCard& card, size_t knob)
+{
+    if (auto* s = selectedStep())
+    {
+        s->clearLock (card.knobs[knob]->which);
+        edited();
+        refreshEditor();
+    }
+}
+
+void SeqPanel::onFxPower (FxCard& card)
+{
+    auto* s = selectedStep();
+    if (s == nullptr || updatingEditor)
+        return;
+
+    const int cell = selectedCell();
+    const int sw = sl::lockIndex (card.effect);
+    const bool desired = card.power.getToggleState();
+    const bool cellOn = cell >= 0 ? processor.getParams().cell (cell).fx.power (card.effect)->get() : false;
+    bool valueLocks = false;
+    for (int f = 0; f < (int) sl::FxF::Count; ++f)
+        if (sl::fxOwner ((sl::FxF) f) == card.effect && sl::isPerHitLockable ((sl::FxF) f) && s->hasLock (f))
+            valueLocks = true;
+
+    if (desired)
+    {
+        if (cellOn) s->clearLock (sw);                    // acceso come la cella: segue la cella
+        else s->setLock (sw, 1.0f);
+    }
+    else
+    {
+        if (cellOn || valueLocks) s->setLock (sw, 0.0f);  // spento per questo step
+        else s->clearLock (sw);
+    }
+
+    edited();
+    refreshEditor();
+}
+
 void SeqPanel::refresh()
 {
+    patternBox.clear (juce::dontSendNotification);
+    for (int i = 0; i < sl::kNumPatterns; ++i)
+        patternBox.addItem (processor.getKit().patterns[(size_t) i].name, i + 1);
     patternBox.setSelectedId (processor.getActivePatternIndex() + 1, juce::dontSendNotification);
     swingSlider.setValue (pat().swing * 100.0, juce::dontSendNotification);
 
@@ -682,7 +842,7 @@ void SeqPanel::stepVelocity (int lane, int step, int velocity)
     pat().lanes[(size_t) lane].steps[(size_t) step].velocity = (std::uint8_t) juce::jlimit (1, 127, velocity);
     edited();
     if (selLane == lane && selStep == step)
-        refreshEditor();                // il cursore Velocity dell'editor segue il trascinamento
+        refreshEditor();                // la manopola Velocity dell'editor segue il trascinamento
     lanes->updateAll();
 }
 
@@ -694,120 +854,51 @@ void SeqPanel::selectStep (int lane, int step)
     lanes->updateAll();
 }
 
+// Rilegge lo step selezionato nei controlli. Le manopole degli effetti mostrano il valore bloccato (arancione) oppure
+// quello della cella (grigio).
 void SeqPanel::refreshEditor()
 {
-    const bool valid = selLane >= 0 && selLane < (int) pat().lanes.size() && selStep >= 0;
-    for (juce::Component* c : { (juce::Component*) &velocitySlider, (juce::Component*) &probSlider, (juce::Component*) &nudgeSlider,
-                                (juce::Component*) &gateSlider, (juce::Component*) &pitchSlider, (juce::Component*) &ratchetBox,
-                                (juce::Component*) &lockParamBox, (juce::Component*) &lockSlider, (juce::Component*) &lockToggle,
+    auto* s = selectedStep();
+    const bool valid = s != nullptr;
+    const int cell = selectedCell();
+
+    updatingEditor = true;
+    for (juce::Component* c : { (juce::Component*) &velocityKnob, (juce::Component*) &probKnob, (juce::Component*) &nudgeKnob,
+                                (juce::Component*) &gateKnob, (juce::Component*) &pitchKnob, (juce::Component*) &ratchetKnob,
                                 (juce::Component*) &reverseToggle, (juce::Component*) &stepModeBox, (juce::Component*) &clearLocksButton })
         c->setEnabled (valid);
 
-    updatingEditor = true;
     if (valid)
     {
-        const auto& s = pat().lanes[(size_t) selLane].steps[(size_t) selStep];
-        velocitySlider.setValue (s.velocity, juce::dontSendNotification);
-        probSlider.setValue (s.probability, juce::dontSendNotification);
-        nudgeSlider.setValue (s.nudge * 100.0f, juce::dontSendNotification);
-        gateSlider.setValue (s.gate * 100.0f, juce::dontSendNotification);
-        pitchSlider.setValue (s.pitch, juce::dontSendNotification);
-        ratchetBox.setSelectedId (s.ratchet, juce::dontSendNotification);
-        reverseToggle.setToggleState (s.reverse, juce::dontSendNotification);
-        stepModeBox.setSelectedId (s.mode + 2, juce::dontSendNotification);
+        velocityKnob.slider.setValue (s->velocity, juce::dontSendNotification);
+        probKnob.slider.setValue (s->probability, juce::dontSendNotification);
+        nudgeKnob.slider.setValue (s->nudge * 100.0f, juce::dontSendNotification);
+        gateKnob.slider.setValue (s->gate * 100.0f, juce::dontSendNotification);
+        pitchKnob.slider.setValue (s->pitch, juce::dontSendNotification);
+        ratchetKnob.slider.setValue (s->ratchet, juce::dontSendNotification);
+        reverseToggle.setToggleState (s->reverse, juce::dontSendNotification);
+        stepModeBox.setSelectedId (s->mode + 2, juce::dontSendNotification);
+        clearLocksButton.setEnabled (s->lockMask != 0);
+    }
+
+    for (auto& card : fxCards)
+    {
+        card->power.setEnabled (valid);
+        card->power.setToggleState (valid && effectOn (*s, card->effect, cell), juce::dontSendNotification);
+        for (auto& k : card->knobs)
+        {
+            const bool locked = valid && s->hasLock (k->which);
+            const float value = locked ? s->lockValues[(size_t) k->which] : cellValue (cell, k->which);
+            k->box->slider.setValue (value, juce::dontSendNotification);
+            k->box->slider.getProperties().set ("dim", ! locked);        // grigio = segue la cella
+            k->box->slider.setEnabled (valid);
+            k->box->slider.setTooltip (locked ? "Locked on this step. Double-click to remove the lock."
+                                              : "Follows the cell. Move it to lock a value on this step.");
+            k->box->slider.repaint();
+        }
     }
     updatingEditor = false;
-    updateLockControls();
-    repaint();
-}
-
-// Lock: intervallo e testo del cursore seguono il parametro scelto; il valore e' quello bloccato dello step
-// oppure, se non c'e' un lock, il valore corrente del parametro nella cella.
-void SeqPanel::updateLockControls()
-{
-    const bool valid = selLane >= 0 && selLane < (int) pat().lanes.size() && selStep >= 0;
-    const int idx = juce::jmax (0, lockParamBox.getSelectedId() - 1);
-    const bool isSwitch = idx >= (int) sl::FxF::Count;                  // interruttore on/off di un effetto
-    const auto fx = (sl::FxF) juce::jmin (idx, (int) sl::FxF::Count - 1);
-    const auto sw = (sl::FxB) juce::jmax (0, idx - (int) sl::FxF::Count);
-
-    updatingEditor = true;
-    if (isSwitch)
-    {
-        // Interruttore: cursore a due posizioni (0 = spento, 1 = acceso)
-        lockSlider.setRange (0.0, 1.0, 1.0);
-        lockSlider.setSkewFactor (1.0);
-        lockSlider.textFromValueFunction = [] (double v) { return v >= 0.5 ? juce::String ("On") : juce::String ("Off"); };
-        lockSlider.valueFromTextFunction = [] (const juce::String& t) { return t.trim().equalsIgnoreCase ("on") ? 1.0 : 0.0; };
-    }
-    else
-    {
-        const auto* param = processor.getParams().masterFx().at (fx);   // stesso intervallo per ogni cella
-        const auto range = param->getNormalisableRange();
-        lockSlider.setRange ((double) range.start, (double) range.end, (double) range.interval);
-        lockSlider.setSkewFactor ((double) range.skew);
-        const juce::AudioProcessorParameter* paramBase = param;         // getText e' pubblico nella classe base
-        lockSlider.textFromValueFunction = [param, paramBase] (double v) { return paramBase->getText (param->convertTo0to1 ((float) v), 0); };
-        lockSlider.valueFromTextFunction = [] (const juce::String& t) { return (double) t.getFloatValue(); };
-    }
-
-    if (valid)
-    {
-        const auto& lane = pat().lanes[(size_t) selLane];
-        const auto& s = lane.steps[(size_t) selStep];
-        const bool locked = s.hasLock (idx);
-        lockToggle.setToggleState (locked, juce::dontSendNotification);
-
-        // Senza lock il cursore mostra il valore attuale della cella
-        float base = 0.0f;
-        if (lane.cell >= 0)
-            base = isSwitch ? (processor.getParams().cell (lane.cell).fx.power (sw)->get() ? 1.0f : 0.0f)
-                            : processor.getParams().cell (lane.cell).fx.at (fx)->get();
-        lockSlider.setValue (locked ? s.lockValues[(size_t) idx] : base, juce::dontSendNotification);
-    }
-    lockSlider.updateText();
-    updatingEditor = false;
-    refreshLockMarks();
-}
-
-// Nel menu un pallino davanti ai parametri gia' bloccati su questo step
-void SeqPanel::refreshLockMarks()
-{
-    const bool valid = selLane >= 0 && selLane < (int) pat().lanes.size() && selStep >= 0;
-    const auto mask = valid ? pat().lanes[(size_t) selLane].steps[(size_t) selStep].lockMask : 0u;
-
-    for (int i = 0; i < sl::kNumLockable; ++i)
-    {
-        const juce::String name = i < (int) sl::FxF::Count ? lockNames[i] : lockOnNames[i - (int) sl::FxF::Count];
-        lockParamBox.changeItemText (i + 1, (((mask >> i) & 1u) ? juce::String::fromUTF8 ("\xE2\x97\x8F ") : juce::String()) + name);
-    }
-    lockParamBox.setText (lockParamBox.getItemText (lockParamBox.getSelectedItemIndex()), juce::dontSendNotification);
-    clearLocksButton.setEnabled (mask != 0);
-    repaint (titleRect);
-}
-
-void SeqPanel::applyLockSlider (bool fromUser)
-{
-    if (updatingEditor || selLane < 0 || selStep < 0 || selLane >= (int) pat().lanes.size())
-        return;
-
-    auto& s = pat().lanes[(size_t) selLane].steps[(size_t) selStep];
-    const int idx = lockParamBox.getSelectedId() - 1;
-
-    if (fromUser)
-    {
-        s.setLock (idx, (float) lockSlider.getValue());        // muovere il cursore attiva il lock
-        updatingEditor = true;
-        lockToggle.setToggleState (true, juce::dontSendNotification);
-        updatingEditor = false;
-    }
-    else if (lockToggle.getToggleState())
-        s.setLock (idx, (float) lockSlider.getValue());
-    else
-        s.clearLock (idx);
-
-    edited();
-    refreshLockMarks();
+    repaint (headerRect);
 }
 
 void SeqPanel::showAddMenu()
@@ -903,14 +994,18 @@ void SeqPanel::bounceWav()
 
 void SeqPanel::timerCallback()
 {
-    const bool host = processor.isHostPlaying();
-    playButton.setButtonText (processor.isSequencerPlaying() ? "Stop" : "Play");
-    playButton.setEnabled (! host);
-    playButton.setTooltip (host ? "The host transport is running: the sequencer follows it"
-                                : "Start/stop the sequencer (Space)");
-    playButton.setToggleState (processor.isSequencerPlaying(), juce::dontSendNotification);
-
     lanes->updateAll();
+
+    // I valori "grigi" delle manopole seguono la cella (per esempio quando la si regola nella scheda FX)
+    if (++tick % 15 == 0 && selectedStep() != nullptr)
+    {
+        bool dragging = false;
+        for (auto& c : fxCards)
+            for (auto& k : c->knobs)
+                dragging = dragging || k->box->slider.isMouseButtonDown();
+        if (! dragging)
+            refreshEditor();
+    }
 }
 
 void SeqPanel::paint (juce::Graphics& g)
@@ -922,6 +1017,19 @@ void SeqPanel::paint (juce::Graphics& g)
     g.setColour (theme::border);
     g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (0.5f), 10.0f * s, 1.0f);
 
+    // Righello dei beat: numero dello step ogni 4, allineato alle colonne
+    g.setColour (theme::textDim);
+    g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.0f * s), juce::Font::bold));
+    for (int c = 0; c < kPageSize; c += 4)
+    {
+        const auto col = lanes->columnBounds (c);
+        if (col.isEmpty())
+            continue;
+        g.drawText (juce::String (page * kPageSize + c + 1),
+                    juce::Rectangle<int> (viewport.getX() + col.getX(), rulerRect.getY(), col.getWidth() * 4, rulerRect.getHeight()),
+                    juce::Justification::centredLeft);
+    }
+
     if (pat().lanes.empty())
     {
         g.setColour (theme::textDim);
@@ -931,14 +1039,17 @@ void SeqPanel::paint (juce::Graphics& g)
     }
 
     // Editor dello step
-    g.setColour (theme::panelHi.withAlpha (0.5f));
-    g.fillRoundedRectangle (editorRect.toFloat(), 8.0f * s);
+    g.setColour (theme::panelHi.withAlpha (0.45f));
+    g.fillRoundedRectangle (editorRect.toFloat(), 10.0f * s);
 
-    g.setColour (theme::textDim);
-    g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.0f * s), juce::Font::bold));
-    const char* names[5] = { "VELOCITY", "PROBABILITY", "NUDGE", "GATE", "PITCH" };
-    for (int i = 0; i < 5; ++i)
-        g.drawText (names[i], labelRects[(size_t) i], juce::Justification::centredLeft);
+    // Intestazione: etichetta "STEP EDIT" + titolo
+    auto head = headerRect;
+    auto pill = head.removeFromLeft ((int) (104 * s));
+    g.setColour (theme::accent);
+    g.fillRoundedRectangle (pill.toFloat(), 6.0f * s);
+    g.setColour (juce::Colour (0xff1a1006));
+    g.setFont (juce::FontOptions (juce::jmax (10.0f, 13.0f * s), juce::Font::bold));
+    g.drawText ("STEP EDIT", pill, juce::Justification::centred);
 
     juce::String title = "Click a step to turn it on and edit it  -  drag a lit step up/down for velocity  -  click it again to turn it off";
     if (selLane >= 0 && selLane < (int) pat().lanes.size())
@@ -950,11 +1061,28 @@ void SeqPanel::paint (juce::Graphics& g)
 
         title = "Editing step " + juce::String (selStep + 1) + " of " + sl::cellLabel (pat().lanes[(size_t) selLane].cell, processor.getKit().cols)
                 + (step.on ? "" : "   (step is off: click it to turn it on)")
-                + (locks > 0 ? "   -   " + juce::String (locks) + " lock(s) on this step (marked in the menu)" : juce::String());
+                + (locks > 0 ? "   -   " + juce::String (locks) + " lock(s)" : juce::String());
     }
     g.setColour (theme::text);
     g.setFont (juce::FontOptions (juce::jmax (10.0f, 12.5f * s), juce::Font::bold));
-    g.drawText (title, titleRect, juce::Justification::centredLeft);
+    g.drawText (title, head.withTrimmedLeft ((int) (12 * s)), juce::Justification::centredLeft, true);
+
+    // Carte degli effetti per colpo
+    g.setColour (theme::textDim);
+    g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.5f * s), juce::Font::bold));
+    g.drawText ("EFFECTS (STEP)  -  per-hit: only this step changes. Compressor, delay time/feedback and reverb size belong to the cell (FX tab).",
+                fxLabelRect, juce::Justification::centredLeft, true);
+
+    for (auto& card : fxCards)
+    {
+        const bool on = card->power.getToggleState();
+        widgets::drawModule (g, card->bounds.toFloat(), card->title, s);
+        if (on)
+        {
+            g.setColour (theme::accent);
+            g.drawRoundedRectangle (card->bounds.toFloat().reduced (0.5f), 10.0f * s, 1.2f);
+        }
+    }
 }
 
 void SeqPanel::resized()
@@ -965,75 +1093,81 @@ void SeqPanel::resized()
 
     // Riga 1: trasporto, pattern, aggiunta celle, swing
     auto top = area.removeFromTop ((int) (28 * s));
-    playButton.setBounds (top.removeFromLeft ((int) (66 * s)));
-    top.removeFromLeft (gap);
-    patternBox.setBounds (top.removeFromLeft ((int) (150 * s)));
+    prevPattern.setBounds (top.removeFromLeft ((int) (28 * s)));
+    patternBox.setBounds (top.removeFromLeft ((int) (130 * s)));
+    nextPattern.setBounds (top.removeFromLeft ((int) (28 * s)));
     top.removeFromLeft (gap);
     addButton.setBounds (top.removeFromLeft ((int) (70 * s)));
     top.removeFromLeft (gap * 2);
-    reseedButton.setBounds (top.removeFromRight ((int) (66 * s)));
+    reseedButton.setBounds (top.removeFromRight ((int) (86 * s)));
     top.removeFromRight (gap);
     swingSlider.setBounds (top);
     area.removeFromTop (gap);
 
-    // Riga 2: esportazione (battute, MIDI, audio)
-    auto exp = area.removeFromTop ((int) (28 * s));
-    barsBox.setBounds (exp.removeFromLeft ((int) (104 * s)));
-    exp.removeFromLeft (gap);
-    midiButton.setBounds (exp.removeFromLeft ((int) (110 * s)));
-    exp.removeFromLeft (gap);
-    wavButton.setBounds (exp.removeFromLeft ((int) (110 * s)));
-    area.removeFromTop (gap);
-
-    // Riga 3: pagine di step, allineate alle colonne degli step
-    auto pages = area.removeFromTop ((int) (24 * s));
-    pages.removeFromLeft ((int) (310 * s) + (int) (6 * s));
-    const int pw = juce::jmin ((int) (74 * s), pages.getWidth() / 4);
+    // Riga 2: esportazione (battute, MIDI, audio) e pagine di step
+    auto row2 = area.removeFromTop ((int) (26 * s));
+    barsBox.setBounds (row2.removeFromLeft ((int) (96 * s)));
+    row2.removeFromLeft (gap);
+    midiButton.setBounds (row2.removeFromLeft ((int) (104 * s)));
+    row2.removeFromLeft (gap);
+    wavButton.setBounds (row2.removeFromLeft ((int) (104 * s)));
+    const int pw = juce::jmin ((int) (58 * s), juce::jmax (30, row2.getWidth() / 4));
+    auto pages = row2.removeFromRight (pw * 4);
     for (auto& b : pageButtons)
         b.setBounds (pages.removeFromLeft (pw).reduced ((int) (2 * s), 0));
     area.removeFromTop (gap);
 
-    // Editor dello step (in basso): titolo + 4 righe di controlli
-    editorRect = area.removeFromBottom ((int) (166 * s));
-    area.removeFromBottom (gap);
+    // Righello dei beat sopra le righe (il testo e' disegnato in paint)
+    rulerRect = area.removeFromTop ((int) (16 * s));
 
+    // Editor dello step in basso (altezza adattiva), poi le righe riempiono lo spazio rimasto
+    const int editorH = juce::jlimit ((int) (190 * s), (int) (292 * s), area.getHeight() * 54 / 100);
+    editorRect = area.removeFromBottom (editorH);
+    area.removeFromBottom (gap);
     viewport.setBounds (area);
     lanes->setSize (juce::jmax (1, viewport.getMaximumVisibleWidth()), juce::jmax (lanes->desiredHeight(), 1));
 
-    auto ed = editorRect.reduced ((int) (10 * s), (int) (6 * s));
-    titleRect = ed.removeFromTop ((int) (18 * s));
+    auto ed = editorRect.reduced ((int) (10 * s), (int) (8 * s));
+    headerRect = ed.removeFromTop ((int) (24 * s));
+    ed.removeFromTop ((int) (6 * s));
+
+    // Comportamento: modalita', reverse, cancella lock
+    auto behaviour = ed.removeFromTop ((int) (26 * s));
+    stepModeBox.setBounds (behaviour.removeFromLeft ((int) (130 * s)));
+    behaviour.removeFromLeft (gap * 2);
+    reverseToggle.setBounds (behaviour.removeFromLeft ((int) (120 * s)));
+    clearLocksButton.setBounds (behaviour.removeFromRight ((int) (110 * s)));
     ed.removeFromTop ((int) (4 * s));
 
-    auto place = [&] (juce::Rectangle<int> row, int first, int count, juce::Slider* sliders[], int idxOffset)
+    // Manopole dello step (altezza ~ 48% dello spazio rimasto), poi le carte degli effetti
+    const int knobsH = ed.getHeight() * 46 / 100;
+    auto knobRow = ed.removeFromTop (knobsH);
+    KnobBox* stepKnobs[6] = { &velocityKnob, &probKnob, &nudgeKnob, &gateKnob, &pitchKnob, &ratchetKnob };
+    const int kw = knobRow.getWidth() / 6;
+    for (auto* k : stepKnobs)
+        k->setBounds (knobRow.removeFromLeft (kw));
+
+    fxLabelRect = ed.removeFromTop ((int) (16 * s));
+    ed.removeFromTop ((int) (2 * s));
+
+    float total = 0.0f;
+    for (auto& c : fxCards) total += (float) c->knobs.size() + 1.3f;     // le carte con una sola manopola restano abbastanza larghe per il titolo
+    const float perUnit = (float) (ed.getWidth() - gap * ((int) fxCards.size() - 1)) / total;
+    int x = ed.getX();
+    for (size_t i = 0; i < fxCards.size(); ++i)
     {
-        const int cw = row.getWidth() / 3;
-        for (int i = 0; i < count; ++i)
-        {
-            auto cell = row.removeFromLeft (cw);
-            labelRects[(size_t) (idxOffset + i)] = cell.removeFromLeft ((int) (82 * s));
-            sliders[first + i]->setBounds (cell.reduced ((int) (2 * s), 0));
-        }
-        return row;
-    };
+        auto& c = *fxCards[i];
+        const int w = i + 1 == fxCards.size() ? ed.getRight() - x : (int) (((float) c.knobs.size() + 1.3f) * perUnit);
+        c.bounds = { x, ed.getY(), w, ed.getHeight() };
+        x += w + gap;
 
-    juce::Slider* all5[5] = { &velocitySlider, &probSlider, &nudgeSlider, &gateSlider, &pitchSlider };
-    place (ed.removeFromTop ((int) (24 * s)), 0, 3, all5, 0);                    // velocity, probabilita', nudge
-    ed.removeFromTop ((int) (4 * s));
-    auto row2 = ed.removeFromTop ((int) (24 * s));
-    auto rest = place (row2, 3, 2, all5, 3);                                     // gate, pitch
-    ratchetBox.setBounds (rest.reduced ((int) (4 * s), 0));                      // ratchet nel terzo posto
+        const int pw2 = (int) (30 * s);
+        c.power.setBounds (juce::Rectangle<int> (c.bounds.getRight() - pw2 - (int) (6 * s), c.bounds.getY() + (int) (4 * s), pw2, (int) (16 * s)));
 
-    ed.removeFromTop ((int) (4 * s));
-    auto rowBehaviour = ed.removeFromTop ((int) (24 * s));                       // reverse e modalita' dello step
-    reverseToggle.setBounds (rowBehaviour.removeFromLeft ((int) (190 * s)));
-    stepModeBox.setBounds (rowBehaviour.removeFromLeft ((int) (170 * s)).reduced ((int) (4 * s), 0));
-
-    ed.removeFromTop ((int) (4 * s));
-    auto row3 = ed.removeFromTop ((int) (24 * s));
-    lockParamBox.setBounds (row3.removeFromLeft ((int) (190 * s)));
-    row3.removeFromLeft (gap);
-    clearLocksButton.setBounds (row3.removeFromRight ((int) (96 * s)));
-    row3.removeFromRight (gap);
-    lockToggle.setBounds (row3.removeFromRight ((int) (80 * s)));
-    lockSlider.setBounds (row3.reduced ((int) (4 * s), 0));
+        auto inner = c.bounds.reduced ((int) (4 * s), 0).withTrimmedTop ((int) (22 * s)).withTrimmedBottom ((int) (4 * s));
+        const int n = (int) c.knobs.size();
+        const int cw = inner.getWidth() / juce::jmax (1, n);
+        for (auto& k : c.knobs)
+            k->box->setBounds (inner.removeFromLeft (cw));
+    }
 }

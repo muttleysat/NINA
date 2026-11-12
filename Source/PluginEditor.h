@@ -52,7 +52,11 @@ private:
     SampleLabLookAndFeel lnf;
     SampleLabProcessor& processor;
 
-    juce::TextButton kitButton, prevKitButton { "<" }, nextKitButton { ">" }, saveButton { "Save" }, sizeButton { "Size 100%" };
+    juce::Label kitLabel;               // nome del kit (come il file salvato; "Untitled" finche' non si salva)
+    juce::TextButton kitMenuButton { "Kit" };                 // menu del kit: Nuovo, Apri, Salva, Recenti...
+    juce::TextButton prevKitButton { "<" }, nextKitButton { ">" }, saveButton { "Save" }, sizeButton { "Size 100%" };
+    juce::File lastKitFile;
+    juce::Array<juce::File> neighbourKits;                    // kit nella stessa cartella (per le frecce)
     juce::TextButton transportButton { "Play" };    // Play/Stop del sequencer, sempre visibile
     juce::Label bpmLabel;               // BPM: della DAW (sola lettura) oppure interno (modificabile) nello standalone
     SampleBrowser browser;

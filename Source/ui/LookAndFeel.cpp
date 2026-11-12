@@ -65,7 +65,9 @@ void SampleLabLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, in
 
     juce::Path value;
     value.addCentredArc (centre.x, centre.y, arcR, arcR, 0.0f, juce::jmin (from, angle), juce::jmax (from, angle), true);
-    g.setColour (enabled ? accent : textDim.withAlpha (0.4f));
+    // Proprieta' "dim": valore non bloccato (segue la cella), disegnato spento; quello bloccato e' arancione
+    const bool dim = (bool) slider.getProperties().getWithDefault ("dim", false);
+    g.setColour (! enabled ? textDim.withAlpha (0.4f) : (dim ? textDim.withAlpha (0.65f) : accent));
     g.strokePath (value, juce::PathStrokeType (arcW, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
     // Corpo
@@ -97,6 +99,16 @@ void SampleLabLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button
     g.fillRoundedRectangle (r, 6.0f);
     g.setColour (on ? accent.brighter (0.2f) : border);
     g.drawRoundedRectangle (r, 6.0f, 1.0f);
+}
+
+// Testo centrato con margini minimi: i pulsanti piccoli (M, S, FX, +, -) mostrano la lettera invece di "..."
+void SampleLabLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& b, bool, bool)
+{
+    const float fontH = juce::jlimit (9.0f, 15.0f, (float) b.getHeight() * 0.5f);
+    g.setFont (juce::FontOptions (fontH, juce::Font::bold));
+    g.setColour (b.findColour (b.getToggleState() ? juce::TextButton::textColourOnId : juce::TextButton::textColourOffId)
+                     .withMultipliedAlpha (b.isEnabled() ? 1.0f : 0.5f));
+    g.drawText (b.getButtonText(), b.getLocalBounds().reduced (1, 0), juce::Justification::centred, false);
 }
 
 void SampleLabLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bool highlighted, bool)

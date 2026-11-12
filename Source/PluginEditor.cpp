@@ -8,13 +8,23 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     setResizable (true, true);
     setResizeLimits (1000, 640, 3840, 2160);
 
-    kitButton.onClick = [this] { showKitMenu(); };
+    kitLabel.setJustificationType (juce::Justification::centred);
+    kitLabel.setColour (juce::Label::backgroundColourId, theme::panelHi);
+    kitLabel.setColour (juce::Label::outlineColourId, theme::border);
+    kitLabel.setColour (juce::Label::textColourId, theme::text);
+    kitLabel.setFont (juce::FontOptions (17.0f, juce::Font::bold));
+    kitLabel.setTooltip ("Kit name: it becomes the name of the saved .slkit file");
+    kitMenuButton.setTooltip ("Kit menu: new, open, save, recent kits, normalize");
+    kitMenuButton.onClick = [this] { showKitMenu(); };
+    prevKitButton.setTooltip ("Previous kit in the same folder");
+    nextKitButton.setTooltip ("Next kit in the same folder");
     prevKitButton.onClick = [this] { confirmDiscard ([this] { doOpenAdjacent (-1); }); };
     nextKitButton.onClick = [this] { confirmDiscard ([this] { doOpenAdjacent (+1); }); };
     saveButton.onClick = [this] { doSave(); };
     sizeButton.onClick = [this] { showSizeMenu(); };
-    for (auto* b : { &kitButton, &prevKitButton, &nextKitButton, &saveButton, &sizeButton })
+    for (auto* b : { &kitMenuButton, &prevKitButton, &nextKitButton, &saveButton, &sizeButton })
         addAndMakeVisible (b);
+    addAndMakeVisible (kitLabel);
 
     transportButton.onClick = [this] { toggleTransport(); };
     addAndMakeVisible (transportButton);
@@ -158,7 +168,22 @@ void SampleLabEditor::applyScale (float zoom)
 void SampleLabEditor::refreshTopBar()
 {
     const auto& kit = processor.getKit();
-    kitButton.setButtonText (kit.name + (processor.isDirty() ? " *" : ""));
+    kitLabel.setText (kit.name + (processor.isDirty() ? " *" : ""), juce::dontSendNotification);
+
+    // Frecce: attive solo se nella cartella del kit corrente ce n'e' un altro
+    if (kit.file != lastKitFile)
+    {
+        lastKitFile = kit.file;
+        neighbourKits.clear();
+        if (kit.file.existsAsFile())
+        {
+            neighbourKits = kit.file.getParentDirectory().findChildFiles (juce::File::findFiles, false, "*.slkit");
+            neighbourKits.sort();
+        }
+    }
+    const bool canStep = neighbourKits.size() > 1;
+    prevKitButton.setEnabled (canStep);
+    nextKitButton.setEnabled (canStep);
 }
 
 void SampleLabEditor::refreshCellViews()
@@ -269,7 +294,7 @@ void SampleLabEditor::showKitMenu()
     }
     m.addSubMenu ("Recent kits", recent);
 
-    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (kitButton),
+    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (kitMenuButton),
                      [this, recents] (int r)
                      {
                          if (r == 1) confirmDiscard ([this] { doNew(); });
@@ -482,20 +507,26 @@ void SampleLabEditor::resized()
         auto bar = topBar.reduced ((int) (10 * s), (int) (8 * s));
         sizeButton.setBounds (bar.removeFromRight (juce::jmax (96, (int) (108 * s))));
         bar.removeFromRight ((int) (8 * s));
-        saveButton.setBounds (bar.removeFromRight (juce::jmax (60, (int) (70 * s))));
-        bar.removeFromRight ((int) (8 * s));
         bpmLabel.setBounds (bar.removeFromRight (juce::jmax (90, (int) (110 * s))));
         bar.removeFromRight ((int) (8 * s));
         transportButton.setBounds (bar.removeFromRight (juce::jmax (64, (int) (78 * s))));
 
+        // Gruppo kit, come nel riferimento: [<] nome [>] [Save] [Kit menu]. Le frecce passano al kit precedente/successivo
+        // nella stessa cartella e si attivano solo se ce n'e' un altro.
         const int navW = juce::jmax (28, (int) (34 * s));
-        const int nameW = juce::jmax (200, (int) (300 * s));
-        auto center = bar.withSizeKeepingCentre (nameW + 2 * (navW + (int) (6 * s)), bar.getHeight());
+        const int nameW = juce::jmax (170, (int) (250 * s));
+        const int btnW = juce::jmax (56, (int) (66 * s));
+        const int groupW = 2 * navW + nameW + 2 * btnW + 5 * (int) (6 * s);
+        auto center = bar.withSizeKeepingCentre (juce::jmin (groupW, bar.getWidth()), bar.getHeight());
         prevKitButton.setBounds (center.removeFromLeft (navW));
         center.removeFromLeft ((int) (6 * s));
-        nextKitButton.setBounds (center.removeFromRight (navW));
-        center.removeFromRight ((int) (6 * s));
-        kitButton.setBounds (center);
+        kitLabel.setBounds (center.removeFromLeft (nameW));
+        center.removeFromLeft ((int) (6 * s));
+        nextKitButton.setBounds (center.removeFromLeft (navW));
+        center.removeFromLeft ((int) (6 * s));
+        saveButton.setBounds (center.removeFromLeft (btnW));
+        center.removeFromLeft ((int) (6 * s));
+        kitMenuButton.setBounds (center.removeFromLeft (btnW));
     }
 
     tabBar = area.removeFromBottom (juce::jmax (24, (int) (32 * s)));

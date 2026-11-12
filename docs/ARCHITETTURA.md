@@ -105,6 +105,13 @@ Tutti i valori automatizzabili sono parametri JUCE/VST3 raccolti in `ParamSet` (
 - Il sequencer (lock per step) scriverà sugli stessi parametri (AU-9).
 - **MIDI learn** (`params/MidiLearn`): tasto destro su un controllo > "MIDI Learn", poi si muove un controller; l'assegnazione CC > parametro si salva nel `.slkit` (`midiMap`) e nello stato della DAW. Il thread audio legge una tabella di atomici (128 CC × 4 parametri) e muove i parametri, quindi funziona anche con i CC di una clip MIDI nell'export offline. Interruttori: acceso da 64 in su. **Non ancora**: pitch bend/aftertouch, filtro per canale MIDI, modalità relativa, soft takeover, pannello con l'elenco delle mappature.
 
+## 5.2 Effetti per colpo e mandate (sequencer)
+
+- **Per voce** (`InsertFx`): saturazione, LoFi e filtro. Ogni nota ha il suo stato; i parameter lock di uno step cambiano solo quel colpo.
+- **Per cella** (`FxChain`): compressore sul bus, delay e riverbero come **mandate**: ogni voce manda una quantità (Mix) all'effetto, che aggiunge l'uscita bagnata. L'eco di un colpo continua dopo la fine dello step (coda di 4 s dall'ultima mandata).
+- **Lockabili per step**: Drive, Sat Mix, Bits, Rate, LoFi Mix, Cutoff, Reso, Delay send, Reverb send. Bloccare un valore accende l'effetto per quel colpo; tempo/feedback del delay, dimensione del riverbero e compressore restano della cella.
+- **Master**: gli stessi effetti sul mix finale (delay e riverbero con Mix come mandata).
+
 ## 6. Interfaccia e ridimensionamento
 
 - Tutto il disegno è **vettoriale** (juce::Graphics, Path, gradienti): nessuna bitmap fissa.
