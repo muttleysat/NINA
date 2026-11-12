@@ -2,6 +2,8 @@
 
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <map>
+#include <deque>
+#include <atomic>
 #include "engine/Engine.h"
 #include "kit/KitIO.h"
 
@@ -53,6 +55,10 @@ public:
     void removeRecentKit (const juce::String& path);
     void clearRecentKits();
 
+    // Anteprima dei file del browser (caricamento in background, riproduzione su una voce dedicata)
+    void auditionFile (const juce::File& file, float gainDb);
+    void stopAudition();
+
     // Anteprima da UI (pad cliccato) e attivita' per l'indicatore delle celle
     juce::MidiKeyboardState& getKeyboardState() { return keyboardState; }
     int getCellActivity (int cell) const { return engine.getCellActivity (cell); }
@@ -81,6 +87,12 @@ private:
     int generation = 0;
 
     mutable std::unique_ptr<juce::ApplicationProperties> appProps;
+
+    // Anteprima: gli ultimi campioni restano vivi finche' la voce audio puo' ancora leggerli
+    juce::CriticalSection auditionLock;
+    std::deque<sl::SampleDataPtr> auditionKeep;
+    std::atomic<int> auditionToken { 0 };
+    juce::ThreadPool auditionPool { 1 };   // ultimo membro: viene distrutto (e atteso) per primo
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SampleLabProcessor)
 };

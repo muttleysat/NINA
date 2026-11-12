@@ -186,6 +186,18 @@ public:
             expect (std::abs ((double) zb / (double) za - 2.0) < 0.05, "zc ratio " + juce::String ((double) zb / za));
         }
 
+        beginTest ("Browser preview plays without a kit and stops on demand");
+        {
+            Rig r;                                          // nessun kit pubblicato
+            auto s = makeSine (440, 1.0);
+            r.engine.playPreview (s.get(), 1.0f);
+            expect (peak (r.render (2048, {}), 0, 2048) > 0.3f);
+
+            r.engine.stopPreview();
+            r.render (256, {});                             // il comando viene recepito
+            expectEquals (peak (r.render (2048, {}), 0, 2048), 0.0f);
+        }
+
         beginTest ("Tune +100 cents equals pitch +1 semitone");
         {
             auto p1 = cell (36);

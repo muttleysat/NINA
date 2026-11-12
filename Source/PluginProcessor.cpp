@@ -35,6 +35,37 @@ juce::AudioProcessorEditor* SampleLabProcessor::createEditor()
     return new SampleLabEditor (*this);
 }
 
+// ------------------------------------------------------------- Anteprima
+
+void SampleLabProcessor::auditionFile (const juce::File& file, float gainDb)
+{
+    const int token = ++auditionToken;
+
+    auditionPool.addJob ([this, file, gainDb, token]
+    {
+        if (token != auditionToken.load())
+            return;                                       // nel frattempo e' stato scelto un altro file
+
+        auto data = sl::loadSampleFile (formats, file);
+        if (data == nullptr || token != auditionToken.load())
+            return;
+
+        {
+            const juce::ScopedLock lock (auditionLock);
+            auditionKeep.push_back (data);
+            while (auditionKeep.size() > 8)               // la voce legge solo l'ultimo: gli altri sono sicuri da liberare
+                auditionKeep.pop_front();
+        }
+        engine.playPreview (data.get(), sl::dbToGain (gainDb));
+    });
+}
+
+void SampleLabProcessor::stopAudition()
+{
+    ++auditionToken;
+    engine.stopPreview();
+}
+
 // ---------------------------------------------------------------- Kit
 
 void SampleLabProcessor::publishKit (bool newGeneration)

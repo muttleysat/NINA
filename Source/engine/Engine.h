@@ -17,6 +17,10 @@ public:
     // Thread UI
     void publish (KitSnapshotPtr snapshot) { exchange.publish (std::move (snapshot)); }
 
+    // Anteprima di un campione (browser). Thread UI/qualsiasi: il campione deve restare vivo finche' suona.
+    void playPreview (const SampleData* data, float gain);
+    void stopPreview();
+
     // Thread audio. Somma nel buffer (che deve essere gia' azzerato dal chiamante).
     void process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi) noexcept;
 
@@ -36,6 +40,10 @@ private:
     KitSnapshotPtr current;
     int lastGeneration = -1;
     juce::uint64 ageCounter = 0;
+
+    SnapshotExchange previewExchange;
+    KitSnapshotPtr previewCurrent;
+    Voice previewVoice;
 
     std::array<Voice, kMaxVoices> voices;
     std::array<std::atomic<int>, kMaxCells> activity {};

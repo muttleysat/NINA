@@ -5,8 +5,31 @@ namespace sl
 void Engine::prepare (double sr)
 {
     sampleRate = sr;
+    previewVoice.kill();
     for (auto& v : voices)
         v.kill();
+}
+
+void Engine::playPreview (const SampleData* data, float gain)
+{
+    auto snap = std::make_shared<KitSnapshot>();
+    if (data != nullptr)
+    {
+        CellRuntime r;
+        r.cellIndex = -1;
+        r.data = data;
+        r.dsp.gain = gain;
+        r.dsp.rootNote = r.dsp.lowNote = r.dsp.highNote = 60;
+        r.dsp.attack = 0.001f;
+        r.dsp.release = 0.02f;
+        snap->cells.push_back (r);
+    }
+    previewExchange.publish (std::move (snap));
+}
+
+void Engine::stopPreview()
+{
+    playPreview (nullptr, 1.0f);
 }
 
 void Engine::noteOn (int note, float velocity) noexcept
@@ -72,12 +95,24 @@ void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& 
         }
     }
 
-    if (current == nullptr || buffer.getNumChannels() < 1)
+    if (buffer.getNumChannels() < 1)
         return;
 
     const int numSamples = buffer.getNumSamples();
     float* l = buffer.getWritePointer (0);
     float* r = buffer.getNumChannels() > 1 ? buffer.getWritePointer (1) : l;
+
+    // Anteprima del browser: una voce dedicata, indipendente dal kit
+    if (previewExchange.tryAcquire (previewCurrent) && previewCurrent != nullptr)
+    {
+        previewVoice.kill();
+        if (! previewCurrent->cells.empty())
+            previewVoice.start (previewCurrent->cells[0], 60, 1.0f, sampleRate, 0);
+    }
+    previewVoice.render (l, r, numSamples);
+
+    if (current == nullptr)
+        return;
 
     int pos = 0;
     for (const auto meta : midi)

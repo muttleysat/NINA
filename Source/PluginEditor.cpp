@@ -21,6 +21,8 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     addAndMakeVisible (editor);
 
     browser.onFileActivated = [this] (const juce::File& f) { loadIntoCell (grid.getSelected(), f); };
+    browser.onPreview = [this] (const juce::File& f) { processor.auditionFile (f, browser.getPreviewGainDb()); };
+    browser.onPreviewStop = [this] { processor.stopAudition(); };
 
     grid.onSelectionChanged = [this] (int c) { editor.setCell (c); };
     grid.onFileDropped = [this] (int c, const juce::File& f) { loadIntoCell (c, f); };

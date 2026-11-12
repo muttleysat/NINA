@@ -21,6 +21,23 @@ SampleBrowser::SampleBrowser()
     tree.addListener (this);
     addAndMakeVisible (tree);
 
+    // Anteprima: interruttore e volume (UI-3)
+    autoPlay.setToggleState (true, juce::dontSendNotification);
+    autoPlay.setColour (juce::ToggleButton::textColourId, theme::text);
+    autoPlay.setColour (juce::ToggleButton::tickColourId, theme::accent);
+    autoPlay.onClick = [this] { selectionChanged(); };
+    addAndMakeVisible (autoPlay);
+
+    previewVolume.setSliderStyle (juce::Slider::LinearHorizontal);
+    previewVolume.setRange (-24.0, 6.0, 0.1);
+    previewVolume.setValue (0.0, juce::dontSendNotification);
+    previewVolume.setDoubleClickReturnValue (true, 0.0);
+    previewVolume.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    previewVolume.setColour (juce::Slider::trackColourId, theme::accent);
+    previewVolume.setColour (juce::Slider::thumbColourId, theme::text);
+    previewVolume.setTooltip ("Preview volume");
+    addAndMakeVisible (previewVolume);
+
     // Parte da Documenti (o dalla prima unita' disponibile)
     const auto docs = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
     for (int i = 0; i < (int) roots.size(); ++i)
@@ -75,5 +92,10 @@ void SampleBrowser::resized()
     auto area = getLocalBounds().reduced ((int) (6 * s));
     rootBox.setBounds (area.removeFromTop ((int) (26 * s)));
     area.removeFromTop ((int) (6 * s));
+
+    auto footer = area.removeFromBottom ((int) (28 * s));
+    autoPlay.setBounds (footer.removeFromLeft ((int) (90 * s)));
+    previewVolume.setBounds (footer);
+    area.removeFromBottom ((int) (4 * s));
     tree.setBounds (area);
 }
