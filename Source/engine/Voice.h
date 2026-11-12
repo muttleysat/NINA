@@ -15,8 +15,10 @@ public:
     juce::uint64 getAge() const noexcept { return age; }
     TriggerMode getMode() const noexcept { return dsp.mode; }
 
+    // extraSemis: trasposizione aggiuntiva (step del sequencer); fromSequencer: voce avviata dal sequencer
     void start (const SampleData* sample, const CellDsp& params, int cell, int noteNumber, float velocity01,
-                double outputSampleRate, juce::uint64 ageStamp) noexcept;
+                double outputSampleRate, juce::uint64 ageStamp, float extraSemis = 0.0f, bool fromSequencer = false) noexcept;
+    bool isFromSequencer() const noexcept { return fromSeq; }
     void release() noexcept;
     void kill() noexcept { active = false; }
 
@@ -32,6 +34,8 @@ private:
 
     void computeDerived() noexcept;     // step, guadagni, tempi dell'inviluppo dai parametri correnti
     float velocity = 1.0f;
+    float extraSemis = 0.0f;
+    bool fromSeq = false;
 
     bool active = false;
     const SampleData* data = nullptr;

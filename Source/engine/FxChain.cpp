@@ -37,7 +37,7 @@ float FxChain::delayMs (const FxParams& p, double bpm) noexcept
     if (p.delaySync)
     {
         const int d = juce::jlimit (0, kNumDivisions - 1, p.delayDivision);
-        ms = kDivisionBeats[d] * 60000.0f / (float) juce::jmax (20.0, bpm);
+        ms = (float) (kDivisionBeats[d] * 60000.0 / juce::jmax (20.0, bpm));
     }
     return juce::jlimit (1.0f, kMaxDelayMs, ms);
 }

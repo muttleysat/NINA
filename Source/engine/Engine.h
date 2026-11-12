@@ -2,6 +2,7 @@
 
 #include "Voice.h"
 #include "FxChain.h"
+#include "sequencer/Sequencer.h"
 #include <array>
 #include <atomic>
 #include <memory>
@@ -37,7 +38,9 @@ public:
     void stopPreview();
 
     // Thread audio. Somma nel buffer (che deve essere gia' azzerato dal chiamante).
-    void process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi) noexcept;
+    // seq: eventi del sequencer per questo blocco (ordinati per posizione), puo' essere nullptr.
+    void process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi,
+                  const std::vector<SeqEvent>* seq = nullptr) noexcept;
 
     // Livello di picco dell'ultimo blocco (L/R), letto dalla UI per il meter master
     std::pair<float, float> getMasterLevels() const noexcept
@@ -55,6 +58,14 @@ private:
     CellDsp liveDsp (int cell) const noexcept;       // parametri live + mapping note dello snapshot
     void noteOn (int note, float velocity) noexcept;
     void noteOff (int note) noexcept;
+    Voice* allocateVoice() noexcept;
+    void seqEvent (const SeqEvent& e) noexcept;      // NoteOn/NoteOff/Stop dal sequencer
+    void applyLocks() noexcept;                      // parameter lock degli step sopra i valori correnti degli effetti
+
+    // Parameter lock attivi per cella: restano finche' la cella riceve un nuovo step (o il sequencer si ferma)
+    std::array<FxParams, kMaxCells> effFx;           // effetti effettivi del blocco = parametri live + lock degli step
+    std::array<std::uint32_t, kMaxCells> lockMask {};
+    std::array<std::array<float, (size_t) FxF::Count>, kMaxCells> lockValues {};
     void renderVoices (float* l, float* r, int start, int count) noexcept;
     void renderChunk (float* l, float* r, int n) noexcept;
 

@@ -1,4 +1,5 @@
 #include "Engine.h"
+#include <limits>
 
 namespace sl
 {
@@ -20,6 +21,7 @@ void Engine::prepare (double sr, int maxBlockSize)
         c->prepare (sr, maxBlock);
     }
     cellTail.fill (0);
+    lockMask.fill (0);
     masterFx.prepare (sr, maxBlock);
 }
 
@@ -57,6 +59,20 @@ CellDsp Engine::liveDsp (int cell) const noexcept
     return d;
 }
 
+// Voce libera, altrimenti si ruba la piu' vecchia
+Voice* Engine::allocateVoice() noexcept
+{
+    for (auto& v : voices)
+        if (! v.isActive())
+            return &v;
+
+    Voice* oldest = &voices[0];
+    for (auto& v : voices)
+        if (v.getAge() < oldest->getAge())
+            oldest = &v;
+    return oldest;
+}
+
 void Engine::noteOn (int note, float velocity) noexcept
 {
     if (current == nullptr)
@@ -72,28 +88,64 @@ void Engine::noteOn (int note, float velocity) noexcept
         if (note < d.lowNote || note > d.highNote)
             continue;
 
-        // Voce libera, altrimenti si ruba la piu' vecchia
-        Voice* target = nullptr;
-        for (auto& v : voices)
-            if (! v.isActive()) { target = &v; break; }
-
-        if (target == nullptr)
-        {
-            target = &voices[0];
-            for (auto& v : voices)
-                if (v.getAge() < target->getAge())
-                    target = &v;
-        }
-
-        target->start (cell.data, d, c, note, velocity, sampleRate, ++ageCounter);
+        allocateVoice()->start (cell.data, d, c, note, velocity, sampleRate, ++ageCounter);
     }
 }
 
 void Engine::noteOff (int note) noexcept
 {
     for (auto& v : voices)
-        if (v.isActive() && v.getNote() == note && v.getMode() != TriggerMode::OneShot)
+        if (v.isActive() && ! v.isFromSequencer() && v.getNote() == note && v.getMode() != TriggerMode::OneShot)
             v.release();
+}
+
+// Eventi del sequencer: suonano direttamente la cella (senza passare dal mapping delle note)
+void Engine::seqEvent (const SeqEvent& e) noexcept
+{
+    if (e.type == SeqEvent::Type::Stop)
+    {
+        lockMask.fill (0);                                       // i lock finiscono con lo stop
+        for (auto& v : voices)
+            if (v.isActive() && v.isFromSequencer())
+                v.release();
+        return;
+    }
+
+    if (e.cell < 0 || e.cell >= kMaxCells || current == nullptr || e.cell >= (int) current->cells.size())
+        return;
+
+    if (e.type == SeqEvent::Type::NoteOff)
+    {
+        for (auto& v : voices)
+            if (v.isActive() && v.isFromSequencer() && v.getCellIndex() == e.cell && v.getMode() != TriggerMode::OneShot)
+                v.release();
+        return;
+    }
+
+    // NoteOn: i lock di questo step valgono finche' la cella non riceve il prossimo step
+    lockMask[(size_t) e.cell] = e.lockMask;
+    lockValues[(size_t) e.cell] = e.lockValues;
+    applyLocks();
+
+    const auto& cell = current->cells[(size_t) e.cell];
+    if (cell.data == nullptr)
+        return;
+
+    const auto d = liveDsp (e.cell);
+    allocateVoice()->start (cell.data, d, e.cell, d.rootNote, e.velocity, sampleRate, ++ageCounter, e.semis, true);
+}
+
+void Engine::applyLocks() noexcept
+{
+    for (int c = 0; c < kMaxCells; ++c)
+    {
+        const auto mask = lockMask[(size_t) c];
+        if (mask == 0)
+            continue;
+        for (int f = 0; f < (int) FxF::Count; ++f)
+            if ((mask >> f) & 1u)
+                setFxFloat (effFx[(size_t) c], (FxF) f, lockValues[(size_t) c][(size_t) f]);
+    }
 }
 
 void Engine::renderVoices (float* l, float* r, int start, int count) noexcept
@@ -122,7 +174,7 @@ void Engine::renderChunk (float* l, float* r, int n) noexcept
     for (int c = 0; c < numCells; ++c)
     {
         const bool voiceOn = hasVoice[(size_t) c];
-        const auto& fx = live.fx[(size_t) c];
+        const auto& fx = effFx[(size_t) c];
 
         if (! fx.anyOn())
         {
@@ -156,7 +208,8 @@ void Engine::renderChunk (float* l, float* r, int n) noexcept
     }
 }
 
-void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi) noexcept
+void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi,
+                      const std::vector<SeqEvent>* seq) noexcept
 {
     if (exchange.tryAcquire (current) && current != nullptr && current->generation != lastGeneration)
     {
@@ -208,21 +261,46 @@ void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& 
         if (v.isActive() && v.getCellIndex() >= 0 && v.getCellIndex() < kMaxCells)
             v.updateDsp (liveDsp (v.getCellIndex()));
 
+    // Effetti del blocco: valori correnti dei parametri + lock degli step ancora attivi
+    effFx = live.fx;
+    applyLocks();
+
+    // Eventi MIDI ed eventi del sequencer, fusi in ordine di tempo: si renderizza a segmenti tra un evento e il successivo
+    constexpr int kNone = std::numeric_limits<int>::max();
+    auto midiIt = midi.begin();
+    const auto midiEnd = midi.end();
+    size_t seqIdx = 0;
+    const size_t seqCount = seq != nullptr ? seq->size() : 0;
+
     int pos = 0;
-    for (const auto meta : midi)
+    for (;;)
     {
-        const auto m = meta.getMessage();
-        const int at = juce::jlimit (pos, numSamples, meta.samplePosition);
+        const int nextMidi = midiIt != midiEnd ? (*midiIt).samplePosition : kNone;
+        const int nextSeq = seqIdx < seqCount ? (*seq)[seqIdx].samplePos : kNone;
+        if (nextMidi == kNone && nextSeq == kNone)
+            break;
+
+        const bool takeSeq = nextSeq <= nextMidi;
+        const int at = juce::jlimit (pos, numSamples, takeSeq ? nextSeq : nextMidi);
         renderVoices (l, r, pos, at - pos);
         pos = at;
 
-        if (m.isNoteOn())
-            noteOn (m.getNoteNumber(), m.getFloatVelocity());
-        else if (m.isNoteOff())
-            noteOff (m.getNoteNumber());
-        else if (m.isAllNotesOff() || m.isAllSoundOff())
-            for (auto& v : voices)
-                v.release();
+        if (takeSeq)
+        {
+            seqEvent ((*seq)[seqIdx++]);
+        }
+        else
+        {
+            const auto m = (*midiIt).getMessage();
+            ++midiIt;
+            if (m.isNoteOn())
+                noteOn (m.getNoteNumber(), m.getFloatVelocity());
+            else if (m.isNoteOff())
+                noteOff (m.getNoteNumber());
+            else if (m.isAllNotesOff() || m.isAllSoundOff())
+                for (auto& v : voices)
+                    v.release();
+        }
     }
     renderVoices (l, r, pos, numSamples - pos);
 

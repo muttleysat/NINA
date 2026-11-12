@@ -71,6 +71,10 @@ target_include_directories(SampleLab PRIVATE Source)
 juce_add_console_app(SampleLabTests PRODUCT_NAME "SampleLabTests")
 target_sources(SampleLabTests PRIVATE ${SAMPLELAB_CORE_SOURCES} Tests/Tests.cpp)
 target_include_directories(SampleLabTests PRIVATE Source)
+if(MSVC)
+    # Un solo grande runTest con molti oggetti Engine locali: serve piu' dello stack predefinito (1 MB)
+    target_link_options(SampleLabTests PRIVATE /STACK:33554432)
+endif()
 target_compile_definitions(SampleLabTests PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
 target_link_libraries(SampleLabTests
     PRIVATE juce::juce_audio_utils juce::juce_dsp

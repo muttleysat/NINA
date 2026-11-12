@@ -12,13 +12,6 @@ namespace sl
 {
 // Parametri della cella (float)
 enum class CellF { Start, End, Level, Pan, Tune, Pitch, Attack, Hold, Decay, Sustain, Release, Count };
-// Parametri degli effetti (float), uguali per ogni cella e per il master
-enum class FxF { Drive, SatMix, Bits, Downsample, LofiMix, Cutoff, Resonance,
-                 CompThreshold, CompRatio, CompAttack, CompRelease, CompMakeup,
-                 DelayTime, DelayFeedback, DelayMix, ReverbSize, ReverbDamp, ReverbMix, Count };
-// Interruttori on/off degli effetti
-enum class FxB { Sat, Lofi, Filter, Comp, Delay, Reverb, Count };
-
 constexpr int kNumCells = Kit::kMaxCells;
 static_assert (kNumCells == Engine::kMaxCells, "Kit e motore devono avere lo stesso numero massimo di celle");
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/CellParams.h"
+#include "sequencer/Pattern.h"
 #include <vector>
 
 namespace sl
@@ -29,6 +30,8 @@ struct Kit
     float masterDb = 0.0f;
     FxParams masterFx;                       // effetti globali del kit
     std::vector<MidiMapping> midiMap;        // assegnazioni MIDI learn (salvate nel kit)
+    std::vector<Pattern> patterns;           // pattern del sequencer (kNumPatterns slot)
+    int activePattern = 0;
     std::vector<CellParams> cells;
     juce::File file;                         // file .slkit (vuoto se il kit non e' stato ancora salvato)
 
@@ -40,6 +43,9 @@ struct Kit
         Kit k;
         k.rows = rows;
         k.cols = cols;
+        k.patterns.resize ((size_t) kNumPatterns);
+        for (int i = 0; i < kNumPatterns; ++i)
+            k.patterns[(size_t) i].name = "Pattern " + juce::String (i + 1);
         k.cells.resize ((size_t) (rows * cols));
 
         // Righe: rosso-arancio, giallo, blu, viola, poi verde, rosa, lime, azzurro

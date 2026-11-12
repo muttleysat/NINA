@@ -2,6 +2,7 @@
 #include "kit/KitIO.h"
 #include "params/ParamSet.h"
 #include "params/MidiLearn.h"
+#include "sequencer/Sequencer.h"
 #include <set>
 
 namespace
@@ -67,7 +68,8 @@ struct Rig
     }
 
     // Renderizza 'blocks' blocchi da 'bs' campioni con i MIDI dati nel primo blocco.
-    juce::AudioBuffer<float> render (int totalSamples, const juce::MidiBuffer& midiFirst, int bs = 256)
+    juce::AudioBuffer<float> render (int totalSamples, const juce::MidiBuffer& midiFirst, int bs = 256,
+                                     const std::vector<SeqEvent>& seqAbs = {})
     {
         juce::AudioBuffer<float> out (2, totalSamples);
         out.clear();
@@ -81,7 +83,15 @@ struct Rig
             for (const auto meta : midiFirst)
                 if (meta.samplePosition >= pos && meta.samplePosition < pos + n)
                     m.addEvent (meta.getMessage(), meta.samplePosition - pos);
-            engine.process (blk, m);
+            // Eventi del sequencer con posizione assoluta: ogni blocco riceve i suoi, con posizione relativa
+            std::vector<SeqEvent> seqBlock;
+            for (auto e : seqAbs)
+                if (e.samplePos >= pos && e.samplePos < pos + n)
+                {
+                    e.samplePos -= pos;
+                    seqBlock.push_back (e);
+                }
+            engine.process (blk, m, seqAbs.empty() ? nullptr : &seqBlock);
             for (int c = 0; c < 2; ++c)
                 out.copyFrom (c, pos, blk, c, 0, n);
         }
@@ -655,6 +665,297 @@ public:
             expect (fresh.masterFx.compOn);
             expectWithinAbsoluteError (fresh.masterFx.compRatio, 8.0f, 0.06f);
             expect (! fresh.cells[6].fx.anyOn());
+        }
+
+        // ------------------------------------------------------- Sequencer
+
+        // Pattern con una lane sulla cella 0: steps = indici accesi
+        auto makePattern = [] (int division, int length, std::initializer_list<int> on)
+        {
+            Pattern p;
+            Lane l;
+            l.cell = 0;
+            l.division = division;
+            l.length = length;
+            for (int i : on)
+                l.steps[(size_t) i].on = true;
+            p.lanes.push_back (l);
+            return p;
+        };
+
+        struct Ev { double ppq; SeqEvent::Type type; int lane; };
+        auto collect = [] (const Pattern& p, double a, double b)
+        {
+            std::vector<Ev> out;
+            Sequencer::generate (p, a, b, [&] (const TimedEvent& e) { out.push_back ({ e.ppq, e.type, e.lane }); });
+            std::sort (out.begin(), out.end(), [] (const Ev& x, const Ev& y)
+                       { return x.ppq != y.ppq ? x.ppq < y.ppq : (int) x.type < (int) y.type; });
+            return out;
+        };
+        auto ons = [] (const std::vector<Ev>& v, int lane = -1)
+        {
+            std::vector<double> t;
+            for (auto& e : v)
+                if (e.type == SeqEvent::Type::NoteOn && (lane < 0 || e.lane == lane))
+                    t.push_back (e.ppq);
+            return t;
+        };
+
+        beginTest ("Sequencer: steps fire at the right musical time and the lane repeats");
+        {
+            auto p = makePattern (4, 4, { 0, 2 });                  // 1/4 = 1 beat, 4 step: step 0 e 2
+            auto times = ons (collect (p, 0.0, 8.0));
+            expectEquals ((int) times.size(), 4);
+            const double expected[] = { 0.0, 2.0, 4.0, 6.0 };
+            for (size_t i = 0; i < times.size(); ++i)
+                expectWithinAbsoluteError (times[i], expected[i], 1e-9);
+
+            auto sixteenths = ons (collect (makePattern (10, 16, { 3 }), 0.0, 4.0));   // 1/16: step 3 = 0.75
+            expectEquals ((int) sixteenths.size(), 1);
+            expectWithinAbsoluteError (sixteenths[0], 0.75, 1e-9);
+        }
+
+        beginTest ("Sequencer: every note-on has a note-off after the gate length");
+        {
+            auto p = makePattern (4, 4, { 0 });
+            p.lanes[0].steps[0].gate = 0.5f;
+            auto ev = collect (p, 0.0, 4.0);
+            expectEquals ((int) ev.size(), 2);
+            expect (ev[0].type == SeqEvent::Type::NoteOn);
+            expect (ev[1].type == SeqEvent::Type::NoteOff);
+            expectWithinAbsoluteError (ev[1].ppq, 0.5, 1e-9);
+        }
+
+        beginTest ("Sequencer: each lane has its own length and resolution (polyrhythm)");
+        {
+            Pattern p;
+            for (int i = 0; i < 2; ++i)
+            {
+                Lane l; l.cell = i; l.division = 10;                // 1/16
+                l.length = i == 0 ? 16 : 12;
+                l.steps[0].on = true;
+                p.lanes.push_back (l);
+            }
+            auto ev = collect (p, 0.0, 12.0);                       // 12 beat = 48 sedicesimi
+            auto a = ons (ev, 0), b = ons (ev, 1);
+            expectEquals ((int) a.size(), 3);                       // ogni 16 sedicesimi (4 beat): 0, 4, 8
+            expectEquals ((int) b.size(), 4);                       // ogni 12 sedicesimi (3 beat): 0, 3, 6, 9
+            expectWithinAbsoluteError (b[1], 3.0, 1e-9);
+
+            p.lanes[1].division = 12;                               // 1/16T: ogni step = 1/6 di beat
+            auto tri = ons (collect (p, 0.0, 4.0), 1);
+            expectWithinAbsoluteError (tri[1] - tri[0], 12.0 / 6.0, 1e-9);   // 12 step da 1/6 beat = 2 beat
+        }
+
+        beginTest ("Sequencer: swing, nudge and ratchet shape the timing");
+        {
+            auto p = makePattern (7, 8, { 0, 1 });                  // 1/8 = 0.5 beat
+            p.swing = 0.5f;
+            auto swung = ons (collect (p, 0.0, 1.0));
+            expectWithinAbsoluteError (swung[0], 0.0, 1e-9);
+            expectWithinAbsoluteError (swung[1], 0.5 + 0.25, 1e-9);   // lo step dispari e' ritardato di mezzo step
+
+            auto q = makePattern (4, 4, { 0, 1 });
+            q.lanes[0].steps[0].nudge = 0.25f;
+            q.lanes[0].steps[1].nudge = -0.25f;
+            auto nudged = ons (collect (q, 0.0, 2.0));
+            expectWithinAbsoluteError (nudged[0], 0.25, 1e-9);
+            expectWithinAbsoluteError (nudged[1], 0.75, 1e-9);
+
+            auto r = makePattern (4, 4, { 0 });
+            r.lanes[0].steps[0].ratchet = 3;
+            auto rat = ons (collect (r, 0.0, 1.0));
+            expectEquals ((int) rat.size(), 3);
+            expectWithinAbsoluteError (rat[1], 1.0 / 3.0, 1e-9);
+            expectWithinAbsoluteError (rat[2], 2.0 / 3.0, 1e-9);
+        }
+
+        beginTest ("Sequencer: probability is repeatable (same seed = same result) and differs with the seed");
+        {
+            auto p = makePattern (10, 16, { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 });
+            for (auto& s : p.lanes[0].steps) s.probability = 50;
+            auto a = ons (collect (p, 0.0, 16.0)), b = ons (collect (p, 0.0, 16.0));
+            expect (a == b, "same seed must give the same notes");
+            expect (a.size() > 15 && a.size() < 49, "about half of 64 hits: " + juce::String ((int) a.size()));
+
+            p.seed = 99;
+            expect (ons (collect (p, 0.0, 16.0)) != a, "another seed must give another pattern");
+
+            for (auto& s : p.lanes[0].steps) s.probability = 0;
+            expect (ons (collect (p, 0.0, 16.0)).empty());
+            for (auto& s : p.lanes[0].steps) s.probability = 100;
+            expectEquals ((int) ons (collect (p, 0.0, 16.0)).size(), 64);
+        }
+
+        beginTest ("Sequencer: result does not depend on how the timeline is split into blocks");
+        {
+            auto p = makePattern (10, 16, { 0, 3, 6, 9, 12 });
+            p.swing = 0.25f;
+            p.lanes[0].steps[3].nudge = -0.3f;
+            p.lanes[0].steps[6].ratchet = 2;
+            p.lanes[0].steps[9].probability = 60;
+            auto whole = collect (p, 0.0, 16.0);
+
+            std::vector<Ev> pieces;
+            for (double a = 0.0; a < 16.0; a += 0.37)
+            {
+                auto part = collect (p, a, juce::jmin (16.0, a + 0.37));
+                pieces.insert (pieces.end(), part.begin(), part.end());
+            }
+            std::sort (pieces.begin(), pieces.end(), [] (const Ev& x, const Ev& y)
+                       { return x.ppq != y.ppq ? x.ppq < y.ppq : (int) x.type < (int) y.type; });
+            expectEquals ((int) pieces.size(), (int) whole.size());
+            for (size_t i = 0; i < whole.size() && i < pieces.size(); ++i)
+                expectWithinAbsoluteError (pieces[i].ppq, whole[i].ppq, 1e-9);
+        }
+
+        beginTest ("Sequencer: mute and solo");
+        {
+            Pattern p;
+            for (int i = 0; i < 3; ++i)
+            {
+                Lane l; l.cell = i; l.division = 4; l.length = 4; l.steps[0].on = true;
+                p.lanes.push_back (l);
+            }
+            expectEquals ((int) ons (collect (p, 0.0, 1.0)).size(), 3);
+            p.lanes[1].mute = true;
+            expectEquals ((int) ons (collect (p, 0.0, 1.0)).size(), 2);
+            p.lanes[2].solo = true;                                 // con un solo attivo suona solo quella lane
+            auto solo = collect (p, 0.0, 1.0);
+            expectEquals ((int) ons (solo).size(), 1);
+            expectEquals (solo[0].lane, 2);
+        }
+
+        beginTest ("Sequencer runner: converts time to samples and stops cleanly");
+        {
+            SequencerRunner run;
+            auto p = makePattern (4, 4, { 0, 1 });                  // colpi a 0 e 1 beat
+            run.runBlock (&p, true, 0.0, 120.0, 44100.0, 44100);    // 1 secondo = 2 beat a 120 BPM
+            auto& ev = run.getEvents();
+            std::vector<int> onPos;
+            for (auto& e : ev) if (e.type == SeqEvent::Type::NoteOn) onPos.push_back (e.samplePos);
+            expectEquals ((int) onPos.size(), 2);
+            expectEquals (onPos[0], 0);
+            expectEquals (onPos[1], 22050);
+
+            run.runBlock (&p, false, 2.0, 120.0, 44100.0, 512);     // stop: un evento Stop, poi silenzio
+            expectEquals ((int) run.getEvents().size(), 1);
+            expect (run.getEvents()[0].type == SeqEvent::Type::Stop);
+            run.runBlock (&p, false, 2.0, 120.0, 44100.0, 512);
+            expect (run.getEvents().empty());
+
+            // Posizioni in ordine, note-off prima dei note-on alla stessa posizione
+            auto q = makePattern (4, 4, { 0, 1 });
+            q.lanes[0].steps[0].gate = 1.0f;                        // il note-off cade esattamente sul colpo successivo
+            run.runBlock (&q, true, 0.0, 120.0, 44100.0, 44100);
+            for (size_t i = 1; i < run.getEvents().size(); ++i)
+                expect (run.getEvents()[i - 1].samplePos <= run.getEvents()[i].samplePos);
+            const auto& e = run.getEvents();
+            expect (e[1].type == SeqEvent::Type::NoteOff && e[2].type == SeqEvent::Type::NoteOn && e[1].samplePos == e[2].samplePos);
+        }
+
+        beginTest ("Sequencer + engine: step triggers the cell, gate releases, one-shot keeps going, pitch transposes");
+        {
+            auto makeEv = [] (SeqEvent::Type t, int pos, float vel = 1.0f, float semis = 0.0f)
+            {
+                SeqEvent e; e.type = t; e.samplePos = pos; e.cell = 0; e.velocity = vel; e.semis = semis; return e;
+            };
+
+            Rig oneShot, gate;
+            oneShot.setCells ({ { cell (36, TriggerMode::OneShot), makeSine (440, 2.0) } });
+            gate.setCells ({ { cell (36, TriggerMode::Gate), makeSine (440, 2.0) } });
+            std::vector<SeqEvent> evs { makeEv (SeqEvent::Type::NoteOn, 100), makeEv (SeqEvent::Type::NoteOff, 3000) };
+            auto a = oneShot.render (8192, {}, 256, evs);
+            auto b = gate.render (8192, {}, 256, evs);
+            expect (peak (a, 200, 2000) > 0.3f, "step must trigger the cell");
+            expect (peak (a, 6000, 8000) > 0.3f, "one-shot ignores the step note-off");
+            expect (peak (b, 5000, 8000) < 0.001f, "gate cell is released by the step note-off");
+            expectEquals (peak (a, 0, 100), 0.0f);
+
+            // Trasposizione per step: +12 semitoni = doppia frequenza
+            Rig base, up;
+            base.setCells ({ { cell (36), makeSine (200, 1.0) } });
+            up.setCells ({ { cell (36), makeSine (200, 1.0) } });
+            auto ba = base.render (22050, {}, 256, { makeEv (SeqEvent::Type::NoteOn, 0) });
+            auto ua = up.render (22050, {}, 256, { makeEv (SeqEvent::Type::NoteOn, 0, 1.0f, 12.0f) });
+            const double ratio = (double) zeroCrossings (ua, 100, 10000) / (double) zeroCrossings (ba, 100, 10000);
+            expect (std::abs (ratio - 2.0) < 0.05, "pitch ratio " + juce::String (ratio));
+
+            // Velocita' dello step
+            Rig vel;
+            vel.setCells ({ { cell (36), makeDc (1.0) } });
+            auto va = vel.render (2048, {}, 256, { makeEv (SeqEvent::Type::NoteOn, 0, 0.5f) });
+            expectWithinAbsoluteError (va.getSample (0, 1000), 0.5f, 0.02f);
+
+            // Un note-off MIDI non spegne una voce avviata dal sequencer
+            Rig midiOff;
+            midiOff.setCells ({ { cell (36, TriggerMode::Gate), makeSine (440, 2.0) } });
+            juce::MidiBuffer off;
+            off.addEvent (juce::MidiMessage::noteOff (1, 36), 500);
+            auto m = midiOff.render (4096, off, 256, { makeEv (SeqEvent::Type::NoteOn, 0) });
+            expect (peak (m, 3000, 4000) > 0.3f);
+        }
+
+        beginTest ("Sequencer + engine: parameter lock overrides the cell's filter only for that step");
+        {
+            auto p = cell (36, TriggerMode::Loop);
+            p.fx.filterOn = true; p.fx.filterType = 0; p.fx.cutoff = 20000.0f;     // base: passa tutto
+            Rig r;
+            r.setCells ({ { p, makeSine (8000, 4.0) } });
+
+            SeqEvent locked;                                    // step con cutoff bloccato a 200 Hz
+            locked.type = SeqEvent::Type::NoteOn; locked.samplePos = 0; locked.cell = 0;
+            locked.lockMask = 1u << (int) FxF::Cutoff;
+            locked.lockValues[(size_t) FxF::Cutoff] = 200.0f;
+
+            SeqEvent plain = locked;                            // step successivo senza lock
+            plain.samplePos = 20000;
+            plain.lockMask = 0;
+
+            auto out = r.render (40000, {}, 256, { locked, plain });
+            expect (peak (out, 8000, 19000) < 0.1f, "locked step: 8 kHz must be filtered");
+            expect (peak (out, 30000, 40000) > 0.5f, "next step without lock goes back to the cell's own cutoff");
+        }
+
+        beginTest ("Sequencer: patterns round-trip through the kit file (only lit steps are stored)");
+        {
+            auto kit = Kit::makeDefault();
+            auto& pat = kit.patterns[2];
+            pat.name = "Funk";
+            pat.swing = 0.25f;
+            pat.seed = 777;
+            Lane l; l.cell = 5; l.division = 11; l.length = 12; l.mute = true;
+            auto& s = l.steps[3];
+            s.on = true; s.velocity = 90; s.probability = 75; s.ratchet = 3; s.nudge = -0.1f; s.gate = 0.8f; s.pitch = -5;
+            s.setLock (FxF::Cutoff, 1500.0f);
+            s.setLock (FxF::DelayMix, 0.6f);
+            l.steps[7].on = true;
+            pat.lanes.push_back (l);
+            kit.activePattern = 2;
+
+            auto json = KitIO::toJson (kit, true);
+            expect (json.contains ("\"patterns\""));
+
+            Kit loaded; juce::String err;
+            expect (KitIO::fromJson (json, juce::File(), loaded, err), err);
+            expectEquals ((int) loaded.patterns.size(), kNumPatterns);
+            expectEquals (loaded.activePattern, 2);
+            const auto& lp = loaded.patterns[2];
+            expectEquals (lp.name, juce::String ("Funk"));
+            expectWithinAbsoluteError (lp.swing, 0.25f, 0.001f);
+            expectEquals ((int) lp.seed, 777);
+            expectEquals ((int) lp.lanes.size(), 1);
+            const auto& ll = lp.lanes[0];
+            expectEquals (ll.cell, 5); expectEquals (ll.division, 11); expectEquals (ll.length, 12); expect (ll.mute);
+            const auto& ls = ll.steps[3];
+            expect (ls.on);
+            expectEquals ((int) ls.velocity, 90); expectEquals ((int) ls.probability, 75); expectEquals ((int) ls.ratchet, 3);
+            expectWithinAbsoluteError (ls.nudge, -0.1f, 0.001f); expectWithinAbsoluteError (ls.gate, 0.8f, 0.001f);
+            expectEquals ((int) ls.pitch, -5);
+            expect (ls.hasLock (FxF::Cutoff) && ls.hasLock (FxF::DelayMix) && ! ls.hasLock (FxF::Drive));
+            expectWithinAbsoluteError (ls.lockValues[(size_t) FxF::Cutoff], 1500.0f, 0.01f);
+            expect (ll.steps[7].on && ! ll.steps[8].on);
+            expect (loaded.patterns[3].lanes.empty());
         }
 
         // ------------------------------------------------------- MIDI learn

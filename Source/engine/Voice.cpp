@@ -16,8 +16,10 @@ inline float hermite (const float* d, int n, int i0, float f) noexcept
 }
 
 void Voice::start (const SampleData* sample, const CellDsp& params, int cell, int noteNumber, float velocity01,
-                   double outSR, juce::uint64 ageStamp) noexcept
+                   double outSR, juce::uint64 ageStamp, float extra, bool fromSequencer) noexcept
 {
+    extraSemis = extra;
+    fromSeq = fromSequencer;
     active = false;
     if (sample == nullptr)
         return;
@@ -48,7 +50,8 @@ void Voice::computeDerived() noexcept
     regionStart = juce::jlimit (0, n - 2, (int) (dsp.start * (float) n));
     regionEnd = juce::jlimit (regionStart + 2, n, (int) (dsp.end * (float) n));
 
-    const double semis = (double) dsp.pitchSemis + (double) dsp.tuneCents / 100.0 + (double) (note - dsp.rootNote);
+    const double semis = (double) dsp.pitchSemis + (double) dsp.tuneCents / 100.0 + (double) (note - dsp.rootNote)
+                         + (double) extraSemis;
     step = (data->sampleRate / sampleRate) * std::pow (2.0, semis / 12.0);
 
     const float g = dsp.gain * velocity;

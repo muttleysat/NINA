@@ -119,6 +119,127 @@ static juce::var cellToVar (const CellParams& c, const juce::String& samplePath)
     return juce::var (o);
 }
 
+// Pattern: forma compatta, solo le lane e gli step accesi
+static juce::var patternsToVar (const Kit& kit)
+{
+    juce::Array<juce::var> list;
+    for (int pi = 0; pi < (int) kit.patterns.size(); ++pi)
+    {
+        const auto& p = kit.patterns[(size_t) pi];
+        if (p.lanes.empty() && p.swing == 0.0f)
+            continue;
+
+        auto* po = new juce::DynamicObject();
+        po->setProperty ("index", pi);
+        po->setProperty ("name", p.name);
+        po->setProperty ("swing", p.swing);
+        po->setProperty ("seed", (int) p.seed);
+
+        juce::Array<juce::var> lanes;
+        for (const auto& l : p.lanes)
+        {
+            auto* lo = new juce::DynamicObject();
+            lo->setProperty ("cell", l.cell);
+            lo->setProperty ("division", l.division);
+            lo->setProperty ("length", l.length);
+            lo->setProperty ("mute", l.mute);
+            lo->setProperty ("solo", l.solo);
+
+            juce::Array<juce::var> steps;
+            for (int i = 0; i < kMaxSteps; ++i)
+            {
+                const auto& s = l.steps[(size_t) i];
+                if (! s.on)
+                    continue;
+                auto* so = new juce::DynamicObject();
+                so->setProperty ("i", i);
+                so->setProperty ("v", (int) s.velocity);
+                so->setProperty ("p", (int) s.probability);
+                so->setProperty ("r", (int) s.ratchet);
+                so->setProperty ("n", s.nudge);
+                so->setProperty ("g", s.gate);
+                so->setProperty ("pitch", (int) s.pitch);
+
+                juce::Array<juce::var> locks;
+                for (int f = 0; f < (int) FxF::Count; ++f)
+                    if (s.hasLock ((FxF) f))
+                    {
+                        auto* lk = new juce::DynamicObject();
+                        lk->setProperty ("f", f);
+                        lk->setProperty ("v", s.lockValues[(size_t) f]);
+                        locks.add (juce::var (lk));
+                    }
+                if (! locks.isEmpty())
+                    so->setProperty ("locks", locks);
+                steps.add (juce::var (so));
+            }
+            lo->setProperty ("steps", steps);
+            lanes.add (juce::var (lo));
+        }
+        po->setProperty ("lanes", lanes);
+        list.add (juce::var (po));
+    }
+    return juce::var (list);
+}
+
+static void patternsFromVar (const juce::var& v, Kit& kit)
+{
+    kit.patterns.assign ((size_t) kNumPatterns, Pattern());
+    for (int i = 0; i < kNumPatterns; ++i)
+        kit.patterns[(size_t) i].name = "Pattern " + juce::String (i + 1);
+
+    const auto* arr = v.getArray();
+    if (arr == nullptr)
+        return;
+
+    for (const auto& po : *arr)
+    {
+        const int index = getI (po, "index", -1);
+        if (index < 0 || index >= kNumPatterns)
+            continue;
+
+        auto& p = kit.patterns[(size_t) index];
+        p.name = po["name"].toString().isEmpty() ? p.name : po["name"].toString();
+        p.swing = juce::jlimit (0.0f, 0.5f, getF (po, "swing", 0.0f));
+        p.seed = (std::uint32_t) getI (po, "seed", 1);
+
+        if (const auto* lanes = po["lanes"].getArray())
+            for (const auto& lo : *lanes)
+            {
+                Lane l;
+                l.cell = juce::jlimit (-1, Kit::kMaxCells - 1, getI (lo, "cell", -1));
+                l.division = juce::jlimit (0, kNumDivisions - 1, getI (lo, "division", 10));
+                l.length = juce::jlimit (1, kMaxSteps, getI (lo, "length", 16));
+                l.mute = getB (lo, "mute", false);
+                l.solo = getB (lo, "solo", false);
+
+                if (const auto* steps = lo["steps"].getArray())
+                    for (const auto& so : *steps)
+                    {
+                        const int i = getI (so, "i", -1);
+                        if (i < 0 || i >= kMaxSteps)
+                            continue;
+                        auto& s = l.steps[(size_t) i];
+                        s.on = true;
+                        s.velocity = (std::uint8_t) juce::jlimit (1, 127, getI (so, "v", 100));
+                        s.probability = (std::uint8_t) juce::jlimit (0, 100, getI (so, "p", 100));
+                        s.ratchet = (std::uint8_t) juce::jlimit (1, 4, getI (so, "r", 1));
+                        s.nudge = juce::jlimit (-0.5f, 0.5f, getF (so, "n", 0.0f));
+                        s.gate = juce::jlimit (0.05f, 1.0f, getF (so, "g", 0.5f));
+                        s.pitch = (std::int8_t) juce::jlimit (-24, 24, getI (so, "pitch", 0));
+                        if (const auto* locks = so["locks"].getArray())
+                            for (const auto& lk : *locks)
+                            {
+                                const int f = getI (lk, "f", -1);
+                                if (f >= 0 && f < (int) FxF::Count)
+                                    s.setLock ((FxF) f, getF (lk, "v", 0.0f));
+                            }
+                    }
+                p.lanes.push_back (std::move (l));
+            }
+    }
+}
+
 juce::String toJson (const Kit& kit, bool relativePaths)
 {
     auto* root = new juce::DynamicObject();
@@ -139,6 +260,8 @@ juce::String toJson (const Kit& kit, bool relativePaths)
         midi.add (juce::var (o));
     }
     root->setProperty ("midiMap", midi);
+    root->setProperty ("patterns", patternsToVar (kit));
+    root->setProperty ("activePattern", kit.activePattern);
 
     juce::Array<juce::var> cells;
     for (const auto& c : kit.cells)
@@ -177,6 +300,9 @@ bool fromJson (const juce::String& text, const juce::File& baseDir, Kit& kit, ju
     k.cols = juce::jlimit (1, 64, getI (root, "cols", 12));
     k.masterDb = getF (root, "masterDb", 0.0f);
     k.masterFx = fxFromVar (root["masterFx"]);
+
+    patternsFromVar (root["patterns"], k);
+    k.activePattern = juce::jlimit (0, kNumPatterns - 1, getI (root, "activePattern", 0));
 
     if (const auto* mm = root["midiMap"].getArray())
         for (const auto& o : *mm)
