@@ -36,6 +36,7 @@ private:
     int bars() const { return 1 << juce::jmax (0, barsBox.getSelectedId() - 1); }   // 1, 2, 4, 8
     void applyLockSlider (bool fromUser);
     void updateLockControls();
+    void refreshLockMarks();           // segna nel menu i parametri gia' bloccati su questo step
     void showMessage (const juce::String& text);
 
     SampleLabProcessor& processor;
@@ -58,6 +59,7 @@ private:
     juce::Slider velocitySlider, probSlider, nudgeSlider, gateSlider, pitchSlider, lockSlider;
     juce::ComboBox ratchetBox, lockParamBox, stepModeBox;
     juce::ToggleButton lockToggle { "Lock" }, reverseToggle { "Reverse this step" };
+    juce::TextButton clearLocksButton { "Clear locks" };
     juce::Rectangle<int> editorRect, titleRect;
     std::array<juce::Rectangle<int>, 5> labelRects;
     std::unique_ptr<juce::FileChooser> chooser;

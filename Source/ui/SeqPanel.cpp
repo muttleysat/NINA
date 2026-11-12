@@ -600,6 +600,19 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     lockToggle.onClick = [this] { applyLockSlider (false); };
     addAndMakeVisible (lockToggle);
 
+    // Si possono bloccare piu' parametri sullo stesso step: scegline uno, regolalo, poi scegli il successivo.
+    clearLocksButton.setTooltip ("Remove every lock from this step");
+    clearLocksButton.onClick = [this]
+    {
+        if (selLane < 0 || selStep < 0 || selLane >= (int) pat().lanes.size())
+            return;
+        pat().lanes[(size_t) selLane].steps[(size_t) selStep].lockMask = 0;
+        edited();
+        updateLockControls();
+        repaint();
+    };
+    addAndMakeVisible (clearLocksButton);
+
     refresh();
     startTimerHz (30);
 }
@@ -687,7 +700,7 @@ void SeqPanel::refreshEditor()
     for (juce::Component* c : { (juce::Component*) &velocitySlider, (juce::Component*) &probSlider, (juce::Component*) &nudgeSlider,
                                 (juce::Component*) &gateSlider, (juce::Component*) &pitchSlider, (juce::Component*) &ratchetBox,
                                 (juce::Component*) &lockParamBox, (juce::Component*) &lockSlider, (juce::Component*) &lockToggle,
-                                (juce::Component*) &reverseToggle, (juce::Component*) &stepModeBox })
+                                (juce::Component*) &reverseToggle, (juce::Component*) &stepModeBox, (juce::Component*) &clearLocksButton })
         c->setEnabled (valid);
 
     updatingEditor = true;
@@ -754,6 +767,23 @@ void SeqPanel::updateLockControls()
     }
     lockSlider.updateText();
     updatingEditor = false;
+    refreshLockMarks();
+}
+
+// Nel menu un pallino davanti ai parametri gia' bloccati su questo step
+void SeqPanel::refreshLockMarks()
+{
+    const bool valid = selLane >= 0 && selLane < (int) pat().lanes.size() && selStep >= 0;
+    const auto mask = valid ? pat().lanes[(size_t) selLane].steps[(size_t) selStep].lockMask : 0u;
+
+    for (int i = 0; i < sl::kNumLockable; ++i)
+    {
+        const juce::String name = i < (int) sl::FxF::Count ? lockNames[i] : lockOnNames[i - (int) sl::FxF::Count];
+        lockParamBox.changeItemText (i + 1, (((mask >> i) & 1u) ? juce::String::fromUTF8 ("\xE2\x97\x8F ") : juce::String()) + name);
+    }
+    lockParamBox.setText (lockParamBox.getItemText (lockParamBox.getSelectedItemIndex()), juce::dontSendNotification);
+    clearLocksButton.setEnabled (mask != 0);
+    repaint (titleRect);
 }
 
 void SeqPanel::applyLockSlider (bool fromUser)
@@ -777,6 +807,7 @@ void SeqPanel::applyLockSlider (bool fromUser)
         s.clearLock (idx);
 
     edited();
+    refreshLockMarks();
 }
 
 void SeqPanel::showAddMenu()
@@ -911,8 +942,16 @@ void SeqPanel::paint (juce::Graphics& g)
 
     juce::String title = "Click a step to turn it on and edit it  -  drag a lit step up/down for velocity  -  click it again to turn it off";
     if (selLane >= 0 && selLane < (int) pat().lanes.size())
+    {
+        const auto& step = pat().lanes[(size_t) selLane].steps[(size_t) selStep];
+        int locks = 0;
+        for (int i = 0; i < sl::kNumLockable; ++i)
+            locks += step.hasLock (i) ? 1 : 0;
+
         title = "Editing step " + juce::String (selStep + 1) + " of " + sl::cellLabel (pat().lanes[(size_t) selLane].cell, processor.getKit().cols)
-                + (pat().lanes[(size_t) selLane].steps[(size_t) selStep].on ? "" : "   (step is off: click it to turn it on)");
+                + (step.on ? "" : "   (step is off: click it to turn it on)")
+                + (locks > 0 ? "   -   " + juce::String (locks) + " lock(s) on this step (marked in the menu)" : juce::String());
+    }
     g.setColour (theme::text);
     g.setFont (juce::FontOptions (juce::jmax (10.0f, 12.5f * s), juce::Font::bold));
     g.drawText (title, titleRect, juce::Justification::centredLeft);
@@ -991,8 +1030,10 @@ void SeqPanel::resized()
 
     ed.removeFromTop ((int) (4 * s));
     auto row3 = ed.removeFromTop ((int) (24 * s));
-    lockParamBox.setBounds (row3.removeFromLeft ((int) (170 * s)));
+    lockParamBox.setBounds (row3.removeFromLeft ((int) (190 * s)));
     row3.removeFromLeft (gap);
+    clearLocksButton.setBounds (row3.removeFromRight ((int) (96 * s)));
+    row3.removeFromRight (gap);
     lockToggle.setBounds (row3.removeFromRight ((int) (80 * s)));
     lockSlider.setBounds (row3.reduced ((int) (4 * s), 0));
 }
