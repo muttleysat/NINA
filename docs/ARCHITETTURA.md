@@ -92,6 +92,18 @@ Kit
 - `schemaVersion` con funzioni di migrazione.
 - Lo stato nel progetto della DAW contiene il riferimento al `.slkit` più lo stato non ancora salvato.
 
+## 5.1 Parametri e automazione (da introdurre prima di aggiungere altri effetti)
+
+Oggi i parametri vivono in `Kit` e arrivano al motore tramite snapshot: non sono visibili alla DAW. Per rispettare AU-1…AU-11 serve un **registro dei parametri** unico:
+
+- Ogni parametro ha: ID stabile (es. `c012.filter.cutoff`), nome, gruppo (VST3 unit/`AudioProcessorParameterGroup`: *Cell A1 > Filter*), intervallo, curva, unità e testo del valore.
+- Il valore corrente è un atomico letto dal thread audio; l'interfaccia, la DAW (automazione), il MIDI learn e il sequencer (lock per step) scrivono sullo stesso valore, con regole di priorità (AU-9).
+- Il `Kit` salva i valori nel `.slkit`; allo stesso modo il caricamento di un kit imposta i parametri notificando la DAW.
+- Gli ID sono costruiti da posizione della cella + nome del parametro e non cambiano tra le versioni (AU-4).
+- Numero di parametri: ~35 per cella × fino a 128 celle (~4500) + master. JUCE e Cubase lo gestiscono, ma l'istanziazione va misurata (AU-5): se serve si limita il numero di celle esposte.
+
+Il motore continua a leggere uno snapshot per le parti non automatizzabili (campioni, mapping).
+
 ## 6. Interfaccia e ridimensionamento
 
 - Tutto il disegno è **vettoriale** (juce::Graphics, Path, gradienti): nessuna bitmap fissa.

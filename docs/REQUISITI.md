@@ -1,6 +1,6 @@
 # Sample Lab – Requisiti di prodotto
 
-Versione: 1.5 (bozza) – 2026-11-12
+Versione: 1.6 (bozza) – 2026-11-12
 Stato: documento vivo, da estendere iterativamente.
 
 ## 1. Visione
@@ -106,6 +106,8 @@ Gli effetti sono disponibili **per cella** e a livello **globale (kit)**, con st
 | FX-3 | **Creativi**: bit crusher/sample-rate reducer, distorsione/waveshaper, chorus, flanger, phaser, tape stop, stutter/gater, ring modulator. (Elenco iniziale, da raffinare.) | Should |
 | FX-4 | Ordine degli effetti nella catena modificabile; numero di slot per cella (proposta: 4) e globale (proposta: 6). | Should |
 | FX-5 | Send/aux per riverbero e delay condivisi tra celle. | Could |
+| FX-8 | **Sync al tempo degli effetti ritmici**: gli effetti con un tempo o una frequenza (delay, stutter/gater, tremolo, auto-pan, LFO di chorus/flanger/phaser, filtro con LFO) hanno un interruttore **Free / Sync**. In Free il valore è in ms o Hz; in Sync si sceglie un valore musicale: 1/1, 1/2, 1/4, 1/8, 1/16, 1/32, 1/64, con varianti puntate (.) e terzine (T). Il tempo è il **BPM della DAW** (anche con tempo variabile) o, nello standalone, il BPM interno (SA-3). | Must |
+| FX-9 | **Sincronizzazione di fase**: LFO, stutter e gater si agganciano alla posizione di trasporto (battuta/beat) e ripartono allineati a ogni Play o salto di posizione; opzione "Retrigger on note" per ripartire a ogni nota. Il cambio di tempo non produce click (smussamento). Nel delay, modalità **Tape** (il cambio di tempo cambia anche l'intonazione) o **Clean** (nessuna variazione di pitch). | Should |
 | FX-6 | **Uscite multiple**: ogni cella è assegnabile a una uscita della DAW (stereo principale + uscite aggiuntive, proposta 16 stereo). L'assegnazione è salvata nel kit. Gli effetti per cella sono applicati prima dell'uscita assegnata; la catena globale agisce solo sulle celle instradate sul master. | Must |
 
 ## 8. Loop, sync e time-stretch
@@ -157,6 +159,8 @@ Sequencer interno che suona le celle del kit e consente di creare una **frase MI
 | SQ-3 | Parametri per step: **on/off, velocity, nota/cella, durata (gate), probabilità, ratchet/ripetizioni, micro-timing (nudge)**. | Must |
 | SQ-4 | **Modalità di riproduzione per step**: one-shot / gate, reverse, selezione slice (per loop slicciati), pitch/tune di step, start offset. | Must |
 | SQ-5 | **Effetti per step** (*parameter lock*, stile Elektron): ogni step può sovrascrivere i parametri degli effetti della cella (es. filtro, drive, bit crusher, delay send) solo per quello step; i valori non bloccati restano quelli della cella. | Must |
+| SQ-5b | **Livelli diversi dello stesso parametro tra step e tra celle**: ogni cella ha il proprio filtro (e i propri effetti) indipendente. Un parametro come il cutoff può avere un valore diverso a ogni step della stessa lane, e valori diversi in lane diverse (es. kick con cutoff 400 Hz, snare con cutoff 3 kHz, hat con cutoff 9 kHz). Il valore tra uno step e l'altro è a scalino oppure interpolato (opzione "Slide", con tempo di glide regolabile per step). | Must |
+| SQ-5c | **Editing di più lane insieme**: selezionando più celle/lane, un parametro (es. cutoff) si può impostare o modulare per tutte con un gesto (valore assoluto, offset relativo o rampa da una cella all'altra), e un lock si può copiare su altri step e altre lane. Vista a barre del parametro scelto per tutte le lane. | Should |
 | SQ-6 | Editor griglia nella stessa finestra (pannello a schede), con editing rapido di velocity/probabilità, copia/incolla step e pattern, randomizzazione e clear. | Must |
 | SQ-7 | **Esportazione frase MIDI nella DAW**: (a) **drag & drop** del pattern dal plugin alla traccia o all'area di progetto di Cubase come clip MIDI (file `.mid` generato al volo); (b) esportazione su file `.mid`; (c) *facoltativo, non pianificato*: uscita MIDI in tempo reale del plugin da instradare su un'altra traccia, da provare in Cubase 16 solo se utile. L'esportazione conserva note, velocity, durata e probabilità/ratchet "risolti" in eventi MIDI fissi. | Must |
 | SQ-8 | Il sequencer pilota le celle direttamente (non solo via MIDI interno); le note MIDI in ingresso dalla DAW continuano a funzionare in parallelo. Possibile modalità "registra da tastiera" (step recording) con quantizzazione. | Should |
@@ -232,6 +236,22 @@ Kits/
 | NF-8 | Kit `.slkit` identici e interscambiabili tra Windows e macOS (percorsi relativi, endianness e codifica nomi file gestite). |
 | NF-6 | Tutti i parametri automatizzabili dalla DAW (con ID stabili). |
 | NF-7 | Lingua UI: inglese (italiano come possibile traduzione futura). |
+
+### 11.1 Automazione e parametri esposti alla DAW
+
+| ID | Requisito | Priorità |
+|----|-----------|----------|
+| AU-1 | **Tutti i controlli sono parametri automatizzabili** della DAW, in lettura e in scrittura (modalità Read, Write, Touch, Latch in Cubase): per ogni cella Start, End, Level, Pan, Tune, Pitch, Reverse, modalità di trigger, inviluppo AHDSR, tutti i parametri degli effetti con i loro interruttori on/off; più i parametri del master e degli effetti globali. I valori cambiati dall'interfaccia vengono registrati dalla DAW, quelli automatizzati si vedono muovere sull'interfaccia. | Must |
+| AU-2 | **Nomi riconoscibili, non numeri di CC**: ogni parametro ha un nome chiaro, un'unità e un valore leggibile (es. "Cutoff - 2.4 kHz", "Mode - Gate", "Level - -6 dB"). Nell'elenco dell'automazione di Cubase compaiono come "A1 Filter Cutoff" e non come "CC 45". | Must |
+| AU-3 | **Gerarchia a gruppi**: i parametri sono raggruppati per cella ed effetto (es. *Cell A1 > Filter > Cutoff*, *Master > Reverb > Mix*) tramite le unità/gruppi di parametri VST3, così da essere ordinati e cercabili nel menu della DAW. | Must |
+| AU-4 | **ID stabili e retrocompatibili**: l'identificatore di ogni parametro è derivato dalla cella e dal nome del parametro e non cambia tra le versioni. I parametri aggiunti in futuro non alterano quelli esistenti, per non rompere i progetti già salvati con automazioni. | Must |
+| AU-5 | **Copertura delle celle**: i parametri sono esposti per tutte le celle del kit (fino a 128). Se il numero di parametri rallenta il caricamento o la DAW, è previsto un limite configurabile (es. solo le prime 64 celle) documentato nelle impostazioni. | Must |
+| AU-6 | **Gesture corrette**: ogni modifica dall'interfaccia segnala alla DAW inizio e fine del gesto (touch/release), così che Write, Touch e Latch registrino correttamente. I valori automatizzati sono smussati nel tempo per evitare click. | Must |
+| AU-7 | **Parametri discreti con testo**: interruttori e selettori (tipo di filtro, modalità di trigger, sync on/off, valore di sync 1/16, ecc.) hanno valori testuali leggibili nella DAW. | Must |
+| AU-8 | **Parametri "cella selezionata"** (opzionale): un piccolo set di parametri generici (es. Level, Tune, Cutoff) che agiscono sempre sulla cella selezionata, per controllarla velocemente da un controller o dai Quick Controls di Cubase. L'automazione registrata su questi dipende dalla selezione ed è segnalata come tale. | Could |
+| AU-9 | **Interazione con il sequencer**: il valore automatizzato dalla DAW è il valore di base del parametro; i parameter lock del sequencer (SQ-5) lo sovrascrivono solo nello step in cui sono attivi. L'ordine di priorità è documentato e visibile (indicatore sul controllo con lock attivo). | Must |
+| AU-10 | **Collegamento con il MIDI learn** (sez. 5.1): il MIDI learn assegna i controller agli stessi parametri e passa dallo stesso sistema, quindi funziona anche nello standalone (dove l'automazione della DAW non esiste). | Must |
+| AU-11 | **Verifica in Cubase 16**: i parametri compaiono per nome nell'elenco dell'automazione e nei Quick Controls, si registrano e si riproducono in tutte le modalità; verifica anche con una seconda DAW. | Must |
 
 ## 12. Proposta tecnica (da confermare)
 
