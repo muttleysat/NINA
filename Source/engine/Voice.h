@@ -1,6 +1,7 @@
 #pragma once
 
 #include "KitSnapshot.h"
+#include "FxChain.h"
 
 namespace sl
 {
@@ -21,6 +22,13 @@ public:
                 double outputSampleRate, juce::uint64 ageStamp, float extraSemis = 0.0f, bool fromSequencer = false,
                 bool reverseFlip = false, int modeOverride = -1) noexcept;
     bool isFromSequencer() const noexcept { return fromSeq; }
+
+    // Effetti per colpo (filtro, saturazione, LoFi): stato proprio della voce + parameter lock dello step che l'ha avviata
+    InsertFx insert;
+    void prepareFx (double sr) { insert.prepare (sr); }
+    void setLocks (std::uint32_t mask, const std::array<float, (size_t) kNumLockable>& values) noexcept { lockMask = mask; lockValues = values; }
+    bool hasLock (int i) const noexcept { return (lockMask >> i) & 1u; }
+    float lockValue (int i) const noexcept { return lockValues[(size_t) i]; }
     void release() noexcept;
     void kill() noexcept { active = false; }
 
@@ -36,6 +44,8 @@ private:
 
     void computeDerived() noexcept;     // step, guadagni, tempi dell'inviluppo dai parametri correnti
     float velocity = 1.0f;
+    std::uint32_t lockMask = 0;
+    std::array<float, (size_t) kNumLockable> lockValues {};
     float extraSemis = 0.0f;
     bool fromSeq = false;
     int modeOverride = -1;

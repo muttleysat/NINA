@@ -23,6 +23,8 @@ void Voice::start (const SampleData* sample, const CellDsp& params, int cell, in
     fromSeq = fromSequencer;
     modeOverride = modeOv;
     baseDsp = params;
+    lockMask = 0;                       // i lock dello step si impostano dopo l'avvio (setLocks)
+    insert.reset();                     // stato del filtro pulito a ogni nuova nota
     active = false;
     if (sample == nullptr)
         return;

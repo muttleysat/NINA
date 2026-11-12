@@ -981,26 +981,103 @@ public:
                 r.runBlock (&pat, true, 0.0, 120.0, kSR, 44100, 1.0);
                 std::vector<SeqEvent> ons;
                 for (auto& e : r.getEvents()) if (e.type == SeqEvent::Type::NoteOn) ons.push_back (e);
-                Rig rig;                                        // cella SENZA effetti attivi
-                rig.setCells ({ { cell (36), impulse3() } });
+                auto c = cell (36);                             // delay SPENTO sulla cella; tempo e feedback sono della cella
+                c.fx.delayTime = 100.0f; c.fx.delayFeedback = 0.0f;
+                Rig rig;
+                rig.setCells ({ { c, impulse3() } });
                 return rig.render (8192, {}, 256, ons);
             };
 
-            // Solo valori bloccati (delay spento sulla cella): l'effetto parte da solo
-            auto withLocks = run ([] (Step& s) { s.setLock (FxF::DelayTime, 100.0f); s.setLock (FxF::DelayMix, 1.0f); s.setLock (FxF::DelayFeedback, 0.0f); });
-            expect (peak (withLocks, 4300, 4520) > 0.7f, "value locks must switch the delay on for the step");
+            // Il lock della mandata (delay send) accende il delay per quel colpo anche se sulla cella e' spento
+            auto withLocks = run ([] (Step& s) { s.setLock (FxF::DelayMix, 1.0f); });
+            expect (peak (withLocks, 4300, 4520) > 0.7f, "a send lock must switch the delay on for that hit");
 
             // Senza lock niente eco
             auto none = run ([] (Step&) {});
             expect (peak (none, 4300, 4520) < 0.01f);
 
-            // Un lock esplicito On/Off = spento vince: i valori bloccati non si sentono
+            // Un lock esplicito On/Off = spento vince sul valore bloccato
             auto forcedOff = run ([] (Step& s)
             {
-                s.setLock (FxF::DelayTime, 100.0f); s.setLock (FxF::DelayMix, 1.0f); s.setLock (FxF::DelayFeedback, 0.0f);
+                s.setLock (FxF::DelayMix, 1.0f);
                 s.setLock (lockIndex (FxB::Delay), 0.0f);
             });
             expect (peak (forcedOff, 4300, 4520) < 0.01f, "explicit Off lock wins over the implicit switch-on");
+        }
+
+        beginTest ("Per-hit effects: a lock changes only its own note, never the notes already playing");
+        {
+            // Due colpi della stessa cella, il secondo con cutoff bloccato a 200 Hz: il primo (sinusoide a 8 kHz in loop) deve
+            // continuare identico, il secondo suonare filtrato. Prima il lock cambiava la catena condivisa e toccava anche il primo.
+            auto p = cell (36, TriggerMode::Loop);
+            p.fx.filterOn = true; p.fx.filterType = 0; p.fx.cutoff = 20000.0f;
+            Rig r;
+            r.setCells ({ { p, makeSine (8000, 4.0) } });
+
+            SeqEvent first;  first.type = SeqEvent::Type::NoteOn; first.samplePos = 0; first.cell = 0;
+            SeqEvent second = first; second.samplePos = 20000;
+            second.lockMask = 1u << (int) FxF::Cutoff;
+            second.lockValues[(size_t) FxF::Cutoff] = 200.0f;
+
+            auto base = r.render (40000, {}, 256, { first });
+            Rig r2;
+            r2.setCells ({ { p, makeSine (8000, 4.0) } });
+            auto withSecond = r2.render (40000, {}, 256, { first, second });
+
+            // Fino a 20000 identici
+            float maxDiff = 0.0f;
+            for (int i = 0; i < 19900; ++i)
+                maxDiff = juce::jmax (maxDiff, std::abs (base.getSample (0, i) - withSecond.getSample (0, i)));
+            expectEquals (maxDiff, 0.0f);
+
+            // Dopo il secondo colpo il primo voce suona sempre uguale: il segnale totale = primo + secondo(filtrato ~ 0)
+            float after = 0.0f;
+            for (int i = 25000; i < 40000; ++i)
+                after = juce::jmax (after, std::abs (base.getSample (0, i) - withSecond.getSample (0, i)));
+            expect (after < 0.1f, "the first voice must be untouched by the second hit's lock: diff " + juce::String (after));
+        }
+
+        beginTest ("Per-hit effects: a delay send echoes after the step ends and does not cut at the next hit");
+        {
+            auto p = cell (36);
+            p.fx.delayTime = 100.0f; p.fx.delayFeedback = 0.0f;          // delay spento sulla cella
+            auto impulse4 = [] ()
+            {
+                auto d = std::make_shared<SampleData>();
+                d->audio.setSize (1, 100); d->audio.clear(); d->audio.setSample (0, 0, 1.0f); d->sampleRate = kSR;
+                return SampleDataPtr (d);
+            };
+            Rig r;
+            r.setCells ({ { p, impulse4() } });
+
+            SeqEvent sent;  sent.type = SeqEvent::Type::NoteOn; sent.samplePos = 0; sent.cell = 0;
+            sent.lockMask = (1u << (int) FxF::DelayMix) | (1u << lockIndex (FxB::Delay));
+            sent.lockValues[(size_t) FxF::DelayMix] = 1.0f;
+            sent.lockValues[(size_t) lockIndex (FxB::Delay)] = 1.0f;
+            SeqEvent next;  next.type = SeqEvent::Type::NoteOn; next.samplePos = 2000; next.cell = 0;   // colpo successivo senza lock
+
+            auto out = r.render (8192, {}, 256, { sent, next });
+            expect (peak (out, 4350, 4470) > 0.7f, "the echo of the first hit still sounds at 100 ms, after the next hit started");
+            expect (peak (out, 2000, 2050) > 0.7f, "the next hit itself is there");
+            // Il secondo colpo non ha mandata: la sua eco (a 2000 + 4410 = 6410) non esiste
+            expect (peak (out, 6350, 6480) < 0.01f, "the second hit has no send, so no echo of it");
+        }
+
+        beginTest ("Per-hit effects: filter state is clean at every new note (no leftover ringing)");
+        {
+            auto p = cell (36);
+            p.fx.filterOn = true; p.fx.filterType = 0; p.fx.cutoff = 500.0f; p.fx.resonance = 8.0f;
+            Rig a, b;
+            auto sine = makeSine (440, 1.0);
+            a.setCells ({ { p, sine } });
+            b.setCells ({ { p, sine } });
+            auto o1 = a.render (4096, noteOn (36));
+            // Stesso colpo dopo una nota precedente completamente finita: risultato identico
+            b.render (44100, noteOn (36));
+            auto o2 = b.render (4096, noteOn (36));
+            float d = 0.0f;
+            for (int i = 0; i < 4096; ++i) d = juce::jmax (d, std::abs (o1.getSample (0, i) - o2.getSample (0, i)));
+            expect (d < 1.0e-5f, "second note must start from a clean filter state, diff " + juce::String (d));
         }
 
         beginTest ("Normalize: gain brings the peak to the target; silence is left alone");

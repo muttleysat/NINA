@@ -60,23 +60,23 @@ private:
     void noteOff (int note) noexcept;
     Voice* allocateVoice() noexcept;
     void seqEvent (const SeqEvent& e) noexcept;      // NoteOn/NoteOff/Stop dal sequencer
-    void applyLocks() noexcept;                      // parameter lock degli step sopra i valori correnti degli effetti
-
-    // Parameter lock attivi per cella: restano finche' la cella riceve un nuovo step (o il sequencer si ferma)
-    std::array<FxParams, kMaxCells> effFx;           // effetti effettivi del blocco = parametri live + lock degli step
-    std::array<std::uint32_t, kMaxCells> lockMask {};
-    std::array<std::array<float, (size_t) kNumLockable>, kMaxCells> lockValues {};
     void renderVoices (float* l, float* r, int start, int count) noexcept;
     void renderChunk (float* l, float* r, int n) noexcept;
+    void renderMaster (float* l, float* r, int n) noexcept;
 
     double sampleRate = 44100.0;
     int maxBlock = 1024;
-    int tailSamples = 0;                // durata di coda concessa a delay/riverbero dopo la fine delle voci
+    int tailSamples = 0;                // durata di coda concessa a delay/riverbero dopo l'ultima mandata
 
+    // Effetti di cella: filtro/saturazione/LoFi stanno nelle voci (per colpo); compressore, delay e riverbero nella cella
     std::array<std::unique_ptr<FxChain>, kMaxCells> cellFx;
-    std::array<int, kMaxCells> cellTail {};
+    std::array<int, kMaxCells> delayTail {}, reverbTail {};     // campioni di coda rimasti dopo l'ultima mandata
     FxChain masterFx;
-    std::vector<float> scratchL, scratchR;
+    InsertFx masterInsert;
+    bool masterDelayWasOn = false, masterReverbWasOn = false;
+
+    // Buffer di lavoro (preallocati): bus della cella, singola voce, mandate al delay e al riverbero
+    std::vector<float> busL, busR, voiceL, voiceR, sendDL, sendDR, sendRL, sendRR;
     SnapshotExchange exchange;
     KitSnapshotPtr current;
     int lastGeneration = -1;
@@ -86,6 +86,7 @@ private:
     KitSnapshotPtr previewCurrent;
     Voice previewVoice;
 
+    std::array<FxParams, kMaxCells> effFx;           // copia dei parametri effetti del blocco corrente
     std::array<Voice, kMaxVoices> voices;
     std::array<std::atomic<int>, kMaxCells> activity {};
     std::atomic<float> peakL { 0.0f }, peakR { 0.0f };

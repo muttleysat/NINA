@@ -121,7 +121,7 @@ public:
             // Bloccare un parametro di un effetto lo accende per questo step (altrimenti il valore non si sentirebbe se
             // l'effetto e' spento sulla cella), a meno che lo step blocchi esplicitamente l'interruttore dell'effetto.
             for (int f = 0; f < (int) FxF::Count; ++f)
-                if (e.step->hasLock (f))
+                if (e.step->hasLock (f) && isPerHitLockable ((FxF) f))
                 {
                     const int sw = lockIndex (fxOwner ((FxF) f));
                     if (! e.step->hasLock (sw))

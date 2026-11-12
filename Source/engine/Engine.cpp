@@ -3,6 +3,51 @@
 
 namespace sl
 {
+namespace
+{
+// Interruttore di un effetto per una voce: il lock dello step (se c'e') altrimenti il valore della cella
+bool effectOn (const Voice& v, FxB b, bool cellValue) noexcept
+{
+    const int i = lockIndex (b);
+    return v.hasLock (i) ? v.lockValue (i) >= 0.5f : cellValue;
+}
+
+float lockedOr (const Voice& v, FxF f, float cellValue) noexcept
+{
+    return v.hasLock ((int) f) ? v.lockValue ((int) f) : cellValue;
+}
+
+// Parametri degli effetti per colpo di una voce: valori della cella (live) con i lock del suo step sopra
+InsertParams voiceInsert (const FxParams& cell, const Voice& v) noexcept
+{
+    InsertParams p = InsertParams::from (cell);
+    p.satOn = effectOn (v, FxB::Sat, cell.satOn);
+    p.lofiOn = effectOn (v, FxB::Lofi, cell.lofiOn);
+    p.filterOn = effectOn (v, FxB::Filter, cell.filterOn);
+    p.drive = lockedOr (v, FxF::Drive, cell.drive);
+    p.satMix = lockedOr (v, FxF::SatMix, cell.satMix);
+    p.bits = lockedOr (v, FxF::Bits, cell.bits);
+    p.downsample = lockedOr (v, FxF::Downsample, cell.downsample);
+    p.lofiMix = lockedOr (v, FxF::LofiMix, cell.lofiMix);
+    p.cutoff = lockedOr (v, FxF::Cutoff, cell.cutoff);
+    p.resonance = lockedOr (v, FxF::Resonance, cell.resonance);
+    return p;
+}
+
+// Mandate della voce al delay e al riverbero (0 = niente)
+float delaySendOf (const FxParams& cell, const Voice& v) noexcept
+{
+    return effectOn (v, FxB::Delay, cell.delayOn) ? juce::jlimit (0.0f, 1.0f, lockedOr (v, FxF::DelayMix, cell.delayMix)) : 0.0f;
+}
+
+float reverbSendOf (const FxParams& cell, const Voice& v) noexcept
+{
+    return effectOn (v, FxB::Reverb, cell.reverbOn) ? juce::jlimit (0.0f, 1.0f, lockedOr (v, FxF::ReverbMix, cell.reverbMix)) : 0.0f;
+}
+
+void zero (std::vector<float>& a, int n) noexcept { std::fill (a.begin(), a.begin() + n, 0.0f); }
+}
+
 void Engine::prepare (double sr, int maxBlockSize)
 {
     sampleRate = sr;
@@ -10,19 +55,25 @@ void Engine::prepare (double sr, int maxBlockSize)
     tailSamples = (int) (sr * 4.0);
     previewVoice.kill();
     for (auto& v : voices)
+    {
         v.kill();
+        v.prepareFx (sr);
+    }
 
-    scratchL.assign ((size_t) maxBlock, 0.0f);
-    scratchR.assign ((size_t) maxBlock, 0.0f);
+    for (auto* buf : { &busL, &busR, &voiceL, &voiceR, &sendDL, &sendDR, &sendRL, &sendRR })
+        buf->assign ((size_t) maxBlock, 0.0f);
+
     for (auto& c : cellFx)
     {
         if (c == nullptr)
             c = std::make_unique<FxChain>();
         c->prepare (sr, maxBlock);
     }
-    cellTail.fill (0);
-    lockMask.fill (0);
+    delayTail.fill (0);
+    reverbTail.fill (0);
     masterFx.prepare (sr, maxBlock);
+    masterInsert.prepare (sr);
+    masterDelayWasOn = masterReverbWasOn = false;
 }
 
 void Engine::playPreview (const SampleData* data, float gain)
@@ -104,7 +155,6 @@ void Engine::seqEvent (const SeqEvent& e) noexcept
 {
     if (e.type == SeqEvent::Type::Stop)
     {
-        lockMask.fill (0);                                       // i lock finiscono con lo stop
         for (auto& v : voices)
             if (v.isActive() && v.isFromSequencer())
                 v.release();
@@ -122,38 +172,14 @@ void Engine::seqEvent (const SeqEvent& e) noexcept
         return;
     }
 
-    // NoteOn: i lock di questo step valgono finche' la cella non riceve il prossimo step
-    lockMask[(size_t) e.cell] = e.lockMask;
-    lockValues[(size_t) e.cell] = e.lockValues;
-    applyLocks();
-
     const auto& cell = current->cells[(size_t) e.cell];
     if (cell.data == nullptr)
         return;
 
     const auto d = liveDsp (e.cell);
-    allocateVoice()->start (cell.data, d, e.cell, d.rootNote, e.velocity, sampleRate, ++ageCounter, e.semis, true,
-                            e.reverse, e.mode);
-}
-
-void Engine::applyLocks() noexcept
-{
-    for (int c = 0; c < kMaxCells; ++c)
-    {
-        const auto mask = lockMask[(size_t) c];
-        if (mask == 0)
-            continue;
-        for (int i = 0; i < kNumLockable; ++i)
-        {
-            if (! ((mask >> i) & 1u))
-                continue;
-            const float v = lockValues[(size_t) c][(size_t) i];
-            if (i < (int) FxF::Count)
-                setFxFloat (effFx[(size_t) c], (FxF) i, v);                         // valore di un effetto
-            else
-                setFxBool (effFx[(size_t) c], (FxB) (i - (int) FxF::Count), v >= 0.5f);   // effetto acceso/spento
-        }
-    }
+    auto* v = allocateVoice();
+    v->start (cell.data, d, e.cell, d.rootNote, e.velocity, sampleRate, ++ageCounter, e.semis, true, e.reverse, e.mode);
+    v->setLocks (e.lockMask, e.lockValues);      // i lock valgono solo per questo colpo
 }
 
 void Engine::renderVoices (float* l, float* r, int start, int count) noexcept
@@ -167,7 +193,8 @@ void Engine::renderVoices (float* l, float* r, int start, int count) noexcept
     }
 }
 
-// Renderizza le voci cella per cella: le celle con effetti passano da un buffer dedicato e dalla propria catena.
+// Cella per cella: ogni voce passa dai suoi effetti per colpo, poi la cella somma le voci, applica il compressore e
+// aggiunge delay e riverbero alimentati dalle mandate delle voci.
 void Engine::renderChunk (float* l, float* r, int n) noexcept
 {
     if (current == nullptr)
@@ -182,38 +209,108 @@ void Engine::renderChunk (float* l, float* r, int n) noexcept
     for (int c = 0; c < numCells; ++c)
     {
         const bool voiceOn = hasVoice[(size_t) c];
-        const auto& fx = effFx[(size_t) c];
-
-        if (! fx.anyOn())
-        {
-            cellTail[(size_t) c] = 0;
-            if (voiceOn)
-                for (auto& v : voices)
-                    if (v.isActive() && v.getCellIndex() == c)
-                        v.render (l, r, n);
+        if (! voiceOn && delayTail[(size_t) c] <= 0 && reverbTail[(size_t) c] <= 0)
             continue;
+
+        const auto& fx = effFx[(size_t) c];
+        auto& chain = *cellFx[(size_t) c];
+
+        zero (busL, n); zero (busR, n);
+        zero (sendDL, n); zero (sendDR, n);
+        zero (sendRL, n); zero (sendRR, n);
+        bool delaySent = false, reverbSent = false;
+
+        for (auto& v : voices)
+        {
+            if (! v.isActive() || v.getCellIndex() != c)
+                continue;
+
+            const auto ip = voiceInsert (fx, v);
+            const float dS = delaySendOf (fx, v), rS = reverbSendOf (fx, v);
+
+            if (! ip.any() && dS <= 0.0f && rS <= 0.0f)
+            {
+                v.render (busL.data(), busR.data(), n);          // percorso diretto: nessun effetto per questa voce
+                continue;
+            }
+
+            zero (voiceL, n); zero (voiceR, n);
+            v.render (voiceL.data(), voiceR.data(), n);
+            if (ip.any())
+                v.insert.process (voiceL.data(), voiceR.data(), n, ip);
+
+            for (int i = 0; i < n; ++i)
+            {
+                busL[(size_t) i] += voiceL[(size_t) i];
+                busR[(size_t) i] += voiceR[(size_t) i];
+                sendDL[(size_t) i] += voiceL[(size_t) i] * dS;
+                sendDR[(size_t) i] += voiceR[(size_t) i] * dS;
+                sendRL[(size_t) i] += voiceL[(size_t) i] * rS;
+                sendRR[(size_t) i] += voiceR[(size_t) i] * rS;
+            }
+            delaySent = delaySent || dS > 0.0f;
+            reverbSent = reverbSent || rS > 0.0f;
         }
 
-        if (! voiceOn && cellTail[(size_t) c] <= 0)
-            continue;
+        chain.compress (busL.data(), busR.data(), n, fx);
 
-        std::fill (scratchL.begin(), scratchL.begin() + n, 0.0f);
-        std::fill (scratchR.begin(), scratchR.begin() + n, 0.0f);
-        if (voiceOn)
-            for (auto& v : voices)
-                if (v.isActive() && v.getCellIndex() == c)
-                    v.render (scratchL.data(), scratchR.data(), n);
+        // Delay e riverbero restano attivi finche' dura la coda dell'ultima mandata: l'eco di un colpo risuona anche dopo la nota
+        if (delaySent) delayTail[(size_t) c] = tailSamples;
+        if (reverbSent) reverbTail[(size_t) c] = tailSamples;
 
-        cellFx[(size_t) c]->process (scratchL.data(), scratchR.data(), n, fx, live.bpm);
+        if (delayTail[(size_t) c] > 0)
+        {
+            chain.delay (sendDL.data(), sendDR.data(), busL.data(), busR.data(), n, fx, live.bpm);
+            if (! delaySent && (delayTail[(size_t) c] -= n) <= 0)
+                chain.resetDelay();
+        }
+        if (reverbTail[(size_t) c] > 0)
+        {
+            chain.reverbFx (sendRL.data(), sendRR.data(), busL.data(), busR.data(), n, fx);
+            if (! reverbSent && (reverbTail[(size_t) c] -= n) <= 0)
+                chain.resetReverb();
+        }
 
         for (int i = 0; i < n; ++i)
         {
-            l[i] += scratchL[(size_t) i];
-            r[i] += scratchR[(size_t) i];
+            l[i] += busL[(size_t) i];
+            r[i] += busR[(size_t) i];
         }
-
-        cellTail[(size_t) c] = voiceOn ? (fx.hasTail() ? tailSamples : 0) : cellTail[(size_t) c] - n;
     }
+}
+
+// Effetti del master: saturazione/LoFi/filtro sul mix, compressore, poi delay e riverbero con "Mix" come mandata
+void Engine::renderMaster (float* l, float* r, int n) noexcept
+{
+    const auto& fx = live.masterFx;
+
+    const auto ip = InsertParams::from (fx);
+    if (ip.any())
+        masterInsert.process (l, r, n, ip);
+    else
+        masterInsert.reset();
+
+    masterFx.compress (l, r, n, fx);
+
+    if (fx.delayOn)
+    {
+        if (! masterDelayWasOn)
+            masterFx.resetDelay();
+        const float send = juce::jlimit (0.0f, 1.0f, fx.delayMix);
+        for (int i = 0; i < n; ++i) { sendDL[(size_t) i] = l[i] * send; sendDR[(size_t) i] = r[i] * send; }
+        masterFx.delay (sendDL.data(), sendDR.data(), l, r, n, fx, live.bpm);
+    }
+    masterDelayWasOn = fx.delayOn;
+
+    if (fx.reverbOn)
+    {
+        if (! masterReverbWasOn)
+            masterFx.resetReverb();
+        const float send = juce::jlimit (0.0f, 1.0f, fx.reverbMix);
+        for (int i = 0; i < n; ++i) { sendRL[(size_t) i] = l[i] * send; sendRR[(size_t) i] = r[i] * send; }
+        masterFx.reverbFx (sendRL.data(), sendRR.data(), l, r, n, fx);
+    }
+    masterReverbWasOn = fx.reverbOn;
 }
 
 void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi,
@@ -269,9 +366,7 @@ void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& 
         if (v.isActive() && v.getCellIndex() >= 0 && v.getCellIndex() < kMaxCells)
             v.updateDsp (liveDsp (v.getCellIndex()));
 
-    // Effetti del blocco: valori correnti dei parametri + lock degli step ancora attivi
     effFx = live.fx;
-    applyLocks();
 
     // Eventi MIDI ed eventi del sequencer, fusi in ordine di tempo: si renderizza a segmenti tra un evento e il successivo
     constexpr int kNone = std::numeric_limits<int>::max();
@@ -312,8 +407,9 @@ void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& 
     }
     renderVoices (l, r, pos, numSamples - pos);
 
-    // Effetti globali del kit, poi volume master
-    masterFx.process (l, r, numSamples, live.masterFx, live.bpm);
+    // Effetti globali del kit (a blocchi di maxBlock), poi volume master
+    for (int done = 0; done < numSamples; done += maxBlock)
+        renderMaster (l + done, r + done, juce::jmin (maxBlock, numSamples - done));
 
     if (live.masterGain != 1.0f)
         buffer.applyGain (live.masterGain);

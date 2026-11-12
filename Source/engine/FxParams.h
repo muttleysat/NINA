@@ -125,6 +125,21 @@ inline constexpr FxB fxOwner (FxF f) noexcept
     return FxB::Sat;
 }
 
+// Parametri che un step puo' bloccare "per colpo" (solo quel colpo cambia): sono quelli degli effetti per nota (saturazione, LoFi,
+// filtro) e le mandate (send) al delay e al riverbero. Compressore, tempo/feedback del delay e dimensione del riverbero sono
+// della cella: condivisi da tutte le note, non hanno senso per un singolo colpo.
+inline constexpr bool isPerHitLockable (FxF f) noexcept
+{
+    switch (f)
+    {
+        case FxF::Drive: case FxF::SatMix: case FxF::Bits: case FxF::Downsample: case FxF::LofiMix:
+        case FxF::Cutoff: case FxF::Resonance: case FxF::DelayMix: case FxF::ReverbMix:
+            return true;
+        default:
+            return false;
+    }
+}
+
 // Parametri "bloccabili" dagli step del sequencer: prima i 18 valori degli effetti (FxF), poi i 6 interruttori on/off (FxB)
 inline constexpr int kNumLockable = (int) FxF::Count + (int) FxB::Count;
 inline constexpr int lockIndex (FxB b) noexcept { return (int) FxF::Count + (int) b; }
