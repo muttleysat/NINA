@@ -6,3 +6,5 @@ out/
 *.user
 CMakeUserPresets.json
 .DS_Store
+third_party/asiosdk/
+third_party/_download/

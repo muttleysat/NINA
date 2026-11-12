@@ -67,6 +67,18 @@ target_link_libraries(SampleLabTests
     PRIVATE juce::juce_audio_utils
     PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
 
+# ASIO (solo Windows): richiede l'SDK Steinberg in third_party/asiosdk (non incluso nel repository per
+# via della licenza). Si scarica da https://www.steinberg.net/asiosdk e si estrae in quella cartella.
+if(WIN32)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/asiosdk/common/iasiodrv.h")
+        message(STATUS "ASIO SDK trovato: driver ASIO abilitati")
+        target_compile_definitions(SampleLab PUBLIC JUCE_ASIO=1)
+        target_include_directories(SampleLab PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/third_party/asiosdk/common")
+    else()
+        message(WARNING "ASIO SDK non trovato in third_party/asiosdk: lo standalone usera' solo WASAPI/DirectSound")
+    endif()
+endif()
+
 target_compile_definitions(SampleLab PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
