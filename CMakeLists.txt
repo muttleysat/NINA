@@ -23,6 +23,20 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(JUCE)
 
+# Rubber Band (time-stretch / pitch-shift di alta qualita', motore R3). Si usa la build "single file" del progetto:
+# nessuna dipendenza esterna (FFT interna, resampler interno). Licenza GPL: uso personale.
+FetchContent_Declare(
+    rubberband
+    GIT_REPOSITORY https://github.com/breakfastquay/rubberband.git
+    GIT_TAG        v4.0.0
+    GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(rubberband)
+add_library(rubberband_single STATIC ${rubberband_SOURCE_DIR}/single/RubberBandSingle.cpp)
+target_include_directories(rubberband_single PUBLIC ${rubberband_SOURCE_DIR})
+set_target_properties(rubberband_single PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_compile_definitions(rubberband_single PRIVATE NOMINMAX _USE_MATH_DEFINES)
+
 juce_add_plugin(SampleLab
     PRODUCT_NAME "Sample Lab"
     COMPANY_NAME "SampleLab"
@@ -41,6 +55,7 @@ juce_add_plugin(SampleLab
 # Codice del motore e del kit, condiviso tra plugin e test (compilato in entrambi i target)
 set(SAMPLELAB_CORE_SOURCES
     Source/engine/SampleData.cpp
+    Source/engine/LoopStretch.cpp
     Source/engine/Voice.cpp
     Source/engine/FxChain.cpp
     Source/params/ParamSet.cpp
@@ -68,11 +83,13 @@ target_sources(SampleLab PRIVATE
 )
 
 target_include_directories(SampleLab PRIVATE Source)
+target_link_libraries(SampleLab PRIVATE rubberband_single)
 
 # Test automatici (motore + formato kit)
 juce_add_console_app(SampleLabTests PRODUCT_NAME "SampleLabTests")
 target_sources(SampleLabTests PRIVATE ${SAMPLELAB_CORE_SOURCES} Tests/Tests.cpp)
 target_include_directories(SampleLabTests PRIVATE Source)
+target_link_libraries(SampleLabTests PRIVATE rubberband_single)
 if(MSVC)
     # Un solo grande runTest con molti oggetti Engine locali: serve piu' dello stack predefinito (1 MB)
     target_link_options(SampleLabTests PRIVATE /STACK:33554432)

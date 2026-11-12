@@ -66,6 +66,54 @@ CellPanel::CellPanel (SampleLabProcessor& p) : processor (p)
         addAndMakeVisible (*slider);
     }
 
+    // Loop e tempo: Sync allunga/accorcia il campione al BPM della DAW (o interno); Key lock mantiene l'intonazione
+    syncButton.setTooltip ("Make this sample follow the project tempo (host BPM, or the BPM box in the top bar). The original file is not changed.");
+    keyLockButton.setTooltip ("On: tempo changes keep the pitch (time-stretch). Off: tempo changes also change the pitch, like a turntable.");
+    for (auto* b : { &syncButton, &keyLockButton })
+    {
+        b->setColour (juce::ToggleButton::textColourId, theme::text);
+        addAndMakeVisible (*b);
+    }
+    syncButton.onClick = [this]
+    {
+        if (updating) return;
+        processor.getKit().cells[(size_t) cell].tempoSync = syncButton.getToggleState();
+        processor.cellEdited (cell);
+        if (onEdited) onEdited();
+    };
+    keyLockButton.onClick = [this]
+    {
+        if (updating) return;
+        processor.getKit().cells[(size_t) cell].keyLock = keyLockButton.getToggleState();
+        processor.cellEdited (cell);
+        if (onEdited) onEdited();
+    };
+
+    bpmSlider.setSliderStyle (juce::Slider::IncDecButtons);
+    bpmSlider.setIncDecButtonsMode (juce::Slider::incDecButtonsDraggable_Horizontal);
+    bpmSlider.setRange (0.0, 300.0, 0.1);
+    bpmSlider.setNumDecimalPlacesToDisplay (1);
+    bpmSlider.setTooltip ("Original tempo of this loop (BPM). 0 = unknown. Use Detect to estimate it from the length.");
+    bpmSlider.textFromValueFunction = [] (double v) { return v <= 0.0 ? juce::String ("--") : juce::String (v, 1); };
+    bpmSlider.valueFromTextFunction = [] (const juce::String& t) { return t.getDoubleValue(); };
+    bpmSlider.onValueChange = [this]
+    {
+        if (updating) return;
+        processor.getKit().cells[(size_t) cell].loopBpm = (float) bpmSlider.getValue();
+        processor.cellEdited (cell);
+        if (onEdited) onEdited();
+    };
+    addAndMakeVisible (bpmSlider);
+
+    detectButton.setTooltip ("Estimate the loop's BPM from its length (assumes a whole number of bars between Start and End)");
+    detectButton.onClick = [this]
+    {
+        processor.detectLoopBpm (cell);
+        refresh();
+        if (onEdited) onEdited();
+    };
+    addAndMakeVisible (detectButton);
+
     setCell (0);
 }
 
@@ -98,12 +146,19 @@ void CellPanel::refresh()
     rootSlider.setValue (c.rootNote, juce::dontSendNotification);
     lowSlider.setValue (c.lowNote, juce::dontSendNotification);
     highSlider.setValue (c.highNote, juce::dontSendNotification);
+    syncButton.setToggleState (c.tempoSync, juce::dontSendNotification);
+    keyLockButton.setToggleState (c.keyLock, juce::dontSendNotification);
+    bpmSlider.setValue ((double) c.loopBpm, juce::dontSendNotification);
     updating = false;
 
     const bool has = c.hasSample();
     for (auto& b : modeButtons) b.setEnabled (has);
     reverseButton.setEnabled (has);
     normalizeButton.setEnabled (has && ! c.missing);
+    for (auto* b : { &syncButton, &keyLockButton })
+        b->setEnabled (has && ! c.missing);
+    bpmSlider.setEnabled (has && ! c.missing);
+    detectButton.setEnabled (has && ! c.missing);
     repaint();
 }
 
@@ -153,6 +208,10 @@ void CellPanel::paint (juce::Graphics& g)
 
     sectionLabel (g, modeLabel, "Trigger mode", s);
     sectionLabel (g, mapLabel, "MIDI mapping", s);
+    sectionLabel (g, loopLabel, "Loop / tempo", s);
+    g.setColour (theme::textDim);
+    g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.5f * s)));
+    g.drawText ("Loop BPM", bpmRow.withWidth (bpmRow.getWidth() / 3), juce::Justification::centredLeft);
     g.setColour (theme::textDim);
     g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.5f * s)));
     g.drawText ("Root note", rootRow.withWidth (rootRow.getWidth() / 2), juce::Justification::centredLeft);
@@ -224,6 +283,20 @@ void CellPanel::resized()
         slider->setBounds (r);
         // Casella del nome nota a sinistra, pulsanti - e + a destra con spazio sufficiente
         slider->setTextBoxStyle (juce::Slider::TextBoxLeft, false, (int) ((float) r.getWidth() * 0.52f), r.getHeight());
+    }
+    area.removeFromTop (gap);
+
+    loopLabel = area.removeFromTop ((int) (20 * s));
+    loopToggleRow = area.removeFromTop (rh);
+    syncButton.setBounds (loopToggleRow.removeFromLeft (loopToggleRow.getWidth() * 55 / 100));
+    keyLockButton.setBounds (loopToggleRow);
+    bpmRow = area.removeFromTop (rh);
+    {
+        auto r = bpmRow.withTrimmedLeft (bpmRow.getWidth() / 3).reduced (0, 1);
+        detectButton.setBounds (r.removeFromRight ((int) (58 * s)));
+        r.removeFromRight ((int) (4 * s));
+        bpmSlider.setBounds (r);
+        bpmSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, (int) ((float) r.getWidth() * 0.5f), r.getHeight());
     }
     area.removeFromTop (gap);
 

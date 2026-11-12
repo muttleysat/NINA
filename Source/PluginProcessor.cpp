@@ -15,6 +15,8 @@ SampleLabProcessor::SampleLabProcessor()
 
     formats.registerBasicFormats();
     cellData.resize (kit.cells.size());
+    tempoTimer.fn = [this] { tempoTick(); };
+    tempoTimer.startTimer (300);
     publishKit (true);
     params.readFromKit (kit);
     dirty = false;
@@ -22,6 +24,9 @@ SampleLabProcessor::SampleLabProcessor()
 
 SampleLabProcessor::~SampleLabProcessor()
 {
+    alive->store (false);
+    tempoTimer.stopTimer();
+    stretchPool.removeAllJobs (true, 5000);
     for (auto* p : params.all())
         p->removeListener (&dirtyListener);
 }
@@ -154,7 +159,7 @@ std::shared_ptr<sl::KitSnapshot> SampleLabProcessor::buildSnapshot() const
         const auto& c = kit.cells[(size_t) i];
         sl::CellRuntime r;
         r.cellIndex = i;
-        r.data = cellData[(size_t) i].get();
+        r.data = (size_t) i < playData.size() ? playData[(size_t) i].get() : nullptr;
         r.rootNote = c.rootNote;
         r.lowNote = c.lowNote;
         r.highNote = c.highNote;
@@ -168,8 +173,125 @@ void SampleLabProcessor::publishKit (bool newGeneration)
     if (newGeneration)
         ++generation;
 
+    ensurePlayData();
+
     engine.publish (buildSnapshot());
     publishPattern();
+}
+
+// ------------------------------------------------------------- Loop e stretch
+
+void SampleLabProcessor::ensurePlayData()
+{
+    playData.resize (cellData.size());
+    stretch.resize (cellData.size());
+    for (size_t i = 0; i < cellData.size(); ++i)
+    {
+        auto& st = stretch[i];
+        if (st.source != cellData[i])                         // campione cambiato (o cella svuotata): si riparte dall'originale
+        {
+            st.source = cellData[i];
+            playData[i] = cellData[i];
+            st.sync = false;
+            st.loopBpm = st.bpm = st.pendingLoopBpm = st.pendingBpm = 0.0;
+            ++st.token;
+            st.retired.clear();
+        }
+        refreshStretch ((int) i);
+    }
+}
+
+void SampleLabProcessor::refreshStretch (int cell)
+{
+    if (cell < 0 || cell >= (int) stretch.size() || cell >= kit.numCells())
+        return;
+
+    auto& st = stretch[(size_t) cell];
+    const auto& c = kit.cells[(size_t) cell];
+    const double bpm = std::round (currentBpm.load() * 100.0) / 100.0;
+    const double loopBpm = (double) c.loopBpm;
+    const bool wantStretch = c.tempoSync && loopBpm > 20.0 && bpm > 20.0 && st.source != nullptr;
+
+    if (! wantStretch)
+    {
+        if (playData[(size_t) cell] != st.source)
+        {
+            st.retired.push_back (playData[(size_t) cell]);
+            playData[(size_t) cell] = st.source;
+            while (st.retired.size() > 6)
+                st.retired.pop_front();
+            st.sync = false;
+        }
+        ++st.token;                                            // annulla eventuali elaborazioni in corso
+        st.pendingBpm = st.pendingLoopBpm = 0.0;
+        return;
+    }
+
+    const bool sameAsApplied = st.sync && st.keyLock == c.keyLock && std::abs (st.loopBpm - loopBpm) < 0.005 && std::abs (st.bpm - bpm) < 0.05;
+    const bool sameAsPending = st.pendingBpm > 0.0 && st.pendingKeyLock == c.keyLock && std::abs (st.pendingLoopBpm - loopBpm) < 0.005
+                               && std::abs (st.pendingBpm - bpm) < 0.05;
+    if (sameAsApplied || sameAsPending)
+        return;
+
+    const int token = ++st.token;
+    st.pendingBpm = bpm;
+    st.pendingLoopBpm = loopBpm;
+    st.pendingKeyLock = c.keyLock;
+
+    const double ratio = loopBpm / bpm;                       // durata nuova / durata originale
+    const double pitch = c.keyLock ? 1.0 : 1.0 / ratio;       // senza Key Lock cambia anche l'altezza (varispeed)
+    const bool keyLock = c.keyLock;
+    auto source = st.source;
+    auto flag = alive;
+
+    stretchPool.addJob ([this, cell, token, ratio, pitch, source, keyLock, bpm, loopBpm, flag]
+    {
+        auto result = sl::stretchSample (*source, ratio, pitch);
+        juce::MessageManager::callAsync ([this, cell, token, result, source, keyLock, bpm, loopBpm, flag]
+        {
+            if (! flag->load() || cell >= (int) stretch.size())
+                return;
+            auto& s = stretch[(size_t) cell];
+            if (s.token != token || s.source != source)
+                return;                                       // nel frattempo e' cambiato qualcosa: risultato obsoleto
+            s.pendingBpm = s.pendingLoopBpm = 0.0;
+            if (result == nullptr)
+                return;
+            s.retired.push_back (playData[(size_t) cell]);
+            while (s.retired.size() > 6)
+                s.retired.pop_front();
+            playData[(size_t) cell] = result;
+            s.sync = true;
+            s.keyLock = keyLock;
+            s.bpm = bpm;
+            s.loopBpm = loopBpm;
+            engine.publish (buildSnapshot());
+        });
+    });
+}
+
+bool SampleLabProcessor::isStretching (int cell) const
+{
+    return cell >= 0 && cell < (int) stretch.size() && stretch[(size_t) cell].pendingBpm > 0.0;
+}
+
+void SampleLabProcessor::tempoTick()
+{
+    for (int i = 0; i < (int) stretch.size(); ++i)
+        if (i < kit.numCells() && kit.cells[(size_t) i].tempoSync)
+            refreshStretch (i);
+}
+
+void SampleLabProcessor::detectLoopBpm (int cell)
+{
+    if (cell < 0 || cell >= kit.numCells() || cellData[(size_t) cell] == nullptr)
+        return;
+    auto& c = kit.cells[(size_t) cell];
+    const auto& refs = params.cell (cell);
+    auto* startP = refs.at (sl::CellF::Start);
+    auto* endP = refs.at (sl::CellF::End);
+    c.loopBpm = (float) sl::estimateLoopBpm (*cellData[(size_t) cell], startP->get(), endP->get());
+    cellEdited (cell);
 }
 
 // ------------------------------------------------------------- Sequencer
@@ -349,6 +471,9 @@ bool SampleLabProcessor::loadSampleIntoCell (int cell, const juce::File& file, j
     c.name = file.getFileNameWithoutExtension();
     c.missing = false;
     cellData[(size_t) cell] = data;
+
+    c.loopBpm = (float) sl::estimateLoopBpm (*data);          // stima iniziale (modificabile): il loop si sincronizza solo se si accende Sync
+    c.tempoSync = false;
 
     // Un nuovo campione riparte con la regione intera (Start/End sono parametri automatizzabili)
     const auto& refs = params.cell (cell);

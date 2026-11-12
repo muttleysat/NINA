@@ -33,6 +33,12 @@ struct CellParams
 
     int rootNote = 36, lowNote = 36, highNote = 36;
 
+    // Loop: se tempoSync e' acceso il campione segue il BPM del progetto (loopBpm = tempo originale del loop, 0 = sconosciuto).
+    // keyLock: il cambio di tempo non cambia l'intonazione (Rubber Band); spento il campione cambia anche di altezza (varispeed).
+    bool tempoSync = false;
+    bool keyLock = true;
+    float loopBpm = 0.0f;
+
     FxParams fx;                       // catena di effetti della cella
 
     bool missing = false;             // campione non trovato al caricamento del kit (non serializzato)

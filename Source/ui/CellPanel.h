@@ -39,5 +39,11 @@ private:
     juce::Slider rootSlider, lowSlider, highSlider;
     juce::Rectangle<int> mapLabel, rootRow, lowRow, highRow;
 
+    // Loop: sincronizzazione al BPM del progetto (Rubber Band), Key Lock, tempo originale del loop
+    juce::ToggleButton syncButton { "Sync to tempo" }, keyLockButton { "Key lock" };
+    juce::Slider bpmSlider;
+    juce::TextButton detectButton { "Detect" };
+    juce::Rectangle<int> loopLabel, loopToggleRow, bpmRow;
+
     juce::Rectangle<int> titleRect, sampleCard, modeLabel, reverseLabel, infoRect;
 };

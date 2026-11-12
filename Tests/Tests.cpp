@@ -1,4 +1,5 @@
 #include "engine/Engine.h"
+#include "engine/LoopStretch.h"
 #include "kit/KitIO.h"
 #include "params/ParamSet.h"
 #include "params/MidiLearn.h"
@@ -1572,6 +1573,74 @@ public:
         {
             expect (KitIO::sanitiseName ("a/b:c*").containsOnly ("abc_-") || ! KitIO::sanitiseName ("a/b:c*").containsAnyOf ("/:*"));
             expectEquals (KitIO::sanitiseName ("   "), juce::String ("Untitled"));
+        }
+
+        beginTest ("Loop BPM estimate from duration (whole bars)");
+        {
+            // 2 battute a 120 BPM = 4 s; 1 battuta a 90 BPM = 2.667 s; troppo breve = sconosciuto
+            expect (std::abs (estimateLoopBpm (*makeDc (4.0)) - 120.0) < 0.01);
+            expect (std::abs (estimateLoopBpm (*makeDc (4.0 * 60.0 / 90.0)) - 90.0) < 0.5);
+            expect (std::abs (estimateLoopBpm (*makeDc (8.0)) - 120.0) < 0.01);   // 4 battute a 120 (anche 60 BPM x2, ma 120 e' piu' vicino)
+            expectEquals (estimateLoopBpm (*makeDc (0.2)), 0.0);
+            // Regione Start..End: meta' di 8 s = 4 s = 120 BPM
+            expect (std::abs (estimateLoopBpm (*makeDc (8.0), 0.0f, 0.5f) - 120.0) < 0.01);
+        }
+
+        beginTest ("Time-stretch changes length by the ratio and keeps the pitch (Key Lock)");
+        {
+            auto src = makeSine (440.0, 2.0);
+            auto out = stretchSample (*src, 0.5, 1.0);            // il doppio piu' veloce
+            expect (out != nullptr);
+            if (out != nullptr)
+            {
+                expect (std::abs (out->numSamples() - src->numSamples() / 2) < 2000, "len " + juce::String (out->numSamples()));
+                // Frequenza dalla parte centrale (evita le code): conta i passaggi per lo zero in mezzo secondo
+                const int from = out->numSamples() / 4, to = from + (int) (kSR * 0.5);
+                int crossings = 0;
+                for (int i = from + 1; i < to; ++i)
+                    if ((out->audio.getSample (0, i - 1) < 0.0f) != (out->audio.getSample (0, i) < 0.0f))
+                        ++crossings;
+                const double freq = crossings / 2.0 / 0.5;
+                expect (std::abs (freq - 440.0) < 8.0, "freq " + juce::String (freq));
+            }
+        }
+
+        beginTest ("Stretch without Key Lock (varispeed) changes the pitch like a resample");
+        {
+            auto src = makeSine (440.0, 2.0);
+            auto out = stretchSample (*src, 0.5, 2.0);            // metà durata e un'ottava sopra
+            expect (out != nullptr);
+            if (out != nullptr)
+            {
+                const int from = out->numSamples() / 4, to = from + (int) (kSR * 0.25);
+                int crossings = 0;
+                for (int i = from + 1; i < to; ++i)
+                    if ((out->audio.getSample (0, i - 1) < 0.0f) != (out->audio.getSample (0, i) < 0.0f))
+                        ++crossings;
+                const double freq = crossings / 2.0 / 0.25;
+                expect (std::abs (freq - 880.0) < 16.0, "freq " + juce::String (freq));
+            }
+        }
+
+        beginTest ("Loop sync fields survive a kit save and load");
+        {
+            auto tmp = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("sl_loop_test");
+            tmp.deleteRecursively();
+            tmp.createDirectory();
+            Kit k = Kit::makeDefault();
+            k.cells[0].tempoSync = true;
+            k.cells[0].keyLock = false;
+            k.cells[0].loopBpm = 93.5f;
+            juce::String err;
+            const auto f = tmp.getChildFile ("Loop.slkit");
+            expect (KitIO::save (k, f, err), err);
+            Kit back;
+            expect (KitIO::load (f, back, err), err);
+            expect (back.cells[0].tempoSync);
+            expect (! back.cells[0].keyLock);
+            expectWithinAbsoluteError (back.cells[0].loopBpm, 93.5f, 0.001f);
+            expect (! back.cells[1].tempoSync && back.cells[1].keyLock);   // le altre celle: valori predefiniti
+            tmp.deleteRecursively();
         }
     }
 };

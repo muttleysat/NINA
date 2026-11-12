@@ -114,6 +114,12 @@ static juce::var cellToVar (const CellParams& c, const juce::String& samplePath)
     o->setProperty ("rootNote", c.rootNote);
     o->setProperty ("lowNote", c.lowNote);
     o->setProperty ("highNote", c.highNote);
+    if (c.tempoSync || c.loopBpm > 0.0f || ! c.keyLock)
+    {
+        o->setProperty ("tempoSync", c.tempoSync);
+        o->setProperty ("keyLock", c.keyLock);
+        o->setProperty ("loopBpm", c.loopBpm);
+    }
     if (c.fx.anyOn() || ! (c.fx == FxParams()))
         o->setProperty ("fx", fxToVar (c.fx));
     return juce::var (o);
@@ -353,6 +359,9 @@ bool fromJson (const juce::String& text, const juce::File& baseDir, Kit& kit, ju
         c.rootNote = getI (o, "rootNote", defNote);
         c.lowNote = getI (o, "lowNote", defNote);
         c.highNote = getI (o, "highNote", defNote);
+        c.tempoSync = getB (o, "tempoSync", false);
+        c.keyLock = getB (o, "keyLock", true);
+        c.loopBpm = getF (o, "loopBpm", 0.0f);
         c.fx = fxFromVar (o["fx"]);
 
         const auto rel = o["sample"].toString();

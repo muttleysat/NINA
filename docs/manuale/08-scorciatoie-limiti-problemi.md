@@ -18,7 +18,8 @@
 
 ## Cosa non c'è ancora
 
-- Time-stretch e sincronizzazione al tempo dei **loop** (e il cambio di tempo senza cambiare l'intonazione).
+- Il rilevamento del tempo dei loop è una **stima dalla durata** (non analizza i colpi): per loop non tagliati a battute esatte il BPM va scritto a mano.
+- La sincronizzazione dei loop funziona sul campione **intero** (Start/End si riferiscono sempre all'originale): non c'è ancora un modo di allineare la griglia del loop (per esempio spostare l'inizio del primo colpo).
 - Lo **slicing** dei loop (tagliare in slice e distribuirli sulle celle).
 - **Quantizzazione** degli step e registrazione da tastiera nel sequencer.
 - **Undo/redo**.
@@ -33,6 +34,7 @@
 
 - Funzionamento del VST3 in **Cubase 16**: apertura, ridimensionamento, nomi dei parametri, registrazione dell'automazione, MIDI in ingresso.
 - Il **trascinamento** dei file verso Cubase.
+- **Sync to tempo** e **Key lock** con loop reali nell'app (verificati solo con test automatici su segnali di prova).
 - L'uso con una vera tastiera MIDI e un controller per il MIDI learn.
 
 ## Risoluzione dei problemi

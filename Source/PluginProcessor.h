@@ -5,6 +5,7 @@
 #include <deque>
 #include <atomic>
 #include "engine/Engine.h"
+#include "engine/LoopStretch.h"
 #include "kit/KitIO.h"
 #include "params/ParamSet.h"
 #include "params/MidiLearn.h"
@@ -85,6 +86,11 @@ public:
     void cellEdited (int cell);                    // parametri modificati: marca modificato e pubblica
     sl::SampleDataPtr getCellData (int cell) const;
 
+    // Loop: sincronizzazione al tempo (BPM della DAW o interno) con Key Lock. Il campione originale non cambia: quello usato
+    // dal motore e' una copia elaborata in background con Rubber Band (o l'originale se la sincronizzazione e' spenta).
+    void detectLoopBpm (int cell);                 // stima il BPM del loop dalla durata (regione Start..End) e lo imposta sulla cella
+    bool isStretching (int cell) const;            // true mentre la copia elaborata e' in preparazione
+
     void newKit();
     bool openKit (const juce::File& file, juce::String& error);
     bool saveKit (const juce::File& file, juce::String& error);
@@ -122,6 +128,9 @@ private:
     static bool writeWav24 (const juce::File& file, const juce::AudioBuffer<float>& audio, double sampleRate, int numSamples, juce::String& error);
     std::shared_ptr<sl::KitSnapshot> buildSnapshot() const;
     void loadKitSamples();
+    void ensurePlayData();                                   // allinea i campioni letti dal motore con quelli della cella
+    void refreshStretch (int cell);                          // avvia (se serve) l'elaborazione per il tempo corrente
+    void tempoTick();                                        // timer: controlla il BPM e aggiorna i loop sincronizzati
     void addRecentKit (const juce::File& file);
     juce::PropertiesFile& getSettings() const;
 
@@ -151,7 +160,26 @@ private:
     juce::AudioFormatManager formats;
 
     sl::Kit kit = sl::Kit::makeDefault();
-    std::vector<sl::SampleDataPtr> cellData;
+    std::vector<sl::SampleDataPtr> cellData;                 // campioni originali
+    std::vector<sl::SampleDataPtr> playData;                 // campioni letti dal motore (originali o elaborati)
+
+    struct StretchState
+    {
+        sl::SampleDataPtr source;                            // originale da cui deriva playData
+        bool sync = false, keyLock = true;
+        double loopBpm = 0.0, bpm = 0.0;                     // valori con cui playData e' stato elaborato
+        double pendingLoopBpm = 0.0, pendingBpm = 0.0;       // elaborazione in corso (0 = nessuna)
+        bool pendingKeyLock = true;
+        int token = 0;
+        std::deque<sl::SampleDataPtr> retired;               // le voci attive possono leggere ancora i buffer vecchi
+    };
+    std::vector<StretchState> stretch;
+    std::shared_ptr<std::atomic<bool>> alive = std::make_shared<std::atomic<bool>> (true);
+    struct TempoTimer final : juce::Timer
+    {
+        std::function<void()> fn;
+        void timerCallback() override { if (fn) fn(); }
+    } tempoTimer;
     std::map<juce::String, sl::SampleDataPtr> sampleCache;   // i campioni restano in memoria per la sessione
     std::atomic<bool> dirty { false };
     DirtyListener dirtyListener { dirty };
@@ -165,7 +193,8 @@ private:
     juce::CriticalSection auditionLock;
     std::deque<sl::SampleDataPtr> auditionKeep;
     std::atomic<int> auditionToken { 0 };
-    juce::ThreadPool auditionPool { 1 };   // ultimo membro: viene distrutto (e atteso) per primo
+    juce::ThreadPool auditionPool { 1 };
+    juce::ThreadPool stretchPool { 1 };    // ultimo membro: viene distrutto (e atteso) per primo
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SampleLabProcessor)
 };

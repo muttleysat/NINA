@@ -41,6 +41,7 @@ Un clic sul pad lo **seleziona** e lo fa suonare (finché tieni premuto, per le 
 | **Trigger mode** | **One-shot**: suona fino in fondo e ignora il rilascio del tasto. **Gate**: suona finché tieni premuto il tasto, poi si spegne con il Release. **Loop**: si ripete finché tieni premuto |
 | **Reverse** | Suona il campione al contrario |
 | **Normalize** | Imposta il Level della cella in modo che il picco più alto del campione arrivi a −1 dBFS (il file audio non cambia) |
+| **Loop / tempo** | **Sync to tempo**, **Key lock**, **Loop BPM** e **Detect** (vedi sotto) |
 | **MIDI mapping** | **Root note**: la nota a cui il campione suona alla sua intonazione originale. **Key low / Key high**: l'intervallo di tasti che fa suonare la cella |
 | **Sample info** | Formato e durata |
 
@@ -51,6 +52,18 @@ Di default il pad **A1 suona C1** (nota MIDI 36) e ogni pad successivo la nota d
 - Per cambiare la nota di una cella, cambia **Key low** e **Key high** (uguali = una nota sola).
 - Se **Key low** e **Key high** sono diversi, la cella suona su più tasti e il campione viene **trasposto** rispetto a **Root note**: è il modo per suonare un campione in modo melodico.
 - Più celle possono rispondere alla stessa nota: suonano insieme (layer).
+
+## Loop e tempo (Sync, Key lock)
+
+Per far seguire a un loop (per esempio un breakbeat o un giro di batteria) il **BPM del progetto**:
+
+1. **Loop BPM** è il tempo originale del loop. Caricando un campione di almeno mezzo secondo viene **stimato dalla durata**, supponendo che duri un numero intero di battute (1, 2, 4, 8, 16 o 32 movimenti) e scegliendo il tempo più plausibile (70–170 BPM, il più vicino a 120). Il valore è sempre modificabile: se la stima è sbagliata (per esempio un loop da 8 movimenti letto come 16) correggilo a mano o cambia **Start/End** e premi **Detect**. Con il valore **--** (zero) il tempo è sconosciuto e la sincronizzazione non fa nulla.
+2. Accendi **Sync to tempo**: il campione viene **allungato o accorciato** per il BPM del progetto (quello della DAW nel plugin, quello del riquadro **BPM** in alto nello standalone). Il file originale non cambia: la copia elaborata si prepara in **background** con Rubber Band (alta qualità) e si sente dopo un istante. Se il BPM cambia, si rielabora da solo dopo una piccola pausa.
+3. **Key lock** acceso: il tempo cambia **senza cambiare l'intonazione**. Spento: cambiano insieme tempo e altezza, come su un giradischi.
+
+Pitch e Tune continuano a funzionare sopra la sincronizzazione. Start ed End restano nelle stesse posizioni relative. L'esportazione (MIDI, audio, righe) usa il campione sincronizzato al BPM del momento.
+
+> **Nota:** la stima dalla durata funziona bene per loop tagliati a battute esatte. Un campione con silenzio in coda o non tagliato a misura dà un tempo sbagliato: in quel caso imposta Start/End sul loop esatto e premi **Detect**, oppure scrivi il BPM.
 
 ## La forma d'onda (sotto la griglia)
 

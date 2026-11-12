@@ -36,6 +36,8 @@ Coprono motore di riproduzione (mapping, velocity, level, start/end, pitch, reve
 
 ## Stato
 
+Fase 3 (loop e tempo) avviata: per ogni cella **Sync to tempo**, **Key lock** e **Loop BPM** (stimato dalla durata): il loop segue il BPM della DAW senza cambiare intonazione (Rubber Band).
+
 Sequencer (primo passo): scheda **Seq** con una riga per ogni cella aggiunta (tasto destro su una cella > "Add to sequencer"), step con velocity, probabilità, ratchet, nudge, gate, pitch e parameter lock sugli effetti; esportazione MIDI e bounce WAV. MIDI learn sui parametri (tasto destro su un controllo) e delay sincronizzato al BPM.
 
 Fase 2 (effetti) avviata: scheda **FX** con sei effetti per cella e per il kit (Saturation, LoFi, Filter, Compressor, Delay, Reverb), ciascuno con interruttore; delay e riverbero continuano a suonare dopo la fine della nota.
