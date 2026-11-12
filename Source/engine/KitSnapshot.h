@@ -10,7 +10,8 @@ struct CellRuntime
 {
     int cellIndex = -1;
     CellDsp dsp;
-    const SampleData* data = nullptr;   // i campioni restano vivi per tutta la vita del processore
+    FxParams fx;
+    const SampleData* data = nullptr;  // i campioni restano vivi per tutta la vita del processore
 };
 
 // Fotografia immutabile dello stato del kit, letta dal thread audio.
@@ -18,6 +19,7 @@ struct KitSnapshot
 {
     std::vector<CellRuntime> cells;
     float masterGain = 1.0f;
+    FxParams masterFx;
     int generation = 0;                 // cambia quando si carica/crea un kit: ferma le voci attive
 };
 

@@ -9,9 +9,9 @@ SampleLabProcessor::SampleLabProcessor()
     publishKit (true);
 }
 
-void SampleLabProcessor::prepareToPlay (double sampleRate, int)
+void SampleLabProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    engine.prepare (sampleRate);
+    engine.prepare (sampleRate, juce::jmax (512, samplesPerBlock));
     keyboardState.reset();
 }
 
@@ -76,6 +76,7 @@ void SampleLabProcessor::publishKit (bool newGeneration)
     auto snap = std::make_shared<sl::KitSnapshot>();
     snap->generation = generation;
     snap->masterGain = sl::dbToGain (kit.masterDb);
+    snap->masterFx = kit.masterFx;
     snap->cells.reserve (kit.cells.size());
 
     for (int i = 0; i < kit.numCells(); ++i)
@@ -83,6 +84,7 @@ void SampleLabProcessor::publishKit (bool newGeneration)
         sl::CellRuntime r;
         r.cellIndex = i;
         r.dsp = sl::toDsp (kit.cells[(size_t) i]);
+        r.fx = kit.cells[(size_t) i].fx;
         r.data = cellData[(size_t) i].get();
         snap->cells.push_back (r);
     }

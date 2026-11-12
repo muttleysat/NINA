@@ -1,30 +1,5 @@
 #include "ModulesBar.h"
 
-ModulesBar::KnobBox::KnobBox (const juce::String& title)
-{
-    label.setText (title, juce::dontSendNotification);
-    label.setJustificationType (juce::Justification::centred);
-    label.setColour (juce::Label::textColourId, theme::textDim);
-    label.setInterceptsMouseClicks (false, false);
-
-    slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    slider.setRotaryParameters (juce::MathConstants<float>::pi * 1.2f, juce::MathConstants<float>::pi * 2.8f, true);
-
-    addAndMakeVisible (label);
-    addAndMakeVisible (slider);
-}
-
-void ModulesBar::KnobBox::resized()
-{
-    const float s = theme::scaleFor (*this);
-    auto b = getLocalBounds();
-    label.setFont (juce::FontOptions (juce::jmax (9.0f, 11.5f * s)));
-    const int th = (int) (15 * s);
-    slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, b.getWidth(), th);
-    label.setBounds (b.removeFromBottom (th));     // etichetta sotto il valore, come nel riferimento
-    slider.setBounds (b);
-}
-
 ModulesBar::ModulesBar (SampleLabProcessor& p)
     : processor (p), meter ([this] { return processor.getMasterLevels(); })
 {
@@ -39,16 +14,6 @@ ModulesBar::ModulesBar (SampleLabProcessor& p)
 
     addKnob (Pitch, "Tune", -100, 100, 1, 0, -1, [] (const P& c) { return c.tuneCents; }, [] (P& c, float v) { c.tuneCents = v; }, " ct");
     addKnob (Pitch, "Pitch", -24, 24, 1, 0, -1, [] (const P& c) { return c.pitchSemis; }, [] (P& c, float v) { c.pitchSemis = v; }, " st");
-
-    auto& root = addKnob (Mapping, "Root", 0, 127, 1, 36, -1, [] (const P& c) { return (float) c.rootNote; }, [] (P& c, float v) { c.rootNote = (int) v; });
-    auto& low  = addKnob (Mapping, "Low", 0, 127, 1, 36, -1, [] (const P& c) { return (float) c.lowNote; }, [] (P& c, float v) { c.lowNote = (int) v; });
-    auto& high = addKnob (Mapping, "High", 0, 127, 1, 36, -1, [] (const P& c) { return (float) c.highNote; }, [] (P& c, float v) { c.highNote = (int) v; });
-    for (auto* k : { &root, &low, &high })
-    {
-        k->slider.textFromValueFunction = [] (double v) { return theme::noteName ((int) v); };
-        k->slider.valueFromTextFunction = [] (const juce::String& t) { return (double) t.getIntValue(); };
-        k->slider.updateText();
-    }
 
     addAndMakeVisible (envelope);
 
@@ -69,33 +34,36 @@ ModulesBar::ModulesBar (SampleLabProcessor& p)
     setCell (0);
 }
 
-ModulesBar::KnobBox& ModulesBar::addKnob (int module, const juce::String& title, double min, double max, double step, double def, double skewMid,
-                                          std::function<float (const sl::CellParams&)> get,
-                                          std::function<void (sl::CellParams&, float)> set,
-                                          const juce::String& suffix)
+void ModulesBar::addKnob (int module, const juce::String& title, double min, double max, double step, double def, double skewMid,
+                          std::function<float (const sl::CellParams&)> get,
+                          std::function<void (sl::CellParams&, float)> set,
+                          const juce::String& suffix)
 {
-    auto k = std::make_unique<KnobBox> (title);
-    k->module = module;
-    k->get = std::move (get);
-    k->set = std::move (set);
-    k->slider.setRange (min, max, step);
-    if (skewMid > 0.0)
-        k->slider.setSkewFactorFromMidPoint (skewMid);
-    k->slider.setDoubleClickReturnValue (true, def);
-    k->slider.setTextValueSuffix (suffix);
-    k->slider.setNumDecimalPlacesToDisplay (step >= 1.0 ? 0 : (step >= 0.1 ? 1 : 2));
+    Param p;
+    p.box = std::make_unique<KnobBox> (title);
+    p.module = module;
+    p.get = std::move (get);
+    p.set = std::move (set);
 
-    auto* raw = k.get();
-    raw->slider.onValueChange = [this, raw]
+    auto& s = p.box->slider;
+    s.setRange (min, max, step);
+    if (skewMid > 0.0)
+        s.setSkewFactorFromMidPoint (skewMid);
+    s.setDoubleClickReturnValue (true, def);
+    s.setTextValueSuffix (suffix);
+    s.setNumDecimalPlacesToDisplay (step >= 1.0 ? 0 : (step >= 0.1 ? 1 : 2));
+
+    const int index = (int) params.size();
+    s.onValueChange = [this, index]
     {
         if (updating) return;
-        raw->set (processor.getKit().cells[(size_t) cell], (float) raw->slider.getValue());
+        auto& prm = params[(size_t) index];
+        prm.set (processor.getKit().cells[(size_t) cell], (float) prm.box->slider.getValue());
         edited();
     };
 
-    addAndMakeVisible (*k);
-    knobs.push_back (std::move (k));
-    return *raw;
+    addAndMakeVisible (*p.box);
+    params.push_back (std::move (p));
 }
 
 void ModulesBar::edited()
@@ -125,8 +93,8 @@ void ModulesBar::refresh()
 
     const auto& c = processor.getKit().cells[(size_t) cell];
     updating = true;
-    for (auto& k : knobs)
-        k->slider.setValue (k->get (c), juce::dontSendNotification);
+    for (auto& p : params)
+        p.box->slider.setValue (p.get (c), juce::dontSendNotification);
     masterKnob.slider.setValue (processor.getKit().masterDb, juce::dontSendNotification);
     updating = false;
     updateEnvelope();
@@ -136,7 +104,7 @@ void ModulesBar::refresh()
 void ModulesBar::paint (juce::Graphics& g)
 {
     const float s = theme::scaleFor (*this);
-    const char* titles[numModules] = { "Amp", "Pitch", "Mapping", "Master" };
+    const char* titles[numModules] = { "Amp", "Pitch", "Master" };
     for (int i = 0; i < numModules; ++i)
         widgets::drawModule (g, moduleBounds[i].toFloat(), titles[i], s);
 }
@@ -148,7 +116,7 @@ void ModulesBar::resized()
     const int gap = juce::jmax (6, (int) (8 * s));
 
     // Larghezze proporzionali al numero di manopole di ogni modulo
-    const float units[numModules] = { 7.0f, 2.3f, 3.0f, 2.7f };
+    const float units[numModules] = { 7.0f, 2.4f, 2.6f };
     float total = 0.0f;
     for (float u : units) total += u;
     const float perUnit = (float) (area.getWidth() - gap * (numModules - 1)) / total;
@@ -164,13 +132,12 @@ void ModulesBar::resized()
     const int titleH = (int) (24 * s);
     auto inner = [&] (int m) { return moduleBounds[m].reduced ((int) (6 * s), 0).withTrimmedTop (titleH).withTrimmedBottom ((int) (6 * s)); };
 
-    // Knob di ogni modulo in fila
-    for (int m = 0; m < numModules - 1; ++m)
+    for (int m = 0; m < Master; ++m)
     {
         std::vector<KnobBox*> list;
-        for (auto& k : knobs)
-            if (k->module == m)
-                list.push_back (k.get());
+        for (auto& p : params)
+            if (p.module == m)
+                list.push_back (p.box.get());
 
         auto r = inner (m);
         if (m == Amp)

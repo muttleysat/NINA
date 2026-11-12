@@ -2,9 +2,10 @@
 
 #include "../PluginProcessor.h"
 #include "Theme.h"
+#include "KnobBox.h"
 #include "Widgets.h"
 
-// Fila di moduli in basso: AMP (inviluppo, level, pan), PITCH (tune, pitch), MAPPING (note) e MASTER (volume + meter).
+// Fila di moduli della scheda Main: AMP (inviluppo, level, pan), PITCH (tune, pitch) e MASTER (volume + meter).
 class ModulesBar final : public juce::Component
 {
 public:
@@ -19,24 +20,20 @@ public:
     void resized() override;
 
 private:
-    struct KnobBox final : public juce::Component
+    struct Param
     {
-        explicit KnobBox (const juce::String& title);
-        void resized() override;
-
-        juce::Label label;
-        juce::Slider slider;
+        std::unique_ptr<KnobBox> box;
+        int module = 0;
         std::function<float (const sl::CellParams&)> get;
         std::function<void (sl::CellParams&, float)> set;
-        int module = 0;
     };
 
-    enum Module { Amp = 0, Pitch, Mapping, Master, numModules };
+    enum Module { Amp = 0, Pitch, Master, numModules };
 
-    KnobBox& addKnob (int module, const juce::String& title, double min, double max, double step, double def, double skewMid,
-                      std::function<float (const sl::CellParams&)> get,
-                      std::function<void (sl::CellParams&, float)> set,
-                      const juce::String& suffix = {});
+    void addKnob (int module, const juce::String& title, double min, double max, double step, double def, double skewMid,
+                  std::function<float (const sl::CellParams&)> get,
+                  std::function<void (sl::CellParams&, float)> set,
+                  const juce::String& suffix = {});
     void edited();
     void updateEnvelope();
 
@@ -44,7 +41,7 @@ private:
     int cell = 0;
     bool updating = false;
 
-    std::vector<std::unique_ptr<KnobBox>> knobs;
+    std::vector<Param> params;
     EnvelopeView envelope;
     KnobBox masterKnob { "Volume" };
     LevelMeter meter;

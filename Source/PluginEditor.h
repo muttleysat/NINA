@@ -6,6 +6,7 @@
 #include "ui/WaveStrip.h"
 #include "ui/ModulesBar.h"
 #include "ui/CellPanel.h"
+#include "ui/FxPanel.h"
 #include "ui/SampleBrowser.h"
 
 class SampleLabEditor final : public juce::AudioProcessorEditor,
@@ -17,8 +18,11 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
+    void mouseDown (const juce::MouseEvent&) override;
 
 private:
+    void showTab (int tab);
+    juce::Rectangle<int> tabRect (int index) const;
     void showSizeMenu();
     void applyScale (float zoom);
 
@@ -49,6 +53,8 @@ private:
     WaveStrip waveStrip;
     CellPanel cellPanel;
     ModulesBar modules;
+    FxPanel fxPanel;
+    int currentTab = 0;                 // 0 = Main, 3 = FX (le altre schede arriveranno con le fasi successive)
     std::unique_ptr<juce::FileChooser> chooser;
 
     juce::Rectangle<int> topBar, tabBar;

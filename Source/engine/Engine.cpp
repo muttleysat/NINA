@@ -2,12 +2,25 @@
 
 namespace sl
 {
-void Engine::prepare (double sr)
+void Engine::prepare (double sr, int maxBlockSize)
 {
     sampleRate = sr;
+    maxBlock = juce::jmax (16, maxBlockSize);
+    tailSamples = (int) (sr * 4.0);
     previewVoice.kill();
     for (auto& v : voices)
         v.kill();
+
+    scratchL.assign ((size_t) maxBlock, 0.0f);
+    scratchR.assign ((size_t) maxBlock, 0.0f);
+    for (auto& c : cellFx)
+    {
+        if (c == nullptr)
+            c = std::make_unique<FxChain>();
+        c->prepare (sr, maxBlock);
+    }
+    cellTail.fill (0);
+    masterFx.prepare (sr, maxBlock);
 }
 
 void Engine::playPreview (const SampleData* data, float gain)
@@ -68,12 +81,62 @@ void Engine::noteOff (int note) noexcept
 
 void Engine::renderVoices (float* l, float* r, int start, int count) noexcept
 {
-    if (count <= 0)
+    while (count > 0)
+    {
+        const int n = juce::jmin (count, maxBlock);
+        renderChunk (l + start, r + start, n);
+        start += n;
+        count -= n;
+    }
+}
+
+// Renderizza le voci cella per cella: le celle con effetti passano da un buffer dedicato e dalla propria catena.
+void Engine::renderChunk (float* l, float* r, int n) noexcept
+{
+    if (current == nullptr)
         return;
 
-    for (auto& v : voices)
-        if (v.isActive())
-            v.render (l + start, r + start, count);
+    std::array<bool, kMaxCells> hasVoice {};
+    for (const auto& v : voices)
+        if (v.isActive() && v.getCellIndex() >= 0 && v.getCellIndex() < kMaxCells)
+            hasVoice[(size_t) v.getCellIndex()] = true;
+
+    const int numCells = juce::jmin ((int) current->cells.size(), (int) kMaxCells);
+    for (int c = 0; c < numCells; ++c)
+    {
+        const bool voiceOn = hasVoice[(size_t) c];
+        const auto& fx = current->cells[(size_t) c].fx;
+
+        if (! fx.anyOn())
+        {
+            cellTail[(size_t) c] = 0;
+            if (voiceOn)
+                for (auto& v : voices)
+                    if (v.isActive() && v.getCellIndex() == c)
+                        v.render (l, r, n);
+            continue;
+        }
+
+        if (! voiceOn && cellTail[(size_t) c] <= 0)
+            continue;
+
+        std::fill (scratchL.begin(), scratchL.begin() + n, 0.0f);
+        std::fill (scratchR.begin(), scratchR.begin() + n, 0.0f);
+        if (voiceOn)
+            for (auto& v : voices)
+                if (v.isActive() && v.getCellIndex() == c)
+                    v.render (scratchL.data(), scratchR.data(), n);
+
+        cellFx[(size_t) c]->process (scratchL.data(), scratchR.data(), n, fx);
+
+        for (int i = 0; i < n; ++i)
+        {
+            l[i] += scratchL[(size_t) i];
+            r[i] += scratchR[(size_t) i];
+        }
+
+        cellTail[(size_t) c] = voiceOn ? (fx.hasTail() ? tailSamples : 0) : cellTail[(size_t) c] - n;
+    }
 }
 
 void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi) noexcept
@@ -143,6 +206,9 @@ void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& 
                 v.release();
     }
     renderVoices (l, r, pos, numSamples - pos);
+
+    // Effetti globali del kit, poi volume master
+    masterFx.process (l, r, numSamples, current->masterFx);
 
     if (current->masterGain != 1.0f)
         buffer.applyGain (current->masterGain);

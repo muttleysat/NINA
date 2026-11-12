@@ -1,6 +1,6 @@
 # Sample Lab – Requisiti di prodotto
 
-Versione: 1.4 (bozza) – 2026-11-12
+Versione: 1.5 (bozza) – 2026-11-12
 Stato: documento vivo, da estendere iterativamente.
 
 ## 1. Visione
@@ -56,6 +56,24 @@ Ispirata all'organizzazione di Battery, ma con grafica e asset originali (nessun
 | MAP-4 | Più celle sulla stessa nota (layer) e **gruppi di esclusione** (es. hi-hat chiuso/aperto, choke). | Should |
 | MAP-5 | Modalità polifonica / monofonica per cella. | Must |
 | MAP-6 | Formati supportati in import: WAV, AIFF, FLAC, MP3, OGG (WAV/AIFF 16/24/32 float, fino a 192 kHz). Resampling automatico alla frequenza del progetto. | Must |
+
+### 5.1 MIDI learn dei parametri
+
+Ogni parametro controllabile (manopole, fader, interruttori) può essere assegnato a un controllo di un dispositivo MIDI (manopola, fader, pulsante di un controller), oltre alla normale automazione della DAW.
+
+| ID | Requisito | Priorità |
+|----|-----------|----------|
+| ML-1 | **Assegnazione con MIDI learn**: tasto destro su un parametro, voce "MIDI Learn"; il parametro entra in modalità di ascolto (evidenziato), si muove un controllo sul controller e l'assegnazione viene creata sul primo messaggio ricevuto (CC, pitch bend, aftertouch di canale). Annullabile con Esc o un nuovo clic. | Must |
+| ML-2 | Voci del menu contestuale del parametro: **MIDI Learn**, **Clear MIDI mapping**, e l'indicazione dell'assegnazione corrente (es. "CC 74, ch. 1"). I parametri assegnati hanno un indicatore visibile sul controllo. | Must |
+| ML-3 | Il valore del parametro segue il controllo MIDI nell'intero intervallo (0–127 mappato su min–max del parametro, rispettando la scala logaritmica/skew). Gli interruttori si attivano con valori ≥ 64 o come pulsante a scatto (toggle) con opzione. | Must |
+| ML-4 | **Modalità dei controlli**: assoluta (default) e relativa (encoder infiniti: segno e complemento a due, offset binario). Opzione per parametro. | Should |
+| ML-5 | **Soft takeover (pickup)**: dopo un cambio di cella o di kit, il parametro non salta al valore del controller finché questo non incrocia il valore corrente, per evitare salti bruschi. Opzione attivabile. | Should |
+| ML-6 | **Parametri della cella selezionata**: assegnazione "per cella selezionata" (la manopola del controller agisce sui parametri della cella attualmente selezionata, es. Level, Tune, Cutoff) oppure "fissa su una cella" (agisce sempre sulla cella scelta). | Should |
+| ML-7 | **Pannello "MIDI Mappings"**: elenco di tutte le assegnazioni (parametro, controllo, canale, modalità) con modifica ed eliminazione, "Clear all" e filtro per canale/dispositivo. | Should |
+| ML-8 | **Salvataggio**: le assegnazioni vengono salvate nel kit `.slkit`, e si possono esportare/importare come **preset di mappatura** indipendente (per riusare lo stesso controller con altri kit). In più, una mappatura globale dell'applicazione ricordata tra le sessioni. | Must |
+| ML-9 | **Uso nel plugin**: i messaggi MIDI arrivano dalla DAW; in Cubase 16 i CC raggiungono il plugin come eventi MIDI se la traccia riceve da un dispositivo MIDI, da verificare con un prototipo. In alternativa l'assegnazione passa dal sistema di automazione/MIDI mapping della DAW (parametri esposti con ID stabili, NF-6). **Nello standalone** i messaggi arrivano direttamente dai dispositivi MIDI selezionati (SA-2). | Must |
+| ML-10 | Lo stesso messaggio MIDI può controllare più parametri; i messaggi di nota (usati per il mapping delle celle, MAP-0/MAP-2) restano separati dal MIDI learn dei parametri. Il feedback verso il controller (LED/motorizzati) è fuori ambito per la v1. | Could |
+| ML-11 | L'uso del MIDI learn non deve causare click: i valori ricevuti sono smussati e applicati in modo sicuro rispetto al thread audio. | Must |
 
 ## 6. Editing del campione (non distruttivo)
 
@@ -249,4 +267,5 @@ Esportazione verso Cubase decisa: clip MIDI (drag & drop o file `.mid`) per le n
 4. **Slicing**: slice automatici/manuali e distribuzione sulle celle.
 5. **Sequencer**: pattern a 64 step, parametri per step, parameter lock degli effetti, esportazione MIDI ed esportazione audio WAV.
 6. **Standalone**: build autonoma Windows/macOS con trasporto interno, impostazioni audio/MIDI e record. Il target standalone si imposta fin dallo scheletro del progetto (JUCE) e serve anche come banco di prova rapido durante lo sviluppo, senza passare dalla DAW.
-7. **Rifinitura**: layer/gruppi, undo, ottimizzazioni, test in Cubase 16 (e altre DAW).
+7. **MIDI learn dei parametri** (sez. 5.1): assegnazione con tasto destro, pannello delle mappature, salvataggio nel kit; da avviare quando i parametri degli effetti sono stabili.
+8. **Rifinitura**: layer/gruppi, undo, ottimizzazioni, test in Cubase 16 (e altre DAW).

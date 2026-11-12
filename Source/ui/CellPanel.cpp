@@ -36,6 +36,28 @@ CellPanel::CellPanel (SampleLabProcessor& p) : processor (p)
     };
     addAndMakeVisible (reverseButton);
 
+    // Selettori delle note (nome nota in stile Cubase: C3 = 60)
+    struct NoteSetup { juce::Slider* slider; int sl::CellParams::*member; const char* tip; };
+    for (auto [slider, member, tip] : { NoteSetup { &rootSlider, &sl::CellParams::rootNote, "Note at which the sample plays at its original pitch" },
+                                        NoteSetup { &lowSlider,  &sl::CellParams::lowNote,  "Lowest key that triggers this cell" },
+                                        NoteSetup { &highSlider, &sl::CellParams::highNote, "Highest key that triggers this cell" } })
+    {
+        slider->setSliderStyle (juce::Slider::IncDecButtons);
+        slider->setIncDecButtonsMode (juce::Slider::incDecButtonsDraggable_Horizontal);
+        slider->setRange (0, 127, 1);
+        slider->setTooltip (tip);
+        slider->textFromValueFunction = [] (double v) { return theme::noteName ((int) v); };
+        slider->valueFromTextFunction = [] (const juce::String& t) { return (double) t.getIntValue(); };
+        slider->onValueChange = [this, slider, member]
+        {
+            if (updating) return;
+            processor.getKit().cells[(size_t) cell].*member = (int) slider->getValue();
+            processor.cellEdited (cell);
+            if (onEdited) onEdited();
+        };
+        addAndMakeVisible (*slider);
+    }
+
     setCell (0);
 }
 
@@ -55,6 +77,9 @@ void CellPanel::refresh()
     for (int i = 0; i < 3; ++i)
         modeButtons[i].setToggleState ((int) c.mode == i, juce::dontSendNotification);
     reverseButton.setToggleState (c.reverse, juce::dontSendNotification);
+    rootSlider.setValue (c.rootNote, juce::dontSendNotification);
+    lowSlider.setValue (c.lowNote, juce::dontSendNotification);
+    highSlider.setValue (c.highNote, juce::dontSendNotification);
     updating = false;
 
     const bool has = c.hasSample();
@@ -108,16 +133,20 @@ void CellPanel::paint (juce::Graphics& g)
                 text, juce::Justification::centredLeft, true);
 
     sectionLabel (g, modeLabel, "Trigger mode", s);
+    sectionLabel (g, mapLabel, "MIDI mapping", s);
+    g.setColour (theme::textDim);
+    g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.5f * s)));
+    g.drawText ("Root note", rootRow.withWidth (rootRow.getWidth() / 2), juce::Justification::centredLeft);
+    g.drawText ("Key low", lowRow.withWidth (lowRow.getWidth() / 2), juce::Justification::centredLeft);
+    g.drawText ("Key high", highRow.withWidth (highRow.getWidth() / 2), juce::Justification::centredLeft);
 
     // Informazioni sul campione
     if (const auto data = processor.getCellData (cell))
     {
         const double secs = (double) data->numSamples() / data->sampleRate;
-        const juce::String rows[4][2] = {
+        const juce::String rows[2][2] = {
             { "Format", juce::String (data->sampleRate / 1000.0, 1) + " kHz - " + (data->numChannels() > 1 ? "stereo" : "mono") },
             { "Length", juce::String (secs, 3) + " s  (" + juce::String (data->numSamples()) + " smp)" },
-            { "Key range", theme::noteName (c.lowNote) + (c.lowNote != c.highNote ? " - " + theme::noteName (c.highNote) : juce::String()) },
-            { "Root note", theme::noteName (c.rootNote) },
         };
 
         auto r = infoRect;
@@ -161,6 +190,20 @@ void CellPanel::resized()
     area.removeFromTop (gap);
 
     reverseButton.setBounds (area.removeFromTop ((int) (26 * s)));
+    area.removeFromTop (gap);
+
+    mapLabel = area.removeFromTop ((int) (20 * s));
+    const int rh = juce::jmax (22, (int) (26 * s));
+    rootRow = area.removeFromTop (rh);
+    lowRow = area.removeFromTop (rh);
+    highRow = area.removeFromTop (rh);
+    for (auto [mapRow, slider] : { std::pair { rootRow, &rootSlider }, std::pair { lowRow, &lowSlider }, std::pair { highRow, &highSlider } })
+    {
+        const auto r = mapRow.withTrimmedLeft (mapRow.getWidth() / 2).reduced (0, 1);
+        slider->setBounds (r);
+        // Casella del nome nota a sinistra, pulsanti - e + a destra con spazio sufficiente
+        slider->setTextBoxStyle (juce::Slider::TextBoxLeft, false, (int) ((float) r.getWidth() * 0.52f), r.getHeight());
+    }
     area.removeFromTop (gap);
 
     infoRect = area;

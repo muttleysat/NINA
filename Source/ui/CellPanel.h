@@ -30,5 +30,9 @@ private:
     juce::TextButton modeButtons[3];
     juce::ToggleButton reverseButton { "Reverse" };
 
+    // Mapping MIDI della cella: nota originale del campione e intervallo di tasti che la fanno suonare
+    juce::Slider rootSlider, lowSlider, highSlider;
+    juce::Rectangle<int> mapLabel, rootRow, lowRow, highRow;
+
     juce::Rectangle<int> titleRect, sampleCard, modeLabel, reverseLabel, infoRect;
 };

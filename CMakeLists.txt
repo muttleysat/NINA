@@ -42,6 +42,7 @@ juce_add_plugin(SampleLab
 set(SAMPLELAB_CORE_SOURCES
     Source/engine/SampleData.cpp
     Source/engine/Voice.cpp
+    Source/engine/FxChain.cpp
     Source/engine/Engine.cpp
     Source/kit/KitIO.cpp
 )
@@ -52,6 +53,8 @@ target_sources(SampleLab PRIVATE
     Source/PluginEditor.cpp
     Source/ui/PadGrid.cpp
     Source/ui/WaveformView.cpp
+    Source/ui/KnobBox.cpp
+    Source/ui/FxPanel.cpp
     Source/ui/ModulesBar.cpp
     Source/ui/WaveStrip.cpp
     Source/ui/CellPanel.cpp
@@ -68,7 +71,7 @@ target_sources(SampleLabTests PRIVATE ${SAMPLELAB_CORE_SOURCES} Tests/Tests.cpp)
 target_include_directories(SampleLabTests PRIVATE Source)
 target_compile_definitions(SampleLabTests PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
 target_link_libraries(SampleLabTests
-    PRIVATE juce::juce_audio_utils
+    PRIVATE juce::juce_audio_utils juce::juce_dsp
     PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
 
 # ASIO (solo Windows): richiede l'SDK Steinberg in third_party/asiosdk (non incluso nel repository per

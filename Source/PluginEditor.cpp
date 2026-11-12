@@ -1,7 +1,7 @@
 #include "PluginEditor.h"
 
 SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
-    : AudioProcessorEditor (&p), processor (p), grid (p), waveStrip (p), cellPanel (p), modules (p)
+    : AudioProcessorEditor (&p), processor (p), grid (p), waveStrip (p), cellPanel (p), modules (p), fxPanel (p)
 {
     juce::LookAndFeel::setDefaultLookAndFeel (&lnf);
 
@@ -21,6 +21,7 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     addAndMakeVisible (waveStrip);
     addAndMakeVisible (cellPanel);
     addAndMakeVisible (modules);
+    addChildComponent (fxPanel);
 
     browser.onFileActivated = [this] (const juce::File& f) { loadIntoCell (grid.getSelected(), f); };
     browser.onPreview = [this] (const juce::File& f) { processor.auditionFile (f, browser.getPreviewGainDb()); };
@@ -48,6 +49,7 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     };
     waveStrip.onEdited = edited;
     modules.onEdited = edited;
+    fxPanel.onEdited = edited;
     cellPanel.onEdited = [this]
     {
         grid.repaint();
@@ -115,6 +117,33 @@ void SampleLabEditor::refreshCellViews()
     waveStrip.setCell (c);
     cellPanel.setCell (c);
     modules.setCell (c);
+    fxPanel.setCell (c);
+}
+
+// ------------------------------------------------------------------- Schede
+
+juce::Rectangle<int> SampleLabEditor::tabRect (int index) const
+{
+    const float s = juce::jmax (0.6f, (float) getWidth() / (float) baseWidth);
+    auto r = tabBar.reduced ((int) (10 * s), (int) (4 * s));
+    const int tw = (int) (74 * s), gap = (int) (6 * s);
+    return { r.getX() + index * (tw + gap), r.getY(), tw, r.getHeight() };
+}
+
+void SampleLabEditor::showTab (int tab)
+{
+    currentTab = tab;
+    modules.setVisible (tab == 0);
+    fxPanel.setVisible (tab == 3);
+    repaint (tabBar);
+}
+
+void SampleLabEditor::mouseDown (const juce::MouseEvent& e)
+{
+    // Schede attive: Main (0) e FX (3)
+    for (int tab : { 0, 3 })
+        if (tabRect (tab).contains (e.getPosition()))
+            showTab (tab);
 }
 
 void SampleLabEditor::refreshAll()
@@ -352,21 +381,18 @@ void SampleLabEditor::paint (juce::Graphics& g)
     g.drawHorizontalLine (tabBar.getY(), 0.0f, (float) getWidth());
 
     const char* tabs[] = { "Main", "Seq", "Mixer", "FX", "Macros" };
-    auto r = tabBar.reduced ((int) (10 * s), (int) (4 * s));
-    const int tw = (int) (74 * s);
     g.setFont (juce::FontOptions (juce::jmax (10.0f, 13.0f * s), juce::Font::bold));
     for (int i = 0; i < 5; ++i)
     {
-        auto tab = r.removeFromLeft (tw);
-        r.removeFromLeft ((int) (6 * s));
-        if (i == 0)
+        const auto tab = tabRect (i);
+        if (i == currentTab)
         {
             g.setColour (theme::accent);
             g.fillRoundedRectangle (tab.toFloat(), 6.0f * s);
             g.setColour (juce::Colour (0xff1a1006));
         }
         else
-            g.setColour (theme::textDim.withAlpha (0.55f));
+            g.setColour (i == 0 || i == 3 ? theme::text.withAlpha (0.85f) : theme::textDim.withAlpha (0.45f));   // le altre arriveranno
         g.drawText (tabs[i], tab, juce::Justification::centred);
     }
 }
@@ -402,7 +428,9 @@ void SampleLabEditor::resized()
     area.reduce (m, m);
 
     // Fila dei moduli, a tutta larghezza
-    modules.setBounds (area.removeFromBottom (juce::jlimit (130, 240, (int) ((float) area.getHeight() * 0.30f))));
+    const auto bottomArea = area.removeFromBottom (juce::jlimit (130, 240, (int) ((float) area.getHeight() * 0.30f)));
+    modules.setBounds (bottomArea);
+    fxPanel.setBounds (bottomArea);
     area.removeFromBottom (m);
 
     // Colonne: browser | centro | pannello della cella

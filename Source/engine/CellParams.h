@@ -2,6 +2,7 @@
 
 #include <juce_core/juce_core.h>
 #include <cmath>
+#include "FxParams.h"
 
 namespace sl
 {
@@ -32,7 +33,9 @@ struct CellParams
 
     int rootNote = 36, lowNote = 36, highNote = 36;
 
-    bool missing = false;              // campione non trovato al caricamento del kit (non serializzato)
+    FxParams fx;                       // catena di effetti della cella
+
+    bool missing = false;             // campione non trovato al caricamento del kit (non serializzato)
 
     bool hasSample() const { return samplePath.isNotEmpty(); }
 };

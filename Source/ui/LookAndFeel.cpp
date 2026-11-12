@@ -30,12 +30,20 @@ SampleLabLookAndFeel::SampleLabLookAndFeel()
     setColour (juce::TextEditor::focusedOutlineColourId, accent);
 }
 
+juce::Label* SampleLabLookAndFeel::createSliderTextBox (juce::Slider& s)
+{
+    auto* l = LookAndFeel_V4::createSliderTextBox (s);
+    l->setMinimumHorizontalScale (0.55f);     // i valori lunghi si stringono invece di essere troncati
+    l->setBorderSize ({ 0, 0, 0, 0 });
+    return l;
+}
+
 void SampleLabLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height, float sliderPos,
                                              float startAngle, float endAngle, juce::Slider& slider)
 {
     using namespace theme;
     const auto bounds = juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height).reduced (2.0f);
-    const float radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
+    const float radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f * 0.8f;   // manopole piu' compatte
     if (radius < 6.0f)
         return;
 

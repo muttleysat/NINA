@@ -1,8 +1,10 @@
 #pragma once
 
 #include "Voice.h"
+#include "FxChain.h"
 #include <array>
 #include <atomic>
+#include <memory>
 
 namespace sl
 {
@@ -12,7 +14,8 @@ public:
     static constexpr int kMaxVoices = 64;
     static constexpr int kMaxCells = 128;
 
-    void prepare (double sampleRate);
+    // Alloca gli stati degli effetti: da chiamare fuori dal thread audio (prepareToPlay).
+    void prepare (double sampleRate, int maxBlockSize = 1024);
 
     // Thread UI
     void publish (KitSnapshotPtr snapshot) { exchange.publish (std::move (snapshot)); }
@@ -40,8 +43,16 @@ private:
     void noteOn (int note, float velocity) noexcept;
     void noteOff (int note) noexcept;
     void renderVoices (float* l, float* r, int start, int count) noexcept;
+    void renderChunk (float* l, float* r, int n) noexcept;
 
     double sampleRate = 44100.0;
+    int maxBlock = 1024;
+    int tailSamples = 0;                // durata di coda concessa a delay/riverbero dopo la fine delle voci
+
+    std::array<std::unique_ptr<FxChain>, kMaxCells> cellFx;
+    std::array<int, kMaxCells> cellTail {};
+    FxChain masterFx;
+    std::vector<float> scratchL, scratchR;
     SnapshotExchange exchange;
     KitSnapshotPtr current;
     int lastGeneration = -1;

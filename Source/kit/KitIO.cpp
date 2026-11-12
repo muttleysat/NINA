@@ -8,6 +8,86 @@ juce::String sanitiseName (const juce::String& name)
     return s.isEmpty() ? juce::String ("Untitled") : s;
 }
 
+static float getF (const juce::var& o, const char* key, float def)
+{
+    return o.hasProperty (key) ? (float) (double) o[key] : def;
+}
+
+static int getI (const juce::var& o, const char* key, int def)
+{
+    return o.hasProperty (key) ? (int) o[key] : def;
+}
+
+static bool getB (const juce::var& o, const char* key, bool def)
+{
+    return o.hasProperty (key) ? (bool) o[key] : def;
+}
+
+static juce::var fxToVar (const FxParams& f)
+{
+    auto* o = new juce::DynamicObject();
+    o->setProperty ("satOn", f.satOn);
+    o->setProperty ("drive", f.drive);
+    o->setProperty ("satMix", f.satMix);
+    o->setProperty ("lofiOn", f.lofiOn);
+    o->setProperty ("bits", f.bits);
+    o->setProperty ("downsample", f.downsample);
+    o->setProperty ("lofiMix", f.lofiMix);
+    o->setProperty ("filterOn", f.filterOn);
+    o->setProperty ("filterType", f.filterType);
+    o->setProperty ("cutoff", f.cutoff);
+    o->setProperty ("resonance", f.resonance);
+    o->setProperty ("compOn", f.compOn);
+    o->setProperty ("compThreshold", f.compThreshold);
+    o->setProperty ("compRatio", f.compRatio);
+    o->setProperty ("compAttack", f.compAttack);
+    o->setProperty ("compRelease", f.compRelease);
+    o->setProperty ("compMakeup", f.compMakeup);
+    o->setProperty ("delayOn", f.delayOn);
+    o->setProperty ("delayTime", f.delayTime);
+    o->setProperty ("delayFeedback", f.delayFeedback);
+    o->setProperty ("delayMix", f.delayMix);
+    o->setProperty ("reverbOn", f.reverbOn);
+    o->setProperty ("reverbSize", f.reverbSize);
+    o->setProperty ("reverbDamp", f.reverbDamp);
+    o->setProperty ("reverbMix", f.reverbMix);
+    return juce::var (o);
+}
+
+static FxParams fxFromVar (const juce::var& o)
+{
+    FxParams f;     // i campi mancanti restano ai valori predefiniti
+    if (! o.isObject())
+        return f;
+
+    f.satOn = getB (o, "satOn", f.satOn);
+    f.drive = getF (o, "drive", f.drive);
+    f.satMix = getF (o, "satMix", f.satMix);
+    f.lofiOn = getB (o, "lofiOn", f.lofiOn);
+    f.bits = getF (o, "bits", f.bits);
+    f.downsample = getF (o, "downsample", f.downsample);
+    f.lofiMix = getF (o, "lofiMix", f.lofiMix);
+    f.filterOn = getB (o, "filterOn", f.filterOn);
+    f.filterType = juce::jlimit (0, 2, getI (o, "filterType", f.filterType));
+    f.cutoff = getF (o, "cutoff", f.cutoff);
+    f.resonance = getF (o, "resonance", f.resonance);
+    f.compOn = getB (o, "compOn", f.compOn);
+    f.compThreshold = getF (o, "compThreshold", f.compThreshold);
+    f.compRatio = getF (o, "compRatio", f.compRatio);
+    f.compAttack = getF (o, "compAttack", f.compAttack);
+    f.compRelease = getF (o, "compRelease", f.compRelease);
+    f.compMakeup = getF (o, "compMakeup", f.compMakeup);
+    f.delayOn = getB (o, "delayOn", f.delayOn);
+    f.delayTime = getF (o, "delayTime", f.delayTime);
+    f.delayFeedback = getF (o, "delayFeedback", f.delayFeedback);
+    f.delayMix = getF (o, "delayMix", f.delayMix);
+    f.reverbOn = getB (o, "reverbOn", f.reverbOn);
+    f.reverbSize = getF (o, "reverbSize", f.reverbSize);
+    f.reverbDamp = getF (o, "reverbDamp", f.reverbDamp);
+    f.reverbMix = getF (o, "reverbMix", f.reverbMix);
+    return f;
+}
+
 static juce::var cellToVar (const CellParams& c, const juce::String& samplePath)
 {
     auto* o = new juce::DynamicObject();
@@ -30,6 +110,8 @@ static juce::var cellToVar (const CellParams& c, const juce::String& samplePath)
     o->setProperty ("rootNote", c.rootNote);
     o->setProperty ("lowNote", c.lowNote);
     o->setProperty ("highNote", c.highNote);
+    if (c.fx.anyOn() || ! (c.fx == FxParams()))
+        o->setProperty ("fx", fxToVar (c.fx));
     return juce::var (o);
 }
 
@@ -42,6 +124,7 @@ juce::String toJson (const Kit& kit, bool relativePaths)
     root->setProperty ("rows", kit.rows);
     root->setProperty ("cols", kit.cols);
     root->setProperty ("masterDb", kit.masterDb);
+    root->setProperty ("masterFx", fxToVar (kit.masterFx));
 
     juce::Array<juce::var> cells;
     for (const auto& c : kit.cells)
@@ -54,16 +137,6 @@ juce::String toJson (const Kit& kit, bool relativePaths)
     root->setProperty ("cells", cells);
 
     return juce::JSON::toString (juce::var (root), false);
-}
-
-static float getF (const juce::var& o, const char* key, float def)
-{
-    return o.hasProperty (key) ? (float) (double) o[key] : def;
-}
-
-static int getI (const juce::var& o, const char* key, int def)
-{
-    return o.hasProperty (key) ? (int) o[key] : def;
 }
 
 bool fromJson (const juce::String& text, const juce::File& baseDir, Kit& kit, juce::String& error)
@@ -89,6 +162,7 @@ bool fromJson (const juce::String& text, const juce::File& baseDir, Kit& kit, ju
     k.rows = juce::jlimit (1, 64, getI (root, "rows", 4));
     k.cols = juce::jlimit (1, 64, getI (root, "cols", 12));
     k.masterDb = getF (root, "masterDb", 0.0f);
+    k.masterFx = fxFromVar (root["masterFx"]);
 
     const auto folder = root["samplesFolder"].toString().isEmpty() ? k.name : root["samplesFolder"].toString();
 
@@ -120,6 +194,7 @@ bool fromJson (const juce::String& text, const juce::File& baseDir, Kit& kit, ju
         c.rootNote = getI (o, "rootNote", defNote);
         c.lowNote = getI (o, "lowNote", defNote);
         c.highNote = getI (o, "highNote", defNote);
+        c.fx = fxFromVar (o["fx"]);
 
         const auto rel = o["sample"].toString();
         if (rel.isNotEmpty())

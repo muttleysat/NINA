@@ -1,5 +1,6 @@
 #include "engine/Engine.h"
 #include "kit/KitIO.h"
+#include <set>
 
 namespace
 {
@@ -39,9 +40,10 @@ struct Rig
 
     Rig() { engine.prepare (kSR); }
 
-    void setCells (const std::vector<std::pair<CellParams, SampleDataPtr>>& cells)
+    void setCells (const std::vector<std::pair<CellParams, SampleDataPtr>>& cells, const FxParams& masterFx = {})
     {
         auto snap = std::make_shared<KitSnapshot>();
+        snap->masterFx = masterFx;
         int i = 0;
         for (auto& [p, d] : cells)
         {
@@ -49,6 +51,7 @@ struct Rig
             CellRuntime r;
             r.cellIndex = i++;
             r.dsp = toDsp (p);
+            r.fx = p.fx;
             r.data = d.get();
             snap->cells.push_back (r);
         }
@@ -318,6 +321,133 @@ public:
                 m.addEvent (juce::MidiMessage::noteOn (1, 36, 1.0f), i);
             r.render (1024, m);
             expectEquals (r.engine.getCellActivity (0), (int) Engine::kMaxVoices);
+        }
+
+        // ------------------------------------------------------------ Effetti
+
+        auto impulse = [] (int length = 100)
+        {
+            auto d = std::make_shared<SampleData>();
+            d->audio.setSize (1, length);
+            d->audio.clear();
+            d->audio.setSample (0, 0, 1.0f);
+            d->sampleRate = kSR;
+            return SampleDataPtr (d);
+        };
+
+        beginTest ("FX: effects are bypassed by default (output identical)");
+        {
+            Rig a, b;
+            auto s = makeSine (440, 1.0);
+            a.setCells ({ { cell (36), s } });
+            auto p = cell (36);
+            p.fx.filterOn = false;
+            b.setCells ({ { p, s } });
+            auto oa = a.render (4096, noteOn (36)), ob = b.render (4096, noteOn (36));
+            float maxDiff = 0.0f;
+            for (int i = 0; i < 4096; ++i)
+                maxDiff = juce::jmax (maxDiff, std::abs (oa.getSample (0, i) - ob.getSample (0, i)));
+            expectEquals (maxDiff, 0.0f);
+        }
+
+        beginTest ("FX: low-pass filter attenuates highs, high-pass attenuates lows");
+        {
+            auto lp = cell (36);
+            lp.fx.filterOn = true; lp.fx.filterType = 0; lp.fx.cutoff = 300.0f;
+            Rig r1; r1.setCells ({ { lp, makeSine (8000, 1.0) } });
+            expect (peak (r1.render (8192, noteOn (36)), 4096, 8192) < 0.1f, "LP should kill 8 kHz");
+
+            auto hp = cell (36);
+            hp.fx.filterOn = true; hp.fx.filterType = 1; hp.fx.cutoff = 8000.0f;
+            Rig r2; r2.setCells ({ { hp, makeSine (100, 1.0) } });
+            expect (peak (r2.render (8192, noteOn (36)), 4096, 8192) < 0.1f, "HP should kill 100 Hz");
+
+            Rig r3; r3.setCells ({ { lp, makeSine (100, 1.0) } });
+            expect (peak (r3.render (8192, noteOn (36)), 4096, 8192) > 0.8f, "LP should pass 100 Hz");
+        }
+
+        beginTest ("FX: saturation raises low-level signals toward full scale");
+        {
+            auto p = cell (36);
+            p.fx.satOn = true; p.fx.drive = 24.0f; p.fx.satMix = 1.0f;
+            Rig r; r.setCells ({ { p, makeSine (200, 1.0, 0.1f) } });
+            expect (peak (r.render (4096, noteOn (36)), 1000, 4096) > 0.8f);
+        }
+
+        beginTest ("FX: LoFi quantises to few distinct levels");
+        {
+            auto p = cell (36);
+            p.fx.lofiOn = true; p.fx.bits = 2.0f; p.fx.downsample = 1.0f; p.fx.lofiMix = 1.0f;
+            Rig r; r.setCells ({ { p, makeSine (200, 1.0, 0.9f) } });
+            auto out = r.render (4096, noteOn (36));
+            std::set<int> levels;
+            for (int i = 100; i < 4096; ++i)
+                levels.insert ((int) std::round (out.getSample (0, i) * 1000.0f));
+            expect (levels.size() <= 5, "distinct levels: " + juce::String ((int) levels.size()));
+        }
+
+        beginTest ("FX: compressor reduces a loud signal");
+        {
+            auto p = cell (36);
+            p.fx.compOn = true; p.fx.compThreshold = -30.0f; p.fx.compRatio = 20.0f; p.fx.compAttack = 1.0f; p.fx.compRelease = 50.0f;
+            Rig r; r.setCells ({ { p, makeSine (200, 1.0, 1.0f) } });
+            expect (peak (r.render (22050, noteOn (36)), 15000, 22050) < 0.3f);
+        }
+
+        beginTest ("FX: cell delay echoes and keeps sounding after the voice ended (tail)");
+        {
+            auto p = cell (36);
+            p.fx.delayOn = true; p.fx.delayTime = 100.0f; p.fx.delayFeedback = 0.0f; p.fx.delayMix = 1.0f;
+            Rig r; r.setCells ({ { p, impulse() } });          // la voce finisce dopo 100 campioni
+            auto out = r.render (8192, noteOn (36));
+            expect (peak (out, 200, 4000) < 0.05f, "silence between dry hit and echo");
+            expect (peak (out, 4350, 4470) > 0.8f, "echo at 100 ms");
+        }
+
+        beginTest ("FX: reverb tail outlasts the sample");
+        {
+            auto p = cell (36);
+            p.fx.reverbOn = true; p.fx.reverbSize = 0.8f; p.fx.reverbMix = 1.0f;
+            Rig r; r.setCells ({ { p, impulse() } });
+            auto out = r.render (30000, noteOn (36));
+            expect (peak (out, 15000, 30000) > 0.0005f, "reverb tail should still be audible");
+        }
+
+        beginTest ("FX: master chain processes the whole mix");
+        {
+            FxParams m;
+            m.filterOn = true; m.filterType = 0; m.cutoff = 300.0f;
+            Rig r; r.setCells ({ { cell (36), makeSine (8000, 1.0) } }, m);
+            expect (peak (r.render (8192, noteOn (36)), 4096, 8192) < 0.1f);
+        }
+
+        beginTest ("FX: parameters round-trip through the kit file");
+        {
+            auto tmp = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("samplelab_fx_" + juce::String (juce::Random::getSystemRandom().nextInt (1000000)));
+            tmp.createDirectory();
+            auto kit = Kit::makeDefault();
+            kit.cells[2].fx.filterOn = true;
+            kit.cells[2].fx.cutoff = 1234.0f;
+            kit.cells[2].fx.filterType = 2;
+            kit.cells[2].fx.delayOn = true;
+            kit.cells[2].fx.delayTime = 333.0f;
+            kit.masterFx.reverbOn = true;
+            kit.masterFx.reverbSize = 0.9f;
+
+            juce::String err;
+            auto f = tmp.getChildFile ("Fx.slkit");
+            expect (KitIO::save (kit, f, err), err);
+            Kit loaded;
+            expect (KitIO::load (f, loaded, err), err);
+            expect (loaded.cells[2].fx.filterOn);
+            expectEquals (loaded.cells[2].fx.filterType, 2);
+            expectWithinAbsoluteError (loaded.cells[2].fx.cutoff, 1234.0f, 0.01f);
+            expect (loaded.cells[2].fx.delayOn);
+            expectWithinAbsoluteError (loaded.cells[2].fx.delayTime, 333.0f, 0.01f);
+            expect (! loaded.cells[3].fx.anyOn());
+            expect (loaded.masterFx.reverbOn);
+            expectWithinAbsoluteError (loaded.masterFx.reverbSize, 0.9f, 0.001f);
+            tmp.deleteRecursively();
         }
 
         beginTest ("Default kit maps C1 upwards in order");

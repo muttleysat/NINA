@@ -14,6 +14,7 @@ struct Kit
     juce::String name = "Untitled";
     int rows = 4, cols = 12;
     float masterDb = 0.0f;
+    FxParams masterFx;                       // effetti globali del kit
     std::vector<CellParams> cells;
     juce::File file;                         // file .slkit (vuoto se il kit non e' stato ancora salvato)
 
