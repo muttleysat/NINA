@@ -14,6 +14,15 @@ cmake --build build --config Release
 
 Output in `build/SampleLab_artefacts/Release/` (cartelle `VST3` e `Standalone`).
 
+## Test
+
+```powershell
+cmake --build build --config Release --target SampleLabTests
+build\SampleLabTests_artefacts\Release\SampleLabTests.exe
+```
+
+Coprono motore di riproduzione (mapping, velocity, level, start/end, pitch, reverse, one-shot/gate/loop, layer, voice stealing) e formato kit (salvataggio con cartella omonima, ricarica, sample mancanti, versione schema).
+
 ## Stato
 
-Fase 0: scheletro con finestra ridimensionabile e layout adattivo (browser, griglia 4×12, pannello inferiore) e menu di ridimensionamento a percentuali. Nessun audio ancora.
+Fase 1 (MVP sampler) in corso: griglia 4×12 con mapping da C1, browser dei file, drag & drop sui pad, editor di cella (forma d'onda con Start/End, AHDSR, Level, Pan, Tune, Pitch, modalità one-shot/gate/loop, reverse, range note), kit `.slkit` con cartella dei sample omonima, apri/salva/kit recenti, menu di ridimensionamento a percentuali. Mancano: uscite multiple per cella, verifica in Cubase 16, build su macOS.

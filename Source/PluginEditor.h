@@ -1,10 +1,12 @@
 #pragma once
 
 #include "PluginProcessor.h"
+#include "ui/PadGrid.h"
+#include "ui/CellEditor.h"
+#include "ui/SampleBrowser.h"
 
-// Interfaccia di scheletro: mostra le aree principali (browser, griglia 4x12, pannello inferiore)
-// con layout proporzionale, per verificare ridimensionamento e adattamento (UI-12, UI-13).
-class SampleLabEditor final : public juce::AudioProcessorEditor
+class SampleLabEditor final : public juce::AudioProcessorEditor,
+                              public juce::DragAndDropContainer
 {
 public:
     explicit SampleLabEditor (SampleLabProcessor&);
@@ -17,14 +19,34 @@ private:
     void showSizeMenu();
     void applyScale (float zoom);
 
-    SampleLabProcessor& processor;
-    juce::TextButton sizeButton { "Size 100%" };
+    // Kit
+    void showKitMenu();
+    void refreshTopBar();
+    void refreshAll();
+    void confirmDiscard (std::function<void()> proceed);
+    void doNew();
+    void doOpen();
+    void doOpenFile (const juce::File& f);
+    void doSave();
+    void doSaveAs();
+    void showError (const juce::String& message);
 
-    juce::Rectangle<int> topBar, browser, grid, bottomPanel;
+    // Celle
+    void loadIntoCell (int cell, const juce::File& file);
+    void requestLoadDialog (int cell);
+
+    SampleLabProcessor& processor;
+
+    juce::TextButton kitButton, sizeButton { "Size 100%" };
+    SampleBrowser browser;
+    PadGrid grid;
+    CellEditor editor;
+    std::unique_ptr<juce::FileChooser> chooser;
+
+    juce::Rectangle<int> topBar;
 
     static constexpr int baseWidth = 1280;
     static constexpr int baseHeight = 760;
-    static constexpr int rows = 4, cols = 12;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SampleLabEditor)
 };

@@ -6,6 +6,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 # macOS: build universale Intel + Apple Silicon
 set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "")
@@ -34,12 +38,34 @@ juce_add_plugin(SampleLab
     VST3_CATEGORIES Instrument Sampler
 )
 
+# Codice del motore e del kit, condiviso tra plugin e test (compilato in entrambi i target)
+set(SAMPLELAB_CORE_SOURCES
+    Source/engine/SampleData.cpp
+    Source/engine/Voice.cpp
+    Source/engine/Engine.cpp
+    Source/kit/KitIO.cpp
+)
+
 target_sources(SampleLab PRIVATE
+    ${SAMPLELAB_CORE_SOURCES}
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
+    Source/ui/PadGrid.cpp
+    Source/ui/WaveformView.cpp
+    Source/ui/CellEditor.cpp
+    Source/ui/SampleBrowser.cpp
 )
 
 target_include_directories(SampleLab PRIVATE Source)
+
+# Test automatici (motore + formato kit)
+juce_add_console_app(SampleLabTests PRODUCT_NAME "SampleLabTests")
+target_sources(SampleLabTests PRIVATE ${SAMPLELAB_CORE_SOURCES} Tests/Tests.cpp)
+target_include_directories(SampleLabTests PRIVATE Source)
+target_compile_definitions(SampleLabTests PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+target_link_libraries(SampleLabTests
+    PRIVATE juce::juce_audio_utils
+    PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
 
 target_compile_definitions(SampleLab PUBLIC
     JUCE_WEB_BROWSER=0

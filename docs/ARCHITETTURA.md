@@ -116,7 +116,7 @@ Normalizzazione: calcolata al caricamento/modifica di start/end sul thread di ca
 | Fase | Contenuto | Dipendenze nuove |
 |---|---|---|
 | **0 – Scheletro** (fatta) | CMake, VST3 + Standalone, finestra ridimensionabile con layout e menu percentuali | JUCE |
-| **1 – MVP sampler** | Griglia 4×12, browser, caricamento sample, mapping C1, voci, start/end, AHDSR, Level, tune/pitch, uscite, salvataggio/apertura kit `.slkit`, kit recenti | nlohmann/json |
+| **1 – MVP sampler** (in corso: fatto tutto tranne uscite multiple e verifica in Cubase) | Griglia 4×12, browser, caricamento sample, mapping C1, voci, start/end, AHDSR, Level, tune/pitch, salvataggio/apertura kit `.slkit`, kit recenti. Il JSON usa `juce::var` (nessuna dipendenza aggiuntiva). | – |
 | **2 – Effetti** | Catena per cella e globale, effetti standard poi creativi | – |
 | **3 – Loop e stretch** | BPM, sync, Key Lock, normalizzazione | Rubber Band, libsamplerate |
 | **4 – Slicing** | Slice automatici/manuali, distribuzione su celle | Essentia / aubio |

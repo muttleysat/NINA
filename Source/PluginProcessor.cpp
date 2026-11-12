@@ -4,9 +4,16 @@
 SampleLabProcessor::SampleLabProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Main", juce::AudioChannelSet::stereo(), true))
 {
+    formats.registerBasicFormats();
+    cellData.resize (kit.cells.size());
+    publishKit (true);
 }
 
-void SampleLabProcessor::prepareToPlay (double, int) {}
+void SampleLabProcessor::prepareToPlay (double sampleRate, int)
+{
+    engine.prepare (sampleRate);
+    keyboardState.reset();
+}
 
 bool SampleLabProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
@@ -16,10 +23,11 @@ bool SampleLabProcessor::isBusesLayoutSupported (const BusesLayout& layouts) con
 void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
-    juce::ignoreUnused (midi);
 
-    // Per ora silenzio: il motore di campionamento verra' aggiunto nelle fasi successive.
+    keyboardState.processNextMidiBuffer (midi, 0, buffer.getNumSamples(), true);
+
     buffer.clear();
+    engine.process (buffer, midi);
 }
 
 juce::AudioProcessorEditor* SampleLabProcessor::createEditor()
@@ -27,12 +35,218 @@ juce::AudioProcessorEditor* SampleLabProcessor::createEditor()
     return new SampleLabEditor (*this);
 }
 
+// ---------------------------------------------------------------- Kit
+
+void SampleLabProcessor::publishKit (bool newGeneration)
+{
+    if (newGeneration)
+        ++generation;
+
+    auto snap = std::make_shared<sl::KitSnapshot>();
+    snap->generation = generation;
+    snap->masterGain = sl::dbToGain (kit.masterDb);
+    snap->cells.reserve (kit.cells.size());
+
+    for (int i = 0; i < kit.numCells(); ++i)
+    {
+        sl::CellRuntime r;
+        r.cellIndex = i;
+        r.dsp = sl::toDsp (kit.cells[(size_t) i]);
+        r.data = cellData[(size_t) i].get();
+        snap->cells.push_back (r);
+    }
+    engine.publish (std::move (snap));
+}
+
+sl::SampleDataPtr SampleLabProcessor::getCellData (int cell) const
+{
+    return (cell >= 0 && cell < (int) cellData.size()) ? cellData[(size_t) cell] : nullptr;
+}
+
+bool SampleLabProcessor::loadSampleIntoCell (int cell, const juce::File& file, juce::String& error)
+{
+    if (cell < 0 || cell >= kit.numCells())
+        return false;
+
+    const auto key = file.getFullPathName();
+    sl::SampleDataPtr data;
+    if (auto it = sampleCache.find (key); it != sampleCache.end())
+        data = it->second;
+    else
+    {
+        data = sl::loadSampleFile (formats, file);
+        if (data == nullptr)
+        {
+            error = "Impossibile leggere il file audio: " + file.getFileName();
+            return false;
+        }
+        sampleCache[key] = data;
+    }
+
+    auto& c = kit.cells[(size_t) cell];
+    c.samplePath = key;
+    c.name = file.getFileNameWithoutExtension();
+    c.start = 0.0f;
+    c.end = 1.0f;
+    c.missing = false;
+    cellData[(size_t) cell] = data;
+
+    cellEdited (cell);
+    return true;
+}
+
+void SampleLabProcessor::clearCell (int cell)
+{
+    if (cell < 0 || cell >= kit.numCells())
+        return;
+
+    auto& c = kit.cells[(size_t) cell];
+    c.samplePath = {};
+    c.name = {};
+    c.missing = false;
+    c.start = 0.0f;
+    c.end = 1.0f;
+    cellData[(size_t) cell] = nullptr;
+    cellEdited (cell);
+}
+
+void SampleLabProcessor::cellEdited (int)
+{
+    dirty = true;
+    publishKit (false);
+}
+
+void SampleLabProcessor::loadKitSamples()
+{
+    cellData.assign (kit.cells.size(), nullptr);
+    for (int i = 0; i < kit.numCells(); ++i)
+    {
+        auto& c = kit.cells[(size_t) i];
+        if (! c.hasSample())
+            continue;
+
+        const juce::File f (c.samplePath);
+        if (auto it = sampleCache.find (f.getFullPathName()); it != sampleCache.end())
+        {
+            cellData[(size_t) i] = it->second;
+            c.missing = false;
+            continue;
+        }
+
+        auto data = f.existsAsFile() ? sl::loadSampleFile (formats, f) : nullptr;
+        c.missing = (data == nullptr);
+        if (data != nullptr)
+        {
+            sampleCache[f.getFullPathName()] = data;
+            cellData[(size_t) i] = data;
+        }
+    }
+}
+
+void SampleLabProcessor::newKit()
+{
+    kit = sl::Kit::makeDefault();
+    cellData.assign (kit.cells.size(), nullptr);
+    dirty = false;
+    publishKit (true);
+}
+
+bool SampleLabProcessor::openKit (const juce::File& file, juce::String& error)
+{
+    sl::Kit k;
+    if (! sl::KitIO::load (file, k, error))
+        return false;
+
+    kit = std::move (k);
+    loadKitSamples();
+    dirty = false;
+    publishKit (true);
+    addRecentKit (file);
+    return true;
+}
+
+bool SampleLabProcessor::saveKit (const juce::File& file, juce::String& error)
+{
+    if (! sl::KitIO::save (kit, file, error))
+        return false;
+
+    // I percorsi dei sample ora puntano alla copia nella cartella del kit: si riallinea la cache
+    for (int i = 0; i < kit.numCells(); ++i)
+    {
+        const auto& c = kit.cells[(size_t) i];
+        if (c.hasSample() && cellData[(size_t) i] != nullptr)
+            sampleCache[juce::File (c.samplePath).getFullPathName()] = cellData[(size_t) i];
+    }
+
+    dirty = false;
+    addRecentKit (kit.file);
+    return true;
+}
+
+// ------------------------------------------------------- Kit recenti
+
+juce::PropertiesFile& SampleLabProcessor::getSettings() const
+{
+    if (appProps == nullptr)
+    {
+        juce::PropertiesFile::Options o;
+        o.applicationName = "SampleLab";
+        o.filenameSuffix = ".settings";
+        o.folderName = "SampleLab";
+        o.osxLibrarySubFolder = "Application Support";
+        o.commonToAllUsers = false;
+        o.storageFormat = juce::PropertiesFile::storeAsXML;
+        appProps = std::make_unique<juce::ApplicationProperties>();
+        appProps->setStorageParameters (o);
+    }
+    return *appProps->getUserSettings();
+}
+
+juce::StringArray SampleLabProcessor::getRecentKits() const
+{
+    juce::StringArray list;
+    list.addTokens (getSettings().getValue ("recentKits"), "|", "");
+    list.removeEmptyStrings();
+    return list;
+}
+
+void SampleLabProcessor::addRecentKit (const juce::File& file)
+{
+    auto list = getRecentKits();
+    list.removeString (file.getFullPathName());
+    list.insert (0, file.getFullPathName());
+    while (list.size() > kMaxRecentKits)
+        list.remove (list.size() - 1);
+
+    getSettings().setValue ("recentKits", list.joinIntoString ("|"));
+    getSettings().saveIfNeeded();
+}
+
+void SampleLabProcessor::removeRecentKit (const juce::String& path)
+{
+    auto list = getRecentKits();
+    list.removeString (path);
+    getSettings().setValue ("recentKits", list.joinIntoString ("|"));
+    getSettings().saveIfNeeded();
+}
+
+void SampleLabProcessor::clearRecentKits()
+{
+    getSettings().setValue ("recentKits", "");
+    getSettings().saveIfNeeded();
+}
+
+// ------------------------------------------------------------- Stato DAW
+
 void SampleLabProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     juce::ValueTree state ("SampleLabState");
     state.setProperty ("uiWidth", uiWidth, nullptr);
     state.setProperty ("uiHeight", uiHeight, nullptr);
     state.setProperty ("uiZoom", uiZoom, nullptr);
+    state.setProperty ("kitJson", sl::KitIO::toJson (kit, false), nullptr);   // percorsi assoluti
+    state.setProperty ("kitFile", kit.file.getFullPathName(), nullptr);
+    state.setProperty ("dirty", dirty, nullptr);
 
     juce::MemoryOutputStream stream (destData, false);
     state.writeToStream (stream);
@@ -47,6 +261,21 @@ void SampleLabProcessor::setStateInformation (const void* data, int sizeInBytes)
     uiWidth  = state.getProperty ("uiWidth", uiWidth);
     uiHeight = state.getProperty ("uiHeight", uiHeight);
     uiZoom   = state.getProperty ("uiZoom", uiZoom);
+
+    const juce::String json = state.getProperty ("kitJson", juce::String());
+    if (json.isNotEmpty())
+    {
+        sl::Kit k;
+        juce::String error;
+        if (sl::KitIO::fromJson (json, juce::File(), k, error))
+        {
+            k.file = juce::File (state.getProperty ("kitFile", juce::String()).toString());
+            kit = std::move (k);
+            loadKitSamples();
+            dirty = (bool) state.getProperty ("dirty", false);
+            publishKit (true);
+        }
+    }
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
