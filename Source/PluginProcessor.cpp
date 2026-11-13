@@ -274,7 +274,18 @@ void SampleLabProcessor::auditionCellRegion (int cell, float start, float end, f
 {
     if (cell < 0 || cell >= (int) cellData.size() || cellData[(size_t) cell] == nullptr)
         return;
-    auto data = cellData[(size_t) cell];
+    auditionData (cellData[(size_t) cell], start, end, gainDb);
+}
+
+sl::SampleDataPtr SampleLabProcessor::loadAudioFile (const juce::File& file)
+{
+    return file.existsAsFile() ? sl::loadSampleFile (formats, file) : nullptr;
+}
+
+void SampleLabProcessor::auditionData (sl::SampleDataPtr data, float start, float end, float gainDb)
+{
+    if (data == nullptr)
+        return;
     {
         const juce::ScopedLock lock (auditionLock);
         auditionKeep.push_back (data);                      // la voce legge dal buffer: deve restare vivo
@@ -283,6 +294,58 @@ void SampleLabProcessor::auditionCellRegion (int cell, float start, float end, f
     }
     ++auditionToken;                                         // annulla un'eventuale anteprima di file in caricamento
     engine.playPreview (data.get(), sl::dbToGain (gainDb), start, end);
+}
+
+int SampleLabProcessor::distributeSliceData (sl::SampleDataPtr data, const juce::String& baseName, const std::vector<float>& bounds,
+                                              int firstTarget, float bpm, bool sync, const juce::File& dir)
+{
+    if (data == nullptr || bounds.size() < 2 || firstTarget < 0 || data->numSamples() <= 0)
+        return 0;
+    dir.createDirectory();
+
+    const int n = data->numSamples();
+    const int chans = juce::jlimit (1, 2, data->numChannels());
+    int filled = 0;
+    for (int i = 0; i + 1 < (int) bounds.size(); ++i)
+    {
+        const int target = firstTarget + i;
+        if (target >= kit.numCells())
+            break;
+
+        const int a = juce::jlimit (0, n, (int) std::floor ((double) bounds[(size_t) i] * (double) n));
+        const int b = juce::jlimit (a, n, (int) std::floor ((double) bounds[(size_t) i + 1] * (double) n));
+        if (b - a < 32)
+            continue;
+
+        const auto name = baseName + " " + juce::String (i + 1).paddedLeft ('0', 2);
+        const auto file = dir.getChildFile (sl::KitIO::sanitiseName (name) + ".wav");
+        file.deleteFile();
+        {
+            juce::WavAudioFormat wav;
+            std::unique_ptr<juce::FileOutputStream> stream (file.createOutputStream());
+            if (stream == nullptr)
+                break;
+            std::unique_ptr<juce::AudioFormatWriter> writer (wav.createWriterFor (stream.get(), data->sampleRate, (unsigned int) chans, 24, {}, 0));
+            if (writer == nullptr)
+                break;
+            stream.release();                                      // il writer ne e' proprietario
+            writer->writeFromAudioSampleBuffer (data->audio, a, b - a);
+        }
+
+        sampleCache.erase (file.getFullPathName());
+        juce::String err;
+        if (! loadSampleIntoCell (target, file, err))
+            break;
+
+        auto& c = kit.cells[(size_t) target];
+        c.name = name;
+        c.slices.clear();
+        c.tempoSync = sync;
+        c.loopBpm = bpm;
+        cellEdited (target);
+        ++filled;
+    }
+    return filled;
 }
 
 int SampleLabProcessor::distributeSlices (int sourceCell, const std::vector<float>& bounds, int firstTarget)

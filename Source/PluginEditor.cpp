@@ -71,7 +71,14 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     addChildComponent (slicePanel);
     slicePanel.onKitChanged = [this] { refreshAll(); };
 
-    browser.onFileActivated = [this] (const juce::File& f) { loadIntoCell (grid.getSelected(), f); };
+    browser.onFileActivated = [this] (const juce::File& f)
+    {
+        if (currentTab == 4)
+            slicePanel.loadFile (f);                     // scheda Slice: il file diventa la sorgente
+        else
+            loadIntoCell (grid.getSelected(), f);
+    };
+    slicePanel.browserFile = [this] { return browser.getSelectedFile(); };
     browser.onPreview = [this] (const juce::File& f) { processor.auditionFile (f, browser.getPreviewGainDb()); };
     browser.onPreviewStop = [this] { processor.stopAudition(); };
 
@@ -121,6 +128,10 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
         if (const auto cellEnv = juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_CELL", {}); cellEnv.isNotEmpty())
             grid.setSelected (cellEnv.getIntValue());
         showTab (tabEnv.getIntValue());
+        if (const auto fileEnv = juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_SLICEFILE", {}); fileEnv.isNotEmpty())
+            slicePanel.loadFile (juce::File (fileEnv));
+        if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_DETECTBPM", {}).isNotEmpty())
+            slicePanel.runDetectBpm();
         if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_DETECT", {}).isNotEmpty())
             slicePanel.runDetect();
     }

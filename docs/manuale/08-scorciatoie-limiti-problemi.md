@@ -20,7 +20,7 @@
 
 - Il rilevamento del tempo dei loop è una **stima dalla durata** (non analizza i colpi): per loop non tagliati a battute esatte il BPM va scritto a mano.
 - La sincronizzazione dei loop funziona sul campione **intero** (Start/End si riferiscono sempre all'originale): non c'è ancora un modo di allineare la griglia del loop (per esempio spostare l'inizio del primo colpo).
-- Per lo slicing: nessun allineamento dei tagli alla griglia del tempo e nessun annullamento (vedi capitolo 9).
+- Per lo slicing: nessun allineamento dei tagli alla griglia del tempo e nessun annullamento (vedi capitolo 9). Il tempo dei brani non a tempo fisso va stimato per zone brevi (nessuna mappa dei battiti).
 - **Quantizzazione** degli step e registrazione da tastiera nel sequencer.
 - **Undo/redo**.
 - Altri effetti: EQ, chorus, flanger, phaser, stutter e altri effetti creativi.

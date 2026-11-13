@@ -1824,6 +1824,42 @@ public:
             expectWithinAbsoluteError (ev2[2], 0.5f, 1.0e-6f);
         }
 
+        beginTest ("Tempo from onsets: accented click track at 128 and 140 BPM, with a ragged start");
+        {
+            for (const double bpm : { 128.0, 140.0, 92.0 })
+            {
+                auto d = std::make_shared<SampleData>();
+                const double secs = 12.0;
+                const int n = (int) (secs * kSR);
+                d->audio.setSize (1, n);
+                d->audio.clear();
+                d->sampleRate = kSR;
+                juce::Random rnd (11);
+                const double beat = 60.0 / bpm;
+                const double offset = 0.173;                       // il brano non parte sul primo colpo
+                int k = 0;
+                for (double t = offset; t < secs - 0.2; t += beat, ++k)
+                {
+                    const float amp = (k % 4 == 0) ? 1.0f : 0.55f;
+                    const int s0 = (int) (t * kSR);
+                    for (int i = 0; i < (int) (0.12 * kSR) && s0 + i < n; ++i)
+                        d->audio.setSample (0, s0 + i, amp * (rnd.nextFloat() * 2.0f - 1.0f) * std::exp (-(float) i / 1500.0f));
+                    // un colpo intermedio piu' debole, sulla croma
+                    const int s1 = (int) ((t + beat * 0.5) * kSR);
+                    for (int i = 0; i < (int) (0.05 * kSR) && s1 + i < n; ++i)
+                        d->audio.setSample (0, s1 + i, 0.25f * (rnd.nextFloat() * 2.0f - 1.0f) * std::exp (-(float) i / 800.0f));
+                }
+                const double est = estimateBpmFromOnsets (*d);
+                expect (std::abs (est - bpm) < bpm * 0.012, "expected " + juce::String (bpm) + " got " + juce::String (est));
+            }
+
+            auto silent = std::make_shared<SampleData>();
+            silent->audio.setSize (1, (int) (4.0 * kSR));
+            silent->audio.clear();
+            silent->sampleRate = kSR;
+            expectEquals (estimateBpmFromOnsets (*silent), 0.0);
+        }
+
         beginTest ("Slice markers survive a kit save and load");
         {
             auto tmp = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("sl_slice_test");

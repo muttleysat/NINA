@@ -4,27 +4,45 @@
 #include "Theme.h"
 #include "IconButton.h"
 
-// Scheda Slice: tagliare il campione di una cella in slice (rilevamento dei colpi, divisioni uguali, marcatori modificabili a
-// mano) e distribuirle sulle celle successive (stesso file, ognuna con il proprio Start/End: nessuna copia dei dati).
-class SlicePanel final : public juce::Component, private juce::Timer
+// Scheda Slice: tagliare un campione in slice (rilevamento dei colpi, divisioni uguali, Chop a tempo, marcatori modificabili a mano)
+// e distribuirle sulle celle (stesso file con Start/End per una cella; pezzi ritagliati in file separati per un file esterno).
+// La sorgente e' la cella selezionata oppure un file audio esterno (trascinato o scelto con Load) di cui si sceglie la zona.
+class SlicePanel final : public juce::Component,
+                         public juce::FileDragAndDropTarget,
+                         public juce::DragAndDropTarget,
+                         private juce::Timer
 {
 public:
     explicit SlicePanel (SampleLabProcessor&);
     ~SlicePanel() override;
 
-    void setCell (int cell);               // cella (e quindi campione) su cui si lavora
+    void setCell (int cell);               // cella (e quindi campione) su cui si lavora in modalita' Cell
     void refresh();                        // il kit o la regione Start/End sono cambiati
     void runDetect() { doDetect(); }       // come premere Detect (anche per le schermate automatiche)
+    void runDetectBpm() { doDetectBpm(); }  // come premere Detect nella riga TEMPO
+    void loadFile (const juce::File& file); // carica un file esterno come sorgente (passa alla modalita' File)
 
     // Chop: il loop suona e ogni pressione di M (o di una nota MIDI) mette un marcatore nel punto in cui si trova
     bool isChopping() const { return chopping; }
     void chopMark();                       // tasto M
 
     std::function<void()> onKitChanged;    // dopo la distribuzione: l'editor ridisegna griglia e pannelli
+    std::function<juce::File()> browserFile;   // file selezionato nel browser (per il trascinamento dal browser)
 
     void paint (juce::Graphics&) override;
+    void paintOverChildren (juce::Graphics&) override;
     void resized() override;
-    void visibilityChanged() override { if (! isShowing()) stopChop(); }
+    void visibilityChanged() override { if (! isShowing()) { stopChop(); stopTest(); } }
+
+    // Trascinamento di un file audio (da Esplora risorse o dal browser)
+    bool isInterestedInFileDrag (const juce::StringArray& files) override;
+    void filesDropped (const juce::StringArray& files, int, int) override;
+    void fileDragEnter (const juce::StringArray&, int, int) override { setDragOver (true); }
+    void fileDragExit (const juce::StringArray&) override { setDragOver (false); }
+    bool isInterestedInDragSource (const SourceDetails& d) override { return d.description == "SLFILE"; }
+    void itemDropped (const SourceDetails&) override;
+    void itemDragEnter (const SourceDetails&) override { setDragOver (true); }
+    void itemDragExit (const SourceDetails&) override { setDragOver (false); }
 
 private:
     class WaveView;
@@ -32,15 +50,28 @@ private:
     friend class WaveView;
     friend class CellsStrip;
 
+    enum class Source { Cell, File };
+
     // Dati di lavoro
+    sl::SampleDataPtr data() const { return source == Source::File ? extData : processor.getCellData (cell); }
     float regionStart() const;
     float regionEnd() const;
-    sl::SampleDataPtr data() const { return processor.getCellData (cell); }
+    float viewLo() const { return source == Source::File ? 0.0f : regionStart(); }    // la forma d'onda mostra tutto il file (File) o la sola regione (Cell)
+    float viewHi() const { return source == Source::File ? 1.0f : regionEnd(); }
     std::vector<float> bounds() const;                         // marcatori + fine regione (n+1 limiti)
     std::vector<int> targetCells() const;                      // celle che verrebbero riempite
     int firstTarget() const;
+    bool hasSource() const;
+    juce::String sourceName() const;
     void cellsStripRepaint();
-    void markersChanged();                                     // salva nel kit e ridisegna
+    void markersChanged();                                     // salva nel kit (Cell) o nello stato della scheda (File) e ridisegna
+    void regionChanged();                                      // la zona del file e' stata cambiata: marcatori dentro la zona
+    void clampMarkers();                                       // marcatori sempre dentro la regione e almeno uno: l'inizio
+    int distributeFromFile (const std::vector<float>& bounds, int firstTarget);
+    void setSource (Source s);
+    void updateSourceControls();
+    void chooseFile();
+    void setDragOver (bool on) { if (dragOver != on) { dragOver = on; repaint(); } }
     void auditionSlice (int index);
     void doDetect();
     void doEven (int count);
@@ -50,35 +81,69 @@ private:
     void stopChop (bool finished = false);
     void addChopMarker (double timeMs);
     double chopPosition (double nowMs) const;                  // posizione (0..1 sul campione) raggiunta dall'anteprima
+
+    // Tempo della sorgente
+    float srcBpm() const;
+    void setSrcBpm (float bpm);
+    void doDetectBpm();
+    void doTap();
+    void scaleBpm (double factor);
+    void doClickTest();
+    void stopTest (bool finished = false);
+
     void setTargetStart (int cellIndex);
     void showStatus (const juce::String& text);
     void timerCallback() override;
 
     SampleLabProcessor& processor;
     int cell = 0;
+    Source source = Source::Cell;
     std::vector<float> markers;                                // inizio di ogni slice, ordinati (0..1 sul campione)
-    int targetStart = -1;                                      // -1 = automatico (cella dopo l'originale)
+    int targetStart = -1;                                      // -1 = automatico
     bool keepOriginal = true;
     juce::String status;
     double statusUntil = 0.0;
-    bool chopping = false;
+    bool dragOver = false;
+
+    // Sorgente esterna
+    sl::SampleDataPtr extData;
+    juce::File extFile;
+    float extStart = 0.0f, extEnd = 1.0f;
+    float extBpm = 0.0f;
+    std::vector<float> extMarkers;
+
+    // Chop e prova del tempo (cursore sulla forma d'onda)
+    bool chopping = false, testPlaying = false;
     double chopStartMs = 0.0, chopDurMs = 0.0;
     uint32_t chopSeen = 0;
+    std::vector<double> taps;
 
-    // Barra degli strumenti
+    // Riga SOURCE
+    juce::TextButton cellSrcButton { "Cell" }, fileSrcButton { "File" };
+    IconButton loadButton { "Load file...", IconButton::Icon::Layers };
+    juce::ToggleButton auditionToggle { "Audition" };
+    juce::Slider auditionVolume;
+
+    // Riga CUT
     IconButton detectButton { "Detect", IconButton::Icon::Wave };
     juce::Slider sensitivity;
     juce::ComboBox evenBox;
     IconButton clearButton { "Clear", IconButton::Icon::Trash };
     IconButton chopButton { "Chop", IconButton::Icon::Scissors };
-    juce::ToggleButton auditionToggle { "Audition" };
-    juce::Slider auditionVolume;
+
+    // Riga TEMPO
+    juce::Slider bpmSlider;
+    juce::TextButton bpmDetectButton { "Detect" }, halfButton { "/2" }, doubleButton { "x2" }, tapButton { "Tap" };
+    IconButton clickButton { "Click test", IconButton::Icon::Midi };
 
     std::unique_ptr<WaveView> wave;
     std::unique_ptr<CellsStrip> cellsStrip;
-    juce::ToggleButton keepToggle;
+    juce::ToggleButton keepToggle, syncToggle { "Sync slices to tempo" };
     IconButton distributeButton { "Distribute to cells", IconButton::Icon::ArrowRight };
+    std::unique_ptr<juce::FileChooser> chooser;
 
-    juce::Rectangle<int> toolbarRect, waveRect, cellsRect, actionRect, infoRect, sensLabelRect, titleRect;
-    std::vector<int> toolbarSeps;
+    struct Sep { int x; juce::Rectangle<int> row; };
+    juce::Rectangle<int> sourceRect, toolbarRect, tempoRect, waveRect, cellsRect, actionRect, infoRect, sensLabelRect, bpmLabelRect, nameRect;
+    juce::Rectangle<int> sourceTitle, cutTitle, tempoTitle;
+    std::vector<Sep> seps;
 };

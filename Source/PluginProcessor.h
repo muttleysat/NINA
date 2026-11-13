@@ -112,6 +112,11 @@ public:
     // dal motore e' una copia elaborata in background con Rubber Band (o l'originale se la sincronizzazione e' spenta).
     // Slice: anteprima di una regione del campione di una cella; distribuzione delle slice sulle celle (stesso file, Start/End diversi)
     void auditionCellRegion (int cell, float start, float end, float gainDb);
+    void auditionData (sl::SampleDataPtr data, float start, float end, float gainDb);   // anteprima di un campione qualsiasi (sorgente della scheda Slice)
+    sl::SampleDataPtr loadAudioFile (const juce::File& file);                           // decodifica un file esterno (non entra nel kit)
+    // Slice da una sorgente esterna: ogni pezzo viene ritagliato in un WAV in 'dir' (il kit non dipende dal file originale) e caricato in una cella
+    int distributeSliceData (sl::SampleDataPtr data, const juce::String& baseName, const std::vector<float>& bounds, int firstTarget,
+                             float bpm, bool sync, const juce::File& dir);
     int distributeSlices (int sourceCell, const std::vector<float>& bounds, int firstTarget);   // bounds = n+1 limiti; ritorna le celle riempite
     void detectLoopBpm (int cell);                 // stima il BPM del loop dalla durata (regione Start..End) e lo imposta sulla cella
     bool isStretching (int cell) const;            // true mentre la copia elaborata e' in preparazione
