@@ -79,7 +79,7 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
                 chopTimes[h % chopTimes.size()].store (now + 1000.0 * (double) meta.samplePosition / sr, std::memory_order_relaxed);
                 chopHead.store (h + 1, std::memory_order_release);
             }
-            else if (! m.isNoteOff())
+            else                                           // note-off compresi: chiudono le note gia' tenute prima del Chop
                 rest.addEvent (m, meta.samplePosition);
         }
         midi.swapWith (rest);
