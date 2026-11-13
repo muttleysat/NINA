@@ -21,19 +21,30 @@ CellPanel::CellPanel (SampleLabProcessor& p) : processor (p)
             // Gesto completo verso la DAW (registrabile in automazione)
             if (modeAttachment != nullptr)
                 modeAttachment->setValueAsCompleteGesture ((float) i);
+            for (const int c : targets())
+                if (c != cell)
+                {
+                    auto* p = processor.getParams().cell (c).mode;
+                    p->setValueNotifyingHost (p->convertTo0to1 ((float) i));
+                }
         };
         addAndMakeVisible (b);
     }
 
     reverseButton.setColour (juce::ToggleButton::textColourId, theme::text);
+    reverseButton.onClick = [this]
+    {
+        for (const int c : targets())
+            if (c != cell)
+                processor.getParams().cell (c).reverse->setValueNotifyingHost (reverseButton.getToggleState() ? 1.0f : 0.0f);
+    };
     addAndMakeVisible (reverseButton);
 
     // Normalize: regola il Level della cella perche' il picco arrivi a -1 dBFS (il file audio non cambia)
     normalizeButton.setTooltip ("Set this cell's Level so the loudest peak reaches -1 dBFS");
     normalizeButton.onClick = [this]
     {
-        processor.normalizeCell (cell);
-        if (onEdited) onEdited();
+        forTargets ([this] (int c) { processor.normalizeCell (c); });
     };
     addAndMakeVisible (normalizeButton);
 
@@ -77,16 +88,14 @@ CellPanel::CellPanel (SampleLabProcessor& p) : processor (p)
     syncButton.onClick = [this]
     {
         if (updating) return;
-        processor.getKit().cells[(size_t) cell].tempoSync = syncButton.getToggleState();
-        processor.cellEdited (cell);
-        if (onEdited) onEdited();
+        const bool on = syncButton.getToggleState();
+        forTargets ([this, on] (int c) { processor.getKit().cells[(size_t) c].tempoSync = on; processor.cellEdited (c); });
     };
     keyLockButton.onClick = [this]
     {
         if (updating) return;
-        processor.getKit().cells[(size_t) cell].keyLock = keyLockButton.getToggleState();
-        processor.cellEdited (cell);
-        if (onEdited) onEdited();
+        const bool on = keyLockButton.getToggleState();
+        forTargets ([this, on] (int c) { processor.getKit().cells[(size_t) c].keyLock = on; processor.cellEdited (c); });
     };
 
     bpmSlider.setSliderStyle (juce::Slider::IncDecButtons);
@@ -99,16 +108,16 @@ CellPanel::CellPanel (SampleLabProcessor& p) : processor (p)
     bpmSlider.onValueChange = [this]
     {
         if (updating) return;
-        processor.getKit().cells[(size_t) cell].loopBpm = (float) bpmSlider.getValue();
-        processor.cellEdited (cell);
-        if (onEdited) onEdited();
+        const float v = (float) bpmSlider.getValue();
+        forTargets ([this, v] (int c) { processor.getKit().cells[(size_t) c].loopBpm = v; processor.cellEdited (c); });
     };
     addAndMakeVisible (bpmSlider);
 
     detectButton.setTooltip ("Estimate the loop's BPM from its length (assumes a whole number of bars between Start and End)");
     detectButton.onClick = [this]
     {
-        processor.detectLoopBpm (cell);
+        for (const int c : targets())
+            processor.detectLoopBpm (c);
         refresh();
         if (onEdited) onEdited();
     };
@@ -123,13 +132,25 @@ CellPanel::CellPanel (SampleLabProcessor& p) : processor (p)
     outputBox.onChange = [this]
     {
         if (updating) return;
-        processor.getKit().cells[(size_t) cell].output = outputBox.getSelectedId() - 1;
-        processor.cellEdited (cell);
-        if (onEdited) onEdited();
+        const int out = outputBox.getSelectedId() - 1;
+        forTargets ([this, out] (int c) { processor.getKit().cells[(size_t) c].output = out; processor.cellEdited (c); });
     };
     addAndMakeVisible (outputBox);
 
     setCell (0);
+}
+
+std::vector<int> CellPanel::targets() const
+{
+    std::vector<int> t;
+    const auto& kit = processor.getKit();
+    if (selectedCells)
+        for (const int c : selectedCells())
+            if (c >= 0 && c < kit.numCells() && kit.cells[(size_t) c].hasSample() && ! kit.cells[(size_t) c].missing)
+                t.push_back (c);
+    if (std::find (t.begin(), t.end(), cell) == t.end())
+        t.push_back (cell);
+    return t;
 }
 
 void CellPanel::setCell (int c)
@@ -200,7 +221,9 @@ void CellPanel::paint (juce::Graphics& g)
     // Titolo: "A1 - Kick 01"
     g.setColour (theme::text);
     g.setFont (juce::FontOptions (juce::jmax (12.0f, 17.0f * s), juce::Font::bold));
-    g.drawText (theme::cellId (cell, kit.cols) + (c.hasSample() ? juce::String (" - ") + c.name : juce::String()),
+    const int nTargets = (int) targets().size();
+    g.drawText (theme::cellId (cell, kit.cols) + (c.hasSample() ? juce::String (" - ") + c.name : juce::String())
+                    + (nTargets > 1 ? "  (+" + juce::String (nTargets - 1) + ")" : juce::String()),
                 titleRect, juce::Justification::centredLeft, true);
 
     // Scheda del campione

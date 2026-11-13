@@ -36,6 +36,7 @@ Il suono esce con il ritardo della scheda audio: se tagli sempre un po' in ritar
 ## Cosa succede alle celle
 
 - Ogni cella riceve lo **stesso file** del loop (nessuna copia dei dati: non occupa memoria in più) con il proprio **Start/End** dell'inizio e della fine della slice. Il nome è quello del loop più un numero (`amen 01`, `amen 02`…).
+- Le slice **ereditano il tempo del loop**: Loop BPM (stimato se la cella originale non lo aveva), Sync e Key lock. Se accendi **Sync to tempo** sulle slice (meglio selezionandole tutte: le opzioni si applicano a tutte le celle selezionate) ognuna segue il BPM del progetto restando al suo posto nel loop; l'elaborazione è una sola, condivisa. **Non premere Detect** su una singola slice: stimerebbe il tempo dalla sua durata (un colpo solo) e sbaglierebbe; lascia il BPM del loop.
 - Le celle sono celle normali: ognuna ha il suo tasto MIDI (dal **C1** in poi, come sempre), il suo inviluppo, gli effetti, e si possono aggiungere al sequencer. Per rifinire una slice usa Start/End nella scheda Main.
 - I marcatori restano salvati con il kit: riaprendo la scheda Slice sulla stessa cella ritrovi i tagli.
 - Se le slice sono più delle celle libere in fondo alla griglia (48 in tutto), vengono riempite solo quelle disponibili e la scritta in basso lo avvisa.

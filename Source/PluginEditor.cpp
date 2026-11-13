@@ -76,6 +76,8 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     browser.onPreviewStop = [this] { processor.stopAudition(); };
 
     grid.onSelectionChanged = [this] (int) { refreshCellViews(); };
+    grid.onMultiChanged = [this] { cellPanel.repaint(); };
+    cellPanel.selectedCells = [this] { return grid.selectedCells(); };
     grid.onFileDropped = [this] (int c, const juce::File& f) { loadIntoCell (c, f); };
     grid.onBrowserDrop = [this] (int c)
     {

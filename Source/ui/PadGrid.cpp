@@ -28,6 +28,7 @@ void PadGrid::selectAll()
     for (int i = 0; i < processor.getKit().numCells(); ++i)
         multi.insert (i);
     repaint();
+    if (onMultiChanged) onMultiChanged();
 }
 
 void PadGrid::clearMultiSelection()
@@ -36,6 +37,7 @@ void PadGrid::clearMultiSelection()
         return;
     multi.clear();
     repaint();
+    if (onMultiChanged) onMultiChanged();
 }
 
 void PadGrid::clearSelectedCells()
@@ -65,6 +67,7 @@ void PadGrid::clearSelectedCells()
                                           safe->processor.clearCell (c);
                                       safe->multi.clear();
                                       safe->repaint();
+                                      if (safe->onMultiChanged) safe->onMultiChanged();
                                       if (safe->onKitChanged)
                                           safe->onKitChanged();
                                   });
@@ -414,6 +417,7 @@ void PadGrid::mouseDown (const juce::MouseEvent& e)
         setSelected (cell);
         anchor = keep;
         repaint();
+        if (onMultiChanged) onMultiChanged();
         return;
     }
 
@@ -441,13 +445,17 @@ void PadGrid::mouseDown (const juce::MouseEvent& e)
         }
         anchor = cell;
         repaint();
+        if (onMultiChanged) onMultiChanged();
         return;
     }
 
     // Clic semplice: selezione singola e anteprima
+    const bool hadMulti = ! multi.empty();
     multi.clear();
     anchor = cell;
     setSelected (cell);
+    if (hadMulti && onMultiChanged)
+        onMultiChanged();
 
     // Anteprima: suona la nota della cella
     const auto& c = processor.getKit().cells[(size_t) cell];

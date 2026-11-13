@@ -292,6 +292,15 @@ int SampleLabProcessor::distributeSlices (int sourceCell, const std::vector<floa
 
     const auto path = kit.cells[(size_t) sourceCell].samplePath;
     const auto baseName = kit.cells[(size_t) sourceCell].name;
+    // Le slice ereditano il tempo del loop: il BPM originale (stimato se manca), Sync e Key lock. Lo stretch riguarda tutto il file
+    // e Start/End sono posizioni relative, quindi ogni slice segue il tempo del progetto restando al suo posto.
+    float loopBpm = kit.cells[(size_t) sourceCell].loopBpm;
+    if (loopBpm <= 0.0f && cellData[(size_t) sourceCell] != nullptr)
+    {
+        const auto& sp = params.cell (sourceCell);
+        loopBpm = (float) sl::estimateLoopBpm (*cellData[(size_t) sourceCell], sp.at (sl::CellF::Start)->get(), sp.at (sl::CellF::End)->get());
+    }
+    const bool srcSync = kit.cells[(size_t) sourceCell].tempoSync, srcKeyLock = kit.cells[(size_t) sourceCell].keyLock;
     const juce::File file (path);
     int filled = 0;
 
@@ -308,8 +317,9 @@ int SampleLabProcessor::distributeSlices (int sourceCell, const std::vector<floa
         auto& c = kit.cells[(size_t) target];
         c.name = baseName + " " + juce::String (i + 1).paddedLeft ('0', 2);
         c.slices.clear();
-        c.tempoSync = false;
-        c.loopBpm = 0.0f;
+        c.tempoSync = srcSync;
+        c.keyLock = srcKeyLock;
+        c.loopBpm = loopBpm;
         const auto& refs = params.cell (target);
         refs.at (sl::CellF::Start)->setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, bounds[(size_t) i]));
         refs.at (sl::CellF::End)->setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, bounds[(size_t) i + 1]));
@@ -418,6 +428,31 @@ void SampleLabProcessor::refreshStretch (int cell)
     st.pendingLoopBpm = loopBpm;
     st.pendingKeyLock = c.keyLock;
 
+    // Celle con lo stesso file (le slice di un loop) e gli stessi parametri condividono un solo risultato: si riusa quello
+    // gia' pronto, oppure si aspetta quello in elaborazione (il job lo applica a tutte le celle in attesa)
+    for (size_t j = 0; j < stretch.size(); ++j)
+    {
+        if ((int) j == cell || stretch[j].source != st.source)
+            continue;
+        auto& o = stretch[j];
+        if (o.sync && o.keyLock == c.keyLock && std::abs (o.loopBpm - loopBpm) < 0.005 && std::abs (o.bpm - bpm) < 0.05 && o.pendingBpm == 0.0)
+        {
+            st.retired.push_back (playData[(size_t) cell]);
+            while (st.retired.size() > 6)
+                st.retired.pop_front();
+            playData[(size_t) cell] = playData[j];
+            st.sync = true;
+            st.keyLock = c.keyLock;
+            st.bpm = bpm;
+            st.loopBpm = loopBpm;
+            st.pendingBpm = st.pendingLoopBpm = 0.0;
+            engine.publish (buildSnapshot());
+            return;
+        }
+        if (o.pendingBpm > 0.0 && o.pendingKeyLock == c.keyLock && std::abs (o.pendingLoopBpm - loopBpm) < 0.005 && std::abs (o.pendingBpm - bpm) < 0.05)
+            return;                                            // un'altra cella sta gia' elaborando lo stesso risultato
+    }
+
     const double ratio = loopBpm / bpm;                       // durata nuova / durata originale
     const double pitch = c.keyLock ? 1.0 : 1.0 / ratio;       // senza Key Lock cambia anche l'altezza (varispeed)
     const bool keyLock = c.keyLock;
@@ -431,21 +466,40 @@ void SampleLabProcessor::refreshStretch (int cell)
         {
             if (! flag->load() || cell >= (int) stretch.size())
                 return;
-            auto& s = stretch[(size_t) cell];
-            if (s.token != token || s.source != source)
-                return;                                       // nel frattempo e' cambiato qualcosa: risultato obsoleto
-            s.pendingBpm = s.pendingLoopBpm = 0.0;
-            if (result == nullptr)
-                return;
-            s.retired.push_back (playData[(size_t) cell]);
-            while (s.retired.size() > 6)
-                s.retired.pop_front();
-            playData[(size_t) cell] = result;
-            s.sync = true;
-            s.keyLock = keyLock;
-            s.bpm = bpm;
-            s.loopBpm = loopBpm;
-            engine.publish (buildSnapshot());
+            auto applyTo = [&] (size_t k)
+            {
+                auto& s = stretch[k];
+                s.pendingBpm = s.pendingLoopBpm = 0.0;
+                if (result == nullptr)
+                    return;
+                s.retired.push_back (playData[k]);
+                while (s.retired.size() > 6)
+                    s.retired.pop_front();
+                playData[k] = result;
+                s.sync = true;
+                s.keyLock = keyLock;
+                s.bpm = bpm;
+                s.loopBpm = loopBpm;
+            };
+
+            bool any = false;
+            if (stretch[(size_t) cell].token == token && stretch[(size_t) cell].source == source)   // altrimenti e' obsoleto per questa cella
+            {
+                applyTo ((size_t) cell);
+                any = true;
+            }
+            for (size_t k = 0; k < stretch.size(); ++k)       // celle in attesa dello stesso risultato (stesso file e parametri)
+            {
+                const auto& w = stretch[k];
+                if ((int) k != cell && w.source == source && w.pendingBpm > 0.0 && w.pendingKeyLock == keyLock
+                    && std::abs (w.pendingLoopBpm - loopBpm) < 0.005 && std::abs (w.pendingBpm - bpm) < 0.05)
+                {
+                    applyTo (k);
+                    any = true;
+                }
+            }
+            if (any)
+                engine.publish (buildSnapshot());
         });
     });
 }

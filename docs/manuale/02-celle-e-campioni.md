@@ -37,6 +37,8 @@ Per lavorare su più celle insieme (per esempio svuotarle in blocco, dopo aver d
 
 I pad selezionati hanno il bordo e un velo arancione; quello **corrente** (il cui pannello vedi a destra) ha anche l'alone. Con Ctrl o Maiusc il pad non suona. Non c'è l'annullamento: svuotare una cella toglie il campione (il file sul disco non viene toccato) e le sue impostazioni di cella restano.
 
+**Opzioni su più celle insieme.** Con più celle selezionate, il titolo del pannello a destra mostra `(+N)` e queste opzioni si applicano a **tutte** le celle selezionate con un campione: **Trigger mode**, **Reverse**, **Normalize**, **Sync to tempo**, **Key lock**, **Loop BPM**, **Detect** e **Output**. I valori mostrati sono quelli della cella corrente. Restano della sola cella corrente il mapping MIDI (Root note, Key low/high) e le manopole di inviluppo ed effetti.
+
 ### Selezionare e ascoltare
 
 Un clic sul pad lo **seleziona** e lo fa suonare (finché tieni premuto, per le modalità Gate e Loop). Il pad selezionato ha il bordo arancione, e il pannello a destra, la forma d'onda e i moduli in basso mostrano **le sue** impostazioni.

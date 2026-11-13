@@ -16,12 +16,20 @@ public:
     std::function<void (int delta)> onStep;          // cella precedente/successiva
     std::function<void (int cell)> onLoadRequested;
     std::function<void()> onEdited;
+    std::function<std::vector<int>()> selectedCells;   // celle selezionate nella griglia: le opzioni si applicano a tutte
 
     void paint (juce::Graphics&) override;
     void resized() override;
 
 private:
     void sectionLabel (juce::Graphics&, juce::Rectangle<int>, const juce::String&, float s);
+    std::vector<int> targets() const;                 // celle con campione su cui agiscono le opzioni (la corrente e le altre selezionate)
+    template <typename F> void forTargets (F f)
+    {
+        for (const int c : targets())
+            f (c);
+        if (onEdited) onEdited();
+    }
 
     SampleLabProcessor& processor;
     int cell = 0;

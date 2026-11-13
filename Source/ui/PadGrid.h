@@ -24,6 +24,7 @@ public:
     std::vector<int> selectedCells() const;            // tutte le celle selezionate, in ordine (include quella corrente)
     void selectAll();
     void clearMultiSelection();
+    std::function<void()> onMultiChanged;              // la selezione multipla e' cambiata (il pannello della cella mostra "+N")
     void clearSelectedCells();                         // chiede conferma e svuota le celle selezionate che hanno un campione
 
     std::function<void (int)> onSelectionChanged;
