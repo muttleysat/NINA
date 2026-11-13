@@ -65,6 +65,11 @@ public:
     void setSequencerRunning (bool run);
     bool isSequencerRunning() const { return seqRunning.load(); }
     bool isSequencerPlaying() const { return seqPlaying.load(); }     // in riproduzione ora (DAW o interno)
+    // Trasporto della DAW (plugin): il sequencer lo segue, resta in silenzio mentre la DAW registra, oppure lo ignora
+    enum class HostSeqMode : int { Follow = 0, MuteOnRecord = 1, Ignore = 2 };
+    HostSeqMode getHostSeqMode() const { return (HostSeqMode) hostSeqMode.load(); }
+    void setHostSeqMode (HostSeqMode m) { hostSeqMode.store ((int) m); dirty = true; }
+    int getSequencerPlayingPattern() const { return seqPlayIndex.load(); }     // -1 se fermo
     bool isHostPlaying() const { return hostRolling.load(); }         // il trasporto della DAW sta suonando: comanda lui
     double getSequencerPpq() const { return seqPpq.load(); }         // posizione corrente in quarti (per l'indicatore degli step)
 
@@ -164,10 +169,25 @@ private:
     sl::Engine engine;
 
     // Sequencer: pattern attivo pubblicato al thread audio, generatore di eventi e trasporto interno
-    sl::SharedExchange<sl::Pattern> patternExchange;
-    std::shared_ptr<const sl::Pattern> audioPattern;        // solo thread audio
+    // Il thread audio riceve il pattern mostrato (in modifica) e, se e' in corso un altro pattern, anche quello: cosi' puo' finire
+    // il ciclo del vecchio pattern e poi passare al nuovo (cambio "a fine pattern").
+    struct PatternMsg
+    {
+        sl::Pattern shown;                 // pattern selezionato nell'interfaccia
+        int shownIndex = 0;
+        bool hasPlay = false;              // true se sta ancora suonando un altro pattern
+        sl::Pattern play;
+        int playIndex = -1;
+    };
+    sl::SharedExchange<PatternMsg> patternExchange;
+    std::shared_ptr<const PatternMsg> audioMsg;             // solo thread audio
+    const sl::Pattern* curPat = nullptr;                    // pattern in riproduzione (punta dentro audioMsg)
+    const sl::Pattern* nextPat = nullptr;                   // pattern in attesa del prossimo punto di cambio
+    int curIndex = -1, nextIndex = -1;
+    std::atomic<int> seqPlayIndex { -1 };                   // indice del pattern in riproduzione (-1 = fermo)
     sl::SequencerRunner seqRunner;
     std::atomic<bool> seqRunning { false }, seqPlaying { false }, hostRolling { false };
+    std::atomic<int> hostSeqMode { (int) HostSeqMode::MuteOnRecord };
     std::atomic<double> seqPpq { 0.0 };
     double internalPpq = 0.0;                               // solo thread audio
     bool wasRunning = false;                                // solo thread audio

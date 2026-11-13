@@ -87,7 +87,7 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
 
     // Sequencer: pattern attivo (pubblicato dal thread UI) e trasporto. Nel plugin si segue la DAW (play/stop e posizione),
     // nello standalone il trasporto e' interno.
-    patternExchange.tryAcquire (audioPattern);
+    const bool newPatternMsg = patternExchange.tryAcquire (audioMsg);
 
     const int numSamples = buffer.getNumSamples();
     // Trasporto: se la DAW sta suonando il sequencer la segue; altrimenti (DAW ferma o standalone) parte dal tasto Play
@@ -96,15 +96,25 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     double ppq0 = internalPpq;
     bool useHostPpq = false;
     bool hostRollingNow = false;
-    if (auto* ph = getPlayHead())
-        if (auto pos = ph->getPosition())
-            if (auto hostPpq = pos->getPpqPosition(); hostPpq.hasValue() && pos->getIsPlaying())
-            {
-                useHostPpq = true;
-                hostRollingNow = true;
-                playing = true;
-                ppq0 = *hostPpq;
-            }
+    const auto mode = getHostSeqMode();
+    if (mode != HostSeqMode::Ignore)
+        if (auto* ph = getPlayHead())
+            if (auto pos = ph->getPosition())
+                if (auto hostPpq = pos->getPpqPosition(); hostPpq.hasValue() && pos->getIsPlaying())
+                {
+                    if (mode == HostSeqMode::MuteOnRecord && pos->getIsRecording())
+                    {
+                        playing = false;                    // la DAW registra: il sequencer sta zitto (non si mischia a cio' che suoni)
+                        hostRollingNow = true;              // ...ma il trasporto e' della DAW: il tasto Play del plugin resta inattivo
+                    }
+                    else
+                    {
+                        useHostPpq = true;
+                        hostRollingNow = true;
+                        playing = true;
+                        ppq0 = *hostPpq;
+                    }
+                }
     hostRolling.store (hostRollingNow, std::memory_order_relaxed);
 
     if (! useHostPpq)
@@ -116,8 +126,77 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
             internalPpq += (double) numSamples * bpm / (60.0 * currentSampleRate);
     }
 
-    seqRunner.runBlock (audioPattern.get(), playing, ppq0, bpm, currentSampleRate, numSamples);
+    // Quale pattern suona: da fermo il pattern selezionato; in riproduzione si finisce il ciclo del pattern in corso e si passa
+    // a quello selezionato al punto di cambio successivo (multiplo della durata del ciclo corrente).
+    if (audioMsg != nullptr && (newPatternMsg || ! playing || curPat == nullptr))
+    {
+        const auto& m = *audioMsg;
+        if (! playing || curIndex < 0)
+        {
+            curPat = &m.shown;
+            curIndex = m.shownIndex;
+            nextPat = nullptr;
+            nextIndex = -1;
+        }
+        else if (m.hasPlay)
+        {
+            if (curIndex == m.shownIndex)                   // il cambio e' gia' avvenuto nel frattempo
+            {
+                curPat = &m.shown;
+                nextPat = nullptr;
+                nextIndex = -1;
+            }
+            else
+            {
+                curPat = &m.play;
+                curIndex = m.playIndex;
+                nextPat = &m.shown;
+                nextIndex = m.shownIndex;
+            }
+        }
+        else
+        {
+            curPat = &m.shown;
+            curIndex = m.shownIndex;
+            nextPat = nullptr;
+            nextIndex = -1;
+        }
+    }
+
+    const sl::Pattern* switchTo = nullptr;
+    double switchPpq = 0.0;
+    if (playing && curPat != nullptr && nextPat != nullptr)
+    {
+        const double length = juce::jmax (0.25, curPat->lengthBeats());
+        const double ppq1 = ppq0 + (double) numSamples * bpm / (60.0 * currentSampleRate);
+        const double boundary = std::ceil (ppq0 / length - 1.0e-9) * length;      // primo multiple del ciclo da qui in avanti
+        if (boundary < ppq1 - 1.0e-9)
+        {
+            if (boundary <= ppq0 + 1.0e-9)
+            {
+                curPat = nextPat;                           // il cambio cade proprio all'inizio del blocco
+                curIndex = nextIndex;
+                nextPat = nullptr;
+                nextIndex = -1;
+            }
+            else
+            {
+                switchTo = nextPat;                         // il cambio cade dentro il blocco: preciso al campione
+                switchPpq = boundary;
+            }
+        }
+    }
+
+    seqRunner.runBlockSwitch (curPat, switchTo, switchPpq, playing, ppq0, bpm, currentSampleRate, numSamples);
+    if (switchTo != nullptr)
+    {
+        curPat = switchTo;
+        curIndex = nextIndex;
+        nextPat = nullptr;
+        nextIndex = -1;
+    }
     seqPlaying.store (playing, std::memory_order_relaxed);
+    seqPlayIndex.store (playing ? curIndex : -1, std::memory_order_relaxed);
     seqPpq.store (ppq0, std::memory_order_relaxed);
 
     buffer.clear();
@@ -329,7 +408,19 @@ void SampleLabProcessor::detectLoopBpm (int cell)
 
 void SampleLabProcessor::publishPattern()
 {
-    patternExchange.publish (std::make_shared<const sl::Pattern> (activePattern()));
+    auto msg = std::make_shared<PatternMsg>();
+    msg->shown = activePattern();
+    msg->shownIndex = kit.activePattern;
+
+    // Se il sequencer sta suonando un altro pattern, lo si manda anche: continua fino alla fine del ciclo, poi parte quello scelto
+    const int playing = seqPlayIndex.load (std::memory_order_relaxed);
+    if (seqPlaying.load (std::memory_order_relaxed) && playing >= 0 && playing < sl::kNumPatterns && playing != kit.activePattern)
+    {
+        msg->hasPlay = true;
+        msg->play = kit.patterns[(size_t) playing];
+        msg->playIndex = playing;
+    }
+    patternExchange.publish (std::move (msg));
 }
 
 void SampleLabProcessor::patternEdited()
@@ -772,6 +863,7 @@ void SampleLabProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("uiHeight", uiHeight, nullptr);
     state.setProperty ("uiZoom", uiZoom, nullptr);
     state.setProperty ("internalBpm", internalBpm.load(), nullptr);
+    state.setProperty ("hostSeqMode", hostSeqMode.load(), nullptr);
     state.setProperty ("kitJson", sl::KitIO::toJson (kit, false), nullptr);   // percorsi assoluti
     state.setProperty ("kitFile", kit.file.getFullPathName(), nullptr);
     state.setProperty ("dirty", dirty.load(), nullptr);
@@ -790,6 +882,7 @@ void SampleLabProcessor::setStateInformation (const void* data, int sizeInBytes)
     uiHeight = state.getProperty ("uiHeight", uiHeight);
     uiZoom   = state.getProperty ("uiZoom", uiZoom);
     setInternalBpm (state.getProperty ("internalBpm", 120.0));
+    hostSeqMode.store (juce::jlimit (0, 2, (int) state.getProperty ("hostSeqMode", (int) HostSeqMode::MuteOnRecord)));
 
     const juce::String json = state.getProperty ("kitJson", juce::String());
     if (json.isNotEmpty())

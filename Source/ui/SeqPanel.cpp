@@ -537,7 +537,8 @@ public:
         for (int i = 0; i < (int) rows.size(); ++i)
         {
             int current = -1;
-            if (playing && i < (int) owner.pat().lanes.size())
+            if (playing && owner.processor.getSequencerPlayingPattern() == owner.processor.getActivePatternIndex()
+                && i < (int) owner.pat().lanes.size())
             {
                 const auto& l = owner.pat().lanes[(size_t) i];
                 const double stepBeats = sl::kDivisionBeats[juce::jlimit (0, sl::kNumDivisions - 1, l.division)];
@@ -801,6 +802,19 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     addAndMakeVisible (patternBox);
     prevPattern.onClick = [this] { patternBox.setSelectedId (juce::jmax (1, patternBox.getSelectedId() - 1)); };
     nextPattern.onClick = [this] { patternBox.setSelectedId (juce::jmin (sl::kNumPatterns, patternBox.getSelectedId() + 1)); };
+
+    // Trasporto della DAW (solo plugin): segui / silenzio durante la registrazione / ignora
+    hostModeBox.addItem ("DAW: follow transport", 1);
+    hostModeBox.addItem ("DAW: silent while recording", 2);
+    hostModeBox.addItem ("DAW: ignore transport", 3);
+    hostModeBox.setSelectedId ((int) processor.getHostSeqMode() + 1, juce::dontSendNotification);
+    hostModeBox.setTooltip ("How the sequencer behaves when the plugin is hosted in a DAW.\n"
+                            "Follow: it plays whenever the DAW plays.\n"
+                            "Silent while recording: it plays with the DAW, but stays quiet while the DAW is recording, so it does not mix with what you play by hand.\n"
+                            "Ignore: it only plays with the Play button of the plugin.");
+    hostModeBox.onChange = [this] { processor.setHostSeqMode ((SampleLabProcessor::HostSeqMode) (hostModeBox.getSelectedId() - 1)); };
+    hostModeBox.setVisible (processor.wrapperType != juce::AudioProcessor::wrapperType_Standalone);
+    addChildComponent (hostModeBox);
 
     tailBox.addItem ("Tail: cut", 1);
     tailBox.addItem ("Tail: loop", 2);
@@ -1651,6 +1665,11 @@ void SeqPanel::resized()
     stemsButton.setBounds (r1.removeFromLeft ((int) (128 * s)));
 
     // Riga 2: maniglie per trascinare i file direttamente nella DAW
+    {
+        auto right = row2Rect;
+        right.removeFromRight ((int) (170 * s) + sGap);                       // sotto Swing/Reset: lo spazio e' del blocco swing
+        hostModeBox.setBounds (right.removeFromRight ((int) (232 * s)));
+    }
     dragRow = row2Rect;
     {
         auto d = dragRow;

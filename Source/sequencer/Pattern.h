@@ -2,6 +2,7 @@
 
 #include "engine/FxParams.h"
 #include <juce_core/juce_core.h>
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <vector>
@@ -72,6 +73,18 @@ struct Pattern
             if (l.cell == cell)
                 return &l;
         return nullptr;
+    }
+
+    // Durata del ciclo del pattern in quarti: la riga piu' lunga (step x risoluzione). Senza righe: una battuta.
+    // E' la distanza tra due punti in cui si puo' passare a un altro pattern senza tagliare il ciclo in corso.
+    double lengthBeats() const noexcept
+    {
+        double beats = 0.0;
+        for (const auto& l : lanes)
+            if (l.cell >= 0)
+                beats = std::max (beats, (double) std::clamp (l.length, 1, kMaxSteps)
+                                             * (double) kDivisionBeats[std::clamp (l.division, 0, kNumDivisions - 1)]);
+        return beats > 0.0 ? beats : 4.0;
     }
 
     bool anySolo() const noexcept

@@ -158,6 +158,14 @@ public:
     void runBlock (const Pattern* pattern, bool playing, double ppq0, double bpm, double sampleRate, int numSamples,
                    double endPpq = std::numeric_limits<double>::infinity()) noexcept
     {
+        runBlockSwitch (pattern, nullptr, 0.0, playing, ppq0, bpm, sampleRate, numSamples, endPpq);
+    }
+
+    // Come runBlock, ma con un cambio di pattern DENTRO il blocco: fino a switchPpq suona 'pattern', da switchPpq suona 'next'
+    // (con precisione al campione). Le note ancora tenute dal vecchio pattern (gate/loop) ricevono un NoteOff al cambio.
+    void runBlockSwitch (const Pattern* pattern, const Pattern* next, double switchPpq, bool playing, double ppq0, double bpm,
+                         double sampleRate, int numSamples, double endPpq = std::numeric_limits<double>::infinity()) noexcept
+    {
         events.clear();
 
         if (wasPlaying && ! playing)
@@ -170,13 +178,31 @@ public:
         const double ppq1 = ppq0 + (double) numSamples * bpm / (60.0 * sampleRate);
         const double samplesPerBeat = 60.0 * sampleRate / bpm;
 
-        Sequencer::generate (*pattern, ppq0, std::min (ppq1, endPpq), [&] (const TimedEvent& e)
+        auto emit = [&] (const TimedEvent& e)
         {
             if (events.size() >= events.capacity())
                 return;                                  // oltre il limite si scartano gli eventi (mai allocare)
             const int pos = juce::jlimit (0, juce::jmax (0, numSamples - 1), (int) ((e.ppq - ppq0) * samplesPerBeat));
             events.push_back (Sequencer::toSeqEvent (e, pos));
-        });
+        };
+
+        const bool doSwitch = next != nullptr && switchPpq > ppq0 && switchPpq < ppq1;
+        Sequencer::generate (*pattern, ppq0, std::min (doSwitch ? switchPpq : ppq1, endPpq), emit);
+
+        if (doSwitch)
+        {
+            const int pos = juce::jlimit (0, juce::jmax (0, numSamples - 1), (int) ((switchPpq - ppq0) * samplesPerBeat));
+            for (const auto& lane : pattern->lanes)       // il vecchio pattern finisce qui: si rilasciano le sue note tenute
+                if (lane.cell >= 0 && events.size() < events.capacity())
+                {
+                    SeqEvent off;
+                    off.type = SeqEvent::Type::NoteOff;
+                    off.samplePos = pos;
+                    off.cell = lane.cell;
+                    events.push_back (off);
+                }
+            Sequencer::generate (*next, switchPpq, std::min (ppq1, endPpq), emit);
+        }
 
         // Ordine: per posizione; a parita' prima i NoteOff, cosi' un nuovo colpo non viene tagliato dallo spegnimento del precedente
         std::sort (events.begin(), events.end(), [] (const SeqEvent& a, const SeqEvent& b)

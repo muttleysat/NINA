@@ -14,6 +14,18 @@ I file delle righe sommati danno esattamente l'audio intero (senza gli effetti m
 
 Reverse e lock degli effetti non esistono nel MIDI: per averli nella DAW usa l'audio.
 
+## Suonare e registrare a mano con il sequencer (plugin)
+
+Quando il trasporto della DAW suona, il sequencer parte con lui. Se registri a mano una linea di batteria con il pulsante di registrazione di Cubase, il sequencer andrebbe in mezzo a ciò che suoni. Per questo, nella riga sotto Swing/Reset Seed della scheda Seq, c'è il menu **DAW** (si vede solo nel plugin):
+
+| Voce | Cosa fa |
+|------|---------|
+| **follow transport** | Il sequencer suona sempre quando la DAW suona (anche in registrazione) |
+| **silent while recording** (predefinito) | Suona con la DAW, ma **sta zitto mentre la DAW registra**: senti e registri solo ciò che suoni tu |
+| **ignore transport** | Ignora il trasporto della DAW: parte solo con il pulsante **Play** del plugin (il tempo resta quello della DAW) |
+
+La scelta si salva nel progetto. Il sequencer non registra nulla da solo: le note che suoni tu arrivano a Cubase come normale MIDI. Con **follow** puoi invece sentire il sequencer come base mentre registri.
+
 ## Le code di delay e riverbero: Tail
 
 Accanto al menu delle battute c'è il menu **Tail**, che decide cosa succede alle code degli effetti nei file **audio** (Bounce WAV, Export lanes, Drag audio, Drag lanes):

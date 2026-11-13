@@ -1736,6 +1736,48 @@ public:
             expect (peak (loop, 22000, 22100) > 0.3f, "loop: the echo wraps to the start, peak " + juce::String (peak (loop, 22000, 22100)));
             expect (peak (keep, 110000, 110500) > 0.3f, "keep: the echo is after the end");
         }
+
+        beginTest ("Pattern length in beats is the longest lane; switch inside a block is sample-accurate");
+        {
+            Pattern a, b;
+            Lane la; la.cell = 0; la.division = 10; la.length = 16; la.steps[0].on = true;           // 16 x 1/16 = 4 quarti
+            Lane lb; lb.cell = 1; lb.division = 10; lb.length = 16; lb.steps[0].on = true;
+            a.lanes.push_back (la);
+            b.lanes.push_back (lb);
+            expectWithinAbsoluteError (a.lengthBeats(), 4.0, 1.0e-9);
+
+            Pattern longer = a;
+            Lane l2; l2.cell = 2; l2.division = 10; l2.length = 64; longer.lanes.push_back (l2);       // 64 x 1/16 = 16 quarti
+            expectWithinAbsoluteError (longer.lengthBeats(), 16.0, 1.0e-9);
+            expectWithinAbsoluteError (Pattern().lengthBeats(), 4.0, 1.0e-9);                         // vuoto: una battuta
+
+            // Blocco di 1 quarto (22050 campioni a 120 BPM) da 3.5 a 4.5 con cambio a 4.0: il colpo del pattern B cade a meta' blocco
+            SequencerRunner run1;
+            run1.runBlockSwitch (&a, &b, 4.0, true, 3.5, 120.0, kSR, 22050);
+            int onCell0 = 0, onCell1 = 0, offCell0 = 0, posOn1 = -1;
+            for (const auto& e : run1.getEvents())
+            {
+                if (e.type == SeqEvent::Type::NoteOn && e.cell == 0) ++onCell0;
+                if (e.type == SeqEvent::Type::NoteOn && e.cell == 1) { ++onCell1; posOn1 = e.samplePos; }
+                if (e.type == SeqEvent::Type::NoteOff && e.cell == 0) ++offCell0;
+            }
+            expectEquals (onCell0, 0);                      // il vecchio pattern non suona piu' il suo colpo a 4.0
+            expectEquals (onCell1, 1);
+            expectEquals (posOn1, 11025);                   // (4.0 - 3.5) quarti = 11025 campioni
+            expect (offCell0 >= 1, "the old pattern's notes are released at the switch");
+
+            // Senza cambio dentro il blocco (switch oltre la fine) suona ancora il vecchio pattern
+            SequencerRunner r2;
+            r2.runBlockSwitch (&a, &b, 5.0, true, 3.5, 120.0, kSR, 22050);
+            int c1 = 0, c0 = 0;
+            for (const auto& e : r2.getEvents())
+            {
+                if (e.type == SeqEvent::Type::NoteOn && e.cell == 1) ++c1;
+                if (e.type == SeqEvent::Type::NoteOn && e.cell == 0) ++c0;
+            }
+            expectEquals (c1, 0);
+            expectEquals (c0, 1);
+        }
     }
 };
 

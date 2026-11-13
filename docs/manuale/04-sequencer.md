@@ -119,6 +119,8 @@ Il menu **⋯** accanto ai pattern permette di lavorare su di essi:
 | **Clear pattern** | Svuota il pattern attivo (chiede conferma) |
 | **Rename...** | Cambia il nome mostrato nel menu |
 
+**Cambiare pattern mentre suona.** Se il sequencer sta suonando e scegli un altro pattern, il pattern in corso **finisce il suo ciclo** e il nuovo parte **al giro successivo**, senza tagli. Il ciclo è la durata della riga più lunga del pattern in corso (per esempio 16 step a 1/16 = una battuta; 64 step a 1/16 = quattro battute). Nel frattempo il pattern scelto è già visibile e modificabile; il contorno bianco che segue lo step sta sul pattern che sta davvero suonando, quindi sul nuovo compare solo quando parte. Le note tenute (modalità Gate o Loop) del vecchio pattern vengono rilasciate al cambio. Da fermo il cambio è immediato.
+
 Per copiare in un pattern preciso: **Copy** sul pattern sorgente, passa a quello di destinazione con **< >**, poi **Paste**. Gli appunti valgono finché l'app è aperta e non vengono salvati nel kit.
 
 ### Swing e seed
