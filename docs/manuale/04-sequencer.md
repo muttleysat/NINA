@@ -100,15 +100,35 @@ Nella carta Delay trovi anche **Sync** e il valore musicale: sono le impostazion
 
 ## Pattern, swing e battute
 
-In alto nella scheda:
+La barra in alto della scheda Seq ha due righe:
 
-- **< Pattern 1 >**: i **16 pattern** del kit. Ogni pattern è indipendente.
+- **Riga 1:** `< Pattern 1 >` e il menu **⋯** (azioni sul pattern) · **+ Cell** e il pulsante a quadrati (**aggiungi tutte le celle con campione**) · **Export N bars** e **Tail** · **Export MIDI**, **Bounce WAV**, **Export Lanes** · la manopola **Swing** · **Reset Seed**.
+- **Riga 2:** le maniglie **DRAG TO DAW** (capitolo 7).
+
+### I 16 pattern
+
+`< Pattern 1 >` sceglie uno dei **16 pattern** del kit, ognuno indipendente (righe, step, swing, seed).
+
+Il menu **⋯** accanto ai pattern permette di lavorare su di essi:
+
+| Voce | Cosa fa |
+|------|---------|
+| **Duplicate to the next empty pattern** | Copia il pattern attivo nel primo pattern **vuoto** che segue (se arrivi in fondo riparte dall'inizio) e lo apre: lo modifichi o lo allunghi senza toccare l'originale. Se non c'è nessun pattern vuoto compare un avviso |
+| **Copy pattern** | Mette il pattern attivo negli appunti |
+| **Paste into this pattern** | Sostituisce il contenuto del pattern attivo con quello copiato (chiede conferma se non è vuoto). Il **nome** del pattern non cambia |
+| **Clear pattern** | Svuota il pattern attivo (chiede conferma) |
+| **Rename...** | Cambia il nome mostrato nel menu |
+
+Per copiare in un pattern preciso: **Copy** sul pattern sorgente, passa a quello di destinazione con **< >**, poi **Paste**. Gli appunti valgono finché l'app è aperta e non vengono salvati nel kit.
+
+### Swing e seed
+
 - **Swing**: ritarda gli step dispari di una frazione dello step (0–50%).
-- **Reset seed**: vedi sopra.
-- **Export 1/2/4/8 bars**: quante battute contengono le esportazioni (capitolo 7); non cambia la riproduzione.
+- **Reset Seed**: cambia il "seme" casuale (probabilità e ratchet cambiano ma restano ripetibili).
+- **Export 1/2/4/8 bars** e **Tail**: lunghezza e coda delle esportazioni (capitolo 7); non cambiano la riproduzione.
 
 ## Cose da sapere
 
-- Il sequencer **non ha ancora** quantizzazione, registrazione da tastiera o annullamento (undo).
+- Il sequencer **non ha ancora** quantizzazione, registrazione da tastiera o annullamento (undo). Copia e incolla valgono per l'intero pattern, non per singoli step o righe.
 - Un lock vale per il colpo di quello step; la sua eco (delay/riverbero) continua anche dopo.
 - Modificare una cella (nome, effetti, livelli) cambia anche come suona nel sequencer, perché la cella è la stessa.

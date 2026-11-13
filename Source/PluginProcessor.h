@@ -3,6 +3,7 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <map>
 #include <deque>
+#include <optional>
 #include <atomic>
 #include "engine/Engine.h"
 #include "engine/LoopStretch.h"
@@ -48,6 +49,14 @@ public:
     const sl::Pattern& activePattern() const { return kit.patterns[(size_t) kit.activePattern]; }
     int getActivePatternIndex() const { return kit.activePattern; }
     void setActivePattern (int index);
+
+    // Operazioni sui pattern (thread messaggi)
+    bool duplicateActivePattern();                         // copia il pattern attivo nel prossimo pattern VUOTO e lo attiva; false se non ce n'e'
+    void copyActivePattern();                              // negli appunti dei pattern
+    bool hasPatternClipboard() const { return patternClipboard.has_value(); }
+    void pasteIntoActivePattern();                         // sostituisce il contenuto del pattern attivo (il nome resta)
+    void clearActivePattern();
+    void renamePattern (int index, const juce::String& name);
     void patternEdited();                                   // dopo ogni modifica del pattern: pubblica al thread audio
     bool addLaneForCell (int cell);                         // "Aggiungi al sequencer" (tasto destro sulla cella)
     void removeLaneForCell (int cell);
@@ -188,6 +197,7 @@ private:
         void timerCallback() override { if (fn) fn(); }
     } tempoTimer;
     std::map<juce::String, sl::SampleDataPtr> sampleCache;   // i campioni restano in memoria per la sessione
+    std::optional<sl::Pattern> patternClipboard;
     std::atomic<bool> dirty { false };
     std::atomic<sl::SequencerExport::TailMode> exportTail { sl::SequencerExport::TailMode::Cut };
     DirtyListener dirtyListener { dirty };

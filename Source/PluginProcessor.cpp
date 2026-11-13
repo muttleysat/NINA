@@ -345,6 +345,67 @@ void SampleLabProcessor::setActivePattern (int index)
     publishPattern();
 }
 
+namespace
+{
+// Copia il contenuto (righe, swing, seed...) in un altro pattern senza toccarne il nome
+void copyPatternContent (const sl::Pattern& from, sl::Pattern& to)
+{
+    const auto name = to.name;
+    to = from;
+    to.name = name;
+}
+}
+
+bool SampleLabProcessor::duplicateActivePattern()
+{
+    const int n = sl::kNumPatterns;
+    for (int k = 1; k < n; ++k)
+    {
+        const int target = (kit.activePattern + k) % n;
+        if (kit.patterns[(size_t) target].lanes.empty())
+        {
+            copyPatternContent (activePattern(), kit.patterns[(size_t) target]);
+            kit.activePattern = target;
+            dirty = true;
+            publishPattern();
+            return true;
+        }
+    }
+    return false;
+}
+
+void SampleLabProcessor::copyActivePattern()
+{
+    patternClipboard = activePattern();
+}
+
+void SampleLabProcessor::pasteIntoActivePattern()
+{
+    if (! patternClipboard.has_value())
+        return;
+    copyPatternContent (*patternClipboard, activePattern());
+    dirty = true;
+    publishPattern();
+}
+
+void SampleLabProcessor::clearActivePattern()
+{
+    auto& p = activePattern();
+    const auto name = p.name;
+    p = sl::Pattern();
+    p.name = name;
+    dirty = true;
+    publishPattern();
+}
+
+void SampleLabProcessor::renamePattern (int index, const juce::String& name)
+{
+    if (index < 0 || index >= sl::kNumPatterns)
+        return;
+    kit.patterns[(size_t) index].name = name.trim().isEmpty() ? juce::String ("Pattern " + juce::String (index + 1)) : name.trim();
+    dirty = true;
+}
+
 bool SampleLabProcessor::addLaneForCell (int cell)
 {
     if (cell < 0 || cell >= kit.numCells() || activePattern().findLane (cell) != nullptr)

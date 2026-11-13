@@ -3,6 +3,7 @@
 #include "../PluginProcessor.h"
 #include "Theme.h"
 #include "KnobBox.h"
+#include "IconButton.h"
 
 // Scheda Seq: una riga (lane) per ogni cella aggiunta, con step cliccabili, e sotto l'editor dello step selezionato:
 // comportamento (modalita', reverse, velocity, probabilita', ratchet, nudge, gate, pitch) ed effetti per colpo
@@ -48,6 +49,8 @@ private:
     void onFxPower (FxCard&);
     void clearKnobLock (FxCard&, size_t knob);
     void showAddMenu();
+    void addAllLoadedCells();
+    void showPatternMenu();            // duplica / copia / incolla / svuota / rinomina il pattern
     void relayoutLanes();              // ricalcola colonne e larghezze (cambio lunghezza righe, ridimensionamento)
     void exportMidi();
     void bounceWav();
@@ -61,8 +64,10 @@ private:
     SampleLabProcessor& processor;
 
     // Trasporto e pattern
-    juce::TextButton playButton { "Play" }, addButton { "+ Cell" }, midiButton { "Export MIDI" }, wavButton { "Bounce WAV" },
-                     stemsButton { "Export lanes" }, reseedButton { "Reset seed" }, prevPattern { "<" }, nextPattern { ">" };
+    juce::TextButton playButton { "Play" }, prevPattern { "<" }, nextPattern { ">" };
+    IconButton addButton { "+ Cell" }, addAllButton { {}, IconButton::Icon::Grid }, patternMenuButton { {}, IconButton::Icon::More },
+               midiButton { "Export MIDI", IconButton::Icon::Midi }, wavButton { "Bounce WAV", IconButton::Icon::Wave },
+               stemsButton { "Export Lanes", IconButton::Icon::Layers }, reseedButton { "Reset Seed", IconButton::Icon::Reset };
     juce::ComboBox patternBox, barsBox, tailBox;
     juce::Slider swingSlider;
     int lastViewX = 0;                 // scroll orizzontale corrente (l'intestazione delle righe resta ferma)
@@ -86,6 +91,9 @@ private:
     std::unique_ptr<DragHandle> dragMidi, dragAudio, dragLanes;
     juce::Rectangle<int> dragRow;
 
+    juce::Rectangle<int> swingRect;                 // manopola dello swing (etichetta in paint)
+    std::vector<std::pair<int, int>> separatorsX;   // (x, riga) dei separatori verticali: riga 0 = prima, 1 = seconda, 2 = entrambe
+    juce::Rectangle<int> row1Rect, row2Rect;
     juce::Rectangle<int> editorRect, headerRect, rulerRect, fxLabelRect, stepsArea;
     std::unique_ptr<juce::FileChooser> chooser;
 };

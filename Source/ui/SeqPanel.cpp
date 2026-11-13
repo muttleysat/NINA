@@ -731,8 +731,13 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     addAndMakeVisible (viewport);
 
     // Il Play/Stop e' nella barra in alto dell'applicazione (e con la barra spaziatrice)
-    for (auto* b : { &addButton, &midiButton, &wavButton, &stemsButton, &reseedButton, &prevPattern, &nextPattern })
+    for (juce::Button* b : std::initializer_list<juce::Button*> { &addButton, &addAllButton, &patternMenuButton, &midiButton, &wavButton,
+                                                                  &stemsButton, &reseedButton, &prevPattern, &nextPattern })
         addAndMakeVisible (*b);
+    addAllButton.setTooltip ("Add every cell that has a sample to the sequencer");
+    addAllButton.onClick = [this] { addAllLoadedCells(); };
+    patternMenuButton.setTooltip ("Pattern actions: duplicate, copy, paste, clear, rename");
+    patternMenuButton.onClick = [this] { showPatternMenu(); };
     stemsButton.setTooltip ("Each lane as its own WAV file (same length, so they line up): with the cell's effects but without the master effects. "
                             "Drop them on separate tracks in your DAW.");
     wavButton.setTooltip ("The whole sequence as ONE audio file: cell effects, step locks, tempo-synced delay, tails and master effects included");
@@ -814,10 +819,12 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     barsBox.setTooltip ("How many bars the exports contain (Export MIDI, Bounce WAV, Export lanes and the Drag handles). It does not change playback: the pattern simply repeats for that many bars.");
     addAndMakeVisible (barsBox);
 
-    swingSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+    swingSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
     swingSlider.setRange (0.0, 50.0, 1.0);
-    swingSlider.setTextValueSuffix (" % swing");
-    swingSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 90, 20);
+    swingSlider.setTextValueSuffix (" %");
+    swingSlider.setNumDecimalPlacesToDisplay (0);
+    swingSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 60, 24);
+    swingSlider.setTooltip ("Swing: delays the odd steps by a fraction of the step (0-50%)");
     swingSlider.onValueChange = [this] { pat().swing = (float) swingSlider.getValue() / 100.0f; edited(); };
     addAndMakeVisible (swingSlider);
 
@@ -1242,6 +1249,102 @@ void SeqPanel::refreshEditor()
     repaint (headerRect);
 }
 
+void SeqPanel::addAllLoadedCells()
+{
+    for (int i = 0; i < processor.getKit().numCells(); ++i)
+        if (processor.getKit().cells[(size_t) i].hasSample())
+            processor.addLaneForCell (i);
+    refresh();
+}
+
+void SeqPanel::showPatternMenu()
+{
+    const int cur = processor.getActivePatternIndex();
+    juce::PopupMenu m;
+    m.addItem (1, "Duplicate to the next empty pattern", ! pat().lanes.empty());
+    m.addSeparator();
+    m.addItem (2, "Copy pattern", ! pat().lanes.empty());
+    m.addItem (3, "Paste into this pattern", processor.hasPatternClipboard());
+    m.addItem (4, "Clear pattern", ! pat().lanes.empty());
+    m.addSeparator();
+    m.addItem (5, "Rename...");
+
+    juce::Component::SafePointer<SeqPanel> safe (this);
+    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (patternMenuButton), [safe, cur] (int r)
+    {
+        if (safe == nullptr || r == 0)
+            return;
+        auto& p = safe->processor;
+
+        if (r == 1)
+        {
+            if (p.duplicateActivePattern())
+            {
+                safe->selLane = safe->selStep = -1;
+                safe->refresh();
+            }
+            else
+                juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "Sample Lab",
+                                                        "There is no empty pattern left to duplicate into.\nClear a pattern first, or use Copy and Paste.");
+        }
+        else if (r == 2)
+            p.copyActivePattern();
+        else if (r == 3)
+        {
+            auto doPaste = [safe]
+            {
+                if (safe == nullptr) return;
+                safe->processor.pasteIntoActivePattern();
+                safe->selLane = safe->selStep = -1;
+                safe->refresh();
+            };
+            if (safe->pat().lanes.empty())
+                doPaste();
+            else
+                juce::AlertWindow::showAsync (juce::MessageBoxOptions()
+                                                  .withIconType (juce::MessageBoxIconType::QuestionIcon)
+                                                  .withTitle ("Paste pattern")
+                                                  .withMessage ("Replace the contents of this pattern with the copied one?")
+                                                  .withButton ("Replace")
+                                                  .withButton ("Cancel")
+                                                  .withAssociatedComponent (safe.getComponent()),
+                                              [doPaste] (int res) { if (res == 1) doPaste(); });
+        }
+        else if (r == 4)
+        {
+            juce::AlertWindow::showAsync (juce::MessageBoxOptions()
+                                              .withIconType (juce::MessageBoxIconType::QuestionIcon)
+                                              .withTitle ("Clear pattern")
+                                              .withMessage ("Remove all rows and steps from this pattern?")
+                                              .withButton ("Clear")
+                                              .withButton ("Cancel")
+                                              .withAssociatedComponent (safe.getComponent()),
+                                          [safe] (int res)
+                                          {
+                                              if (res != 1 || safe == nullptr) return;
+                                              safe->processor.clearActivePattern();
+                                              safe->selLane = safe->selStep = -1;
+                                              safe->refresh();
+                                          });
+        }
+        else if (r == 5)
+        {
+            auto* w = new juce::AlertWindow ("Rename pattern", "Pattern name:", juce::MessageBoxIconType::NoIcon);
+            w->addTextEditor ("name", p.getKit().patterns[(size_t) cur].name);
+            w->addButton ("OK", 1, juce::KeyPress (juce::KeyPress::returnKey));
+            w->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+            w->enterModalState (true, juce::ModalCallbackFunction::create ([safe, w, cur] (int res)
+            {
+                if (res == 1 && safe != nullptr)
+                {
+                    safe->processor.renamePattern (cur, w->getTextEditorContents ("name"));
+                    safe->refresh();
+                }
+            }), true);
+        }
+    });
+}
+
 void SeqPanel::showAddMenu()
 {
     const auto& kit = processor.getKit();
@@ -1399,7 +1502,21 @@ void SeqPanel::paint (juce::Graphics& g)
 
     g.setColour (theme::textDim);
     g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.0f * s), juce::Font::bold));
-    g.drawText ("DRAG TO DAW", dragRow.withWidth ((int) (92 * s)), juce::Justification::centredLeft);
+    g.drawText ("DRAG TO DAW", dragRow.withWidth ((int) (104 * s)).withTrimmedLeft ((int) (6 * s)), juce::Justification::centredLeft);
+
+    // Separatori sottili tra i gruppi di comandi
+    g.setColour (theme::border.withAlpha (0.8f));
+    for (const auto& [x, row] : separatorsX)
+    {
+        const int top = (row == 1 ? row2Rect : row1Rect).getY();
+        const int bottom = (row == 0 ? row1Rect : row2Rect).getBottom();
+        g.drawLine ((float) x, (float) top + 6.0f * s, (float) x, (float) bottom - 6.0f * s, 1.0f);
+    }
+
+    // Swing: etichetta sopra la manopola
+    g.setColour (theme::textDim);
+    g.setFont (juce::FontOptions (juce::jmax (9.0f, 12.0f * s), juce::Font::bold));
+    g.drawText ("Swing", swingRect.withHeight ((int) (16 * s)), juce::Justification::centred);
 
     // Righello dei beat: numero dello step ogni 4, allineato alle colonne
     g.setColour (theme::textDim);
@@ -1477,45 +1594,76 @@ void SeqPanel::resized()
     auto area = getLocalBounds().reduced ((int) (10 * s));
     const int gap = (int) (6 * s);
 
-    // Riga 1: trasporto, pattern, aggiunta celle, swing
-    auto top = area.removeFromTop ((int) (28 * s));
-    prevPattern.setBounds (top.removeFromLeft ((int) (28 * s)));
-    patternBox.setBounds (top.removeFromLeft ((int) (130 * s)));
-    nextPattern.setBounds (top.removeFromLeft ((int) (28 * s)));
-    top.removeFromLeft (gap);
-    addButton.setBounds (top.removeFromLeft ((int) (70 * s)));
-    top.removeFromLeft (gap * 2);
-    reseedButton.setBounds (top.removeFromRight ((int) (86 * s)));
-    top.removeFromRight (gap);
-    swingSlider.setBounds (top);
-    area.removeFromTop (gap);
+    // Due righe come nel riferimento: in alto pattern | celle | esportazione | swing | seed; sotto le maniglie per la DAW.
+    // Ogni gruppo e' separato da uno spazio con una linea sottile (disegnata in paint).
+    const int rowH1 = (int) (34 * s), rowH2 = (int) (32 * s), vgap = (int) (8 * s);
+    const int gGap = (int) (6 * s);                    // spazio tra i controlli dello stesso gruppo
+    const int sGap = (int) (18 * s);                   // spazio (con separatore al centro) tra gruppi
+    separatorsX.clear();
 
-    // Riga 2: esportazione (battute, MIDI, audio)
-    auto row2 = area.removeFromTop ((int) (26 * s));
-    barsBox.setBounds (row2.removeFromLeft ((int) (130 * s)));
-    row2.removeFromLeft (gap);
-    tailBox.setBounds (row2.removeFromLeft ((int) (104 * s)));
-    row2.removeFromLeft (gap);
-    midiButton.setBounds (row2.removeFromLeft ((int) (104 * s)));
-    row2.removeFromLeft (gap);
-    wavButton.setBounds (row2.removeFromLeft ((int) (104 * s)));
-    row2.removeFromLeft (gap);
-    stemsButton.setBounds (row2.removeFromLeft ((int) (104 * s)));
-    area.removeFromTop (gap);
+    row1Rect = area.removeFromTop (rowH1);
+    area.removeFromTop (vgap);
+    row2Rect = area.removeFromTop (rowH2);
+    area.removeFromTop (vgap);
 
-    // Riga 3: maniglie per trascinare i file direttamente nella DAW
-    dragRow = area.removeFromTop ((int) (26 * s));
+    auto r1 = row1Rect;
+    auto groupEnd = [&] (auto& rowRect) { separatorsX.push_back ({ rowRect.getX() + sGap / 2, 0 }); rowRect.removeFromLeft (sGap); };
+
+    // Destra: Reset Seed, poi lo swing (che occupa l'altezza di entrambe le righe)
+    reseedButton.setBounds (r1.removeFromRight ((int) (128 * s)));
+    r1.removeFromRight (sGap / 2);
+    {
+        const int swingW = (int) (170 * s);
+        auto sw = juce::Rectangle<int> (r1.getRight() - swingW, row1Rect.getY(), swingW, rowH1 + vgap + rowH2);
+        r1.removeFromRight (swingW + sGap / 2);
+        separatorsX.push_back ({ sw.getX() - sGap / 4, 2 });
+        separatorsX.push_back ({ sw.getRight() + sGap / 4, 0 });
+        swingRect = sw;
+        auto knobArea = sw.withTrimmedTop ((int) (14 * s));
+        swingSlider.setBounds (knobArea);
+    }
+
+    // Sinistra: pattern
+    prevPattern.setBounds (r1.removeFromLeft ((int) (32 * s)));
+    r1.removeFromLeft (gGap / 2);
+    patternBox.setBounds (r1.removeFromLeft ((int) (150 * s)));
+    r1.removeFromLeft (gGap / 2);
+    nextPattern.setBounds (r1.removeFromLeft ((int) (32 * s)));
+    r1.removeFromLeft (gGap);
+    patternMenuButton.setBounds (r1.removeFromLeft ((int) (34 * s)));
+    groupEnd (r1);
+
+    // Celle
+    addButton.setBounds (r1.removeFromLeft ((int) (78 * s)));
+    r1.removeFromLeft (2);
+    addAllButton.setBounds (r1.removeFromLeft ((int) (36 * s)));
+    groupEnd (r1);
+
+    // Esportazione
+    barsBox.setBounds (r1.removeFromLeft ((int) (136 * s)));
+    r1.removeFromLeft (gGap);
+    tailBox.setBounds (r1.removeFromLeft ((int) (112 * s)));
+    groupEnd (r1);
+    midiButton.setBounds (r1.removeFromLeft ((int) (128 * s)));
+    r1.removeFromLeft (gGap);
+    wavButton.setBounds (r1.removeFromLeft ((int) (128 * s)));
+    r1.removeFromLeft (gGap);
+    stemsButton.setBounds (r1.removeFromLeft ((int) (128 * s)));
+
+    // Riga 2: maniglie per trascinare i file direttamente nella DAW
+    dragRow = row2Rect;
     {
         auto d = dragRow;
-        d.removeFromLeft ((int) (96 * s));                                 // spazio per l'etichetta "DRAG TO DAW"
-        const int w = (int) (112 * s);
+        d.removeFromLeft ((int) (112 * s));                                // spazio per l'etichetta "DRAG TO DAW"
+        separatorsX.push_back ({ d.getX() + gGap / 2, 1 });
+        d.removeFromLeft (gGap * 2);
+        const int w = (int) (128 * s);
         dragMidi->setBounds (d.removeFromLeft (w));
-        d.removeFromLeft (gap);
+        d.removeFromLeft (gGap);
         dragAudio->setBounds (d.removeFromLeft (w));
-        d.removeFromLeft (gap);
+        d.removeFromLeft (gGap);
         dragLanes->setBounds (d.removeFromLeft (w));
     }
-    area.removeFromTop (gap);
 
     // Righello dei beat sopra le righe (il testo e' disegnato in paint)
     rulerRect = area.removeFromTop ((int) (16 * s));
