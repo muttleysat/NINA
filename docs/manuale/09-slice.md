@@ -32,6 +32,12 @@ Sotto, la forma d'onda con i marcatori, la striscia delle celle **CELLS** e la r
 
 La scritta in basso a sinistra riassume tutto: numero di slice, da quale a quale cella, quante verranno sovrascritte.
 
+## Ascolto, stop e zoom
+
+- **Play zone** (riga SOURCE) o la **barra spaziatrice** suona la zona dall'inizio alla fine con un cursore bianco; premi di nuovo (o **Esc**) per **fermare**. Nella scheda Slice la barra spaziatrice comanda quindi l'ascolto della zona e non il sequencer. Esc ferma anche il Chop e il Click test.
+- Un clic su una slice suona solo quella slice (con Audition acceso).
+- Con lo **zoom** la forma d'onda **segue il cursore** mentre suona (a pagine). Se sposti la vista a mano (rotella) il seguimento si ferma per qualche secondo. Lo zoom con i pulsanti **− [ ] +** si centra sul cursore se sta suonando; Ctrl+rotella zooma **attorno al mouse**.
+
 ## Sorgente: una cella o un file esterno
 
 - **Cell** (predefinito): la sorgente è il campione della cella selezionata nella scheda Main. La zona è quella tra Start ed End della cella (si cambia in Main). Le slice restano nello **stesso file**, ognuna con il proprio Start/End.

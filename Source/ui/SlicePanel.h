@@ -24,6 +24,9 @@ public:
 
     // Chop: il loop suona e ogni pressione di M (o di una nota MIDI) mette un marcatore nel punto in cui si trova
     bool isChopping() const { return chopping; }
+    bool isPlaying() const { return cursorActive(); }         // Chop, prova del tempo, zona o slice in ascolto
+    void togglePlay();                     // barra spaziatrice: suona la zona / ferma tutto
+    void stopAll();                        // Esc: ferma qualsiasi riproduzione
     void chopMark();                       // tasto M
 
     std::function<void()> onKitChanged;    // dopo la distribuzione: l'editor ridisegna griglia e pannelli
@@ -32,7 +35,7 @@ public:
     void paint (juce::Graphics&) override;
     void paintOverChildren (juce::Graphics&) override;
     void resized() override;
-    void visibilityChanged() override { if (! isShowing()) { stopChop(); stopTest(); } }
+    void visibilityChanged() override { if (! isShowing()) stopAll(); }
 
     // Trascinamento di un file audio (da Esplora risorse o dal browser)
     bool isInterestedInFileDrag (const juce::StringArray& files) override;
@@ -90,6 +93,9 @@ private:
     void scaleBpm (double factor);
     void doClickTest();
     void stopTest (bool finished = false);
+    void startPreview (float lo, float hi);                    // ascolto di una parte (zona o slice) con il cursore
+    void stopPreview (bool finished = false);
+    bool cursorActive() const { return chopping || testPlaying || previewing; }
 
     void setTargetStart (int cellIndex);
     void showStatus (const juce::String& text);
@@ -113,13 +119,15 @@ private:
     std::vector<float> extMarkers;
 
     // Chop e prova del tempo (cursore sulla forma d'onda)
-    bool chopping = false, testPlaying = false;
+    bool chopping = false, testPlaying = false, previewing = false;
     double chopStartMs = 0.0, chopDurMs = 0.0;
+    double cursorLo = 0.0, cursorHi = 1.0;                      // parte del campione che sta suonando (per il cursore)
     uint32_t chopSeen = 0;
     std::vector<double> taps;
 
     // Riga SOURCE
     juce::TextButton cellSrcButton { "Cell" }, fileSrcButton { "File" };
+    IconButton playButton { "Play zone", IconButton::Icon::ArrowRight };
     IconButton loadButton { "Load file...", IconButton::Icon::Layers };
     juce::ToggleButton auditionToggle { "Audition" };
     juce::Slider auditionVolume;

@@ -42,6 +42,21 @@ public:
 
     void touch() { peaksDirty = true; repaint(); }
 
+    // Durante l'ascolto con lo zoom la vista segue il cursore (a pagine); se muovi la vista a mano si ferma per qualche secondo
+    void follow (float p)
+    {
+        if (zoom <= 1.001f || juce::Time::getMillisecondCounterHiRes() < holdUntil)
+            return;
+        const auto [a, b] = view();
+        const float span = b - a;
+        if (p < a + span * 0.05f || p > b - span * 0.15f)
+        {
+            centre = p + span * 0.35f;
+            clampCentre();
+            peaksDirty = true;
+        }
+    }
+
     void paint (juce::Graphics& g) override
     {
         const float s = theme::scaleFor (*this);
@@ -207,7 +222,7 @@ public:
         }
 
         // Chop: cursore di lettura
-        if (owner.chopping || owner.testPlaying)
+        if (owner.cursorActive())
         {
             const float x = xOf ((float) owner.chopPosition (juce::Time::getMillisecondCounterHiRes()));
             if (x >= area.getX() && x <= area.getRight())
@@ -346,13 +361,14 @@ public:
         repaint();
     }
 
-    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w) override
+    void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override
     {
         if (juce::ModifierKeys::currentModifiers.isCtrlDown())
         {
-            setZoom (zoom * (w.deltaY > 0 ? 1.25f : 0.8f));
+            setZoom (zoom * (w.deltaY > 0 ? 1.25f : 0.8f), (float) e.x);
             return;
         }
+        holdUntil = juce::Time::getMillisecondCounterHiRes() + 2500.0;
         const auto [a, b] = view();
         centre += (b - a) * (w.deltaY != 0.0f ? -w.deltaY : -w.deltaX) * 0.5f;
         clampCentre();
@@ -382,10 +398,23 @@ private:
         centre = juce::jlimit (rs + span * 0.5f, re - span * 0.5f, centre);
     }
 
-    void setZoom (float z)
+    // Zoom attorno a un punto: sotto il mouse (anchorX >= 0), sul cursore se sta suonando, altrimenti al centro
+    void setZoom (float z, float anchorX = -1.0f)
     {
+        const auto [a, b] = view();
+        float anchorPos = centre, frac = 0.5f;
+        if (anchorX >= 0.0f)
+        {
+            anchorPos = pos (anchorX);
+            frac = (anchorPos - a) / juce::jmax (1.0e-9f, b - a);
+        }
+        else if (owner.cursorActive())
+            anchorPos = (float) owner.chopPosition (juce::Time::getMillisecondCounterHiRes());
         zoom = juce::jlimit (1.0f, 64.0f, z);
+        const float span = (owner.viewHi() - owner.viewLo()) / zoom;
+        centre = anchorPos + (0.5f - frac) * span;
         clampCentre();
+        holdUntil = juce::Time::getMillisecondCounterHiRes() + 2500.0;
         peaksDirty = true;
         repaint();
     }
@@ -484,6 +513,7 @@ private:
     SlicePanel& owner;
     float zoom = 1.0f, centre = 0.5f;
     int hover = -1, dragIndex = -1, dragBracket = -1;
+    double holdUntil = 0.0;
     bool peaksDirty = true;
     const sl::SampleData* lastData = nullptr;
     int lastWidth = 0;
@@ -700,6 +730,10 @@ SlicePanel::SlicePanel (SampleLabProcessor& p) : processor (p)
     cellSrcButton.onClick = [this] { setSource (Source::Cell); };
     fileSrcButton.onClick = [this] { setSource (Source::File); };
 
+    playButton.setTooltip ("Play the zone (Space). Press again, or Esc, to stop. Clicking a slice plays just that slice.");
+    playButton.onClick = [this] { togglePlay(); };
+    addAndMakeVisible (playButton);
+
     loadButton.setTooltip ("Choose an audio file to slice");
     loadButton.onClick = [this] { chooseFile(); };
     addAndMakeVisible (loadButton);
@@ -785,8 +819,7 @@ std::vector<int> SlicePanel::targetCells() const
 
 void SlicePanel::setCell (int c)
 {
-    stopChop();
-    stopTest();
+    stopAll();
     cell = juce::jlimit (0, juce::jmax (0, processor.getKit().numCells() - 1), c);
     targetStart = -1;
     if (source == Source::Cell)
@@ -833,7 +866,7 @@ void SlicePanel::refresh()
 
     const bool has = hasSource();
     for (auto* c : std::initializer_list<juce::Component*> { &detectButton, &sensitivity, &evenBox, &clearButton, &chopButton, &distributeButton,
-                                                             &bpmSlider, &bpmDetectButton, &halfButton, &doubleButton, &tapButton, &clickButton })
+                                                             &bpmSlider, &bpmDetectButton, &halfButton, &doubleButton, &tapButton, &clickButton, &playButton })
         c->setEnabled (has);
     keepToggle.setButtonText ("Keep original in " + theme::cellId (cell, processor.getKit().cols));
     bpmSlider.setValue ((double) srcBpm(), juce::dontSendNotification);
@@ -861,8 +894,7 @@ void SlicePanel::updateSourceControls()
 
 void SlicePanel::setSource (Source s)
 {
-    stopChop();
-    stopTest();
+    stopAll();
     if (s != source)
     {
         if (source == Source::File)
@@ -887,8 +919,7 @@ void SlicePanel::loadFile (const juce::File& f)
         showStatus ("Could not read " + f.getFileName());
         return;
     }
-    stopChop();
-    stopTest();
+    stopAll();
     extData = d;
     extFile = f;
     extStart = 0.0f;
@@ -991,7 +1022,9 @@ void SlicePanel::auditionSlice (int index)
     const auto b = bounds();
     if (index < 0 || index + 1 >= (int) b.size())
         return;
-    processor.auditionData (data(), b[(size_t) index], b[(size_t) index + 1], (float) auditionVolume.getValue());
+    if (chopping || testPlaying)
+        return;
+    startPreview (b[(size_t) index], b[(size_t) index + 1]);
 }
 
 void SlicePanel::doDetect()
@@ -1057,12 +1090,21 @@ void SlicePanel::timerCallback()
         else
             wave->repaint();
     }
+    if (previewing)
+    {
+        if (now - chopStartMs >= chopDurMs + 60.0)
+            stopPreview (true);
+        else
+            wave->repaint();
+    }
+    if (cursorActive())
+        wave->follow ((float) chopPosition (now));               // con lo zoom la forma d'onda segue il cursore
     if (status.isNotEmpty() && now >= statusUntil)
     {
         status.clear();
         repaint();
     }
-    if (! chopping && ! testPlaying && status.isEmpty())
+    if (! cursorActive() && status.isEmpty())
         stopTimer();
 }
 
@@ -1135,8 +1177,11 @@ void SlicePanel::doClickTest()
         return;
     }
     stopChop();
+    stopPreview();
 
     const float rs = regionStart(), re = regionEnd();
+    cursorLo = rs;
+    cursorHi = re;
     const int n = d->numSamples();
     const int a = juce::jlimit (0, n, (int) std::floor ((double) rs * (double) n)), b = juce::jlimit (a, n, (int) std::floor ((double) re * (double) n));
     const int len = b - a;
@@ -1195,14 +1240,59 @@ void SlicePanel::stopTest (bool finished)
 
 double SlicePanel::chopPosition (double nowMs) const
 {
-    const float rs = regionStart(), re = regionEnd();
     const double t = chopDurMs > 0.0 ? juce::jlimit (0.0, 1.0, (nowMs - chopStartMs) / chopDurMs) : 0.0;
-    return (double) rs + t * (double) (re - rs);
+    return cursorLo + t * (cursorHi - cursorLo);
+}
+
+void SlicePanel::startPreview (float lo, float hi)
+{
+    const auto d = data();
+    if (d == nullptr || hi <= lo)
+        return;
+    stopAll();
+    cursorLo = lo;
+    cursorHi = hi;
+    chopDurMs = (double) (hi - lo) * (double) d->numSamples() / d->sampleRate * 1000.0;
+    processor.auditionData (d, lo, hi, (float) auditionVolume.getValue());
+    chopStartMs = juce::Time::getMillisecondCounterHiRes();
+    previewing = true;
+    playButton.setButtonText ("Stop");
+    playButton.setPrimary (true);
+    startTimerHz (60);
+    wave->repaint();
+}
+
+void SlicePanel::stopPreview (bool finished)
+{
+    if (! previewing)
+        return;
+    previewing = false;
+    if (! finished)
+        processor.stopAudition();
+    playButton.setButtonText ("Play zone");
+    playButton.setPrimary (false);
+    wave->repaint();
+}
+
+void SlicePanel::stopAll()
+{
+    stopChop();
+    stopTest();
+    stopPreview();
+}
+
+void SlicePanel::togglePlay()
+{
+    if (cursorActive())
+        stopAll();
+    else if (hasSource())
+        startPreview (regionStart(), regionEnd());
 }
 
 void SlicePanel::startChop()
 {
     stopTest();
+    stopPreview();
     const auto d = data();
     if (d == nullptr || ! hasSource())
         return;
@@ -1210,6 +1300,8 @@ void SlicePanel::startChop()
     if (re <= rs)
         return;
 
+    cursorLo = rs;
+    cursorHi = re;
     markers = { rs };                                          // si riparte da zero: il primo marcatore e' l'inizio
     markersChanged();
     chopDurMs = (double) (re - rs) * (double) d->numSamples() / d->sampleRate * 1000.0;
@@ -1480,6 +1572,8 @@ void SlicePanel::resized()
 
         auto right = r.removeFromRight ((int) (230 * s));
         seps.push_back ({ right.getX() - (int) (6 * s), sourceRect });
+        playButton.setBounds (r.removeFromRight ((int) (118 * s)));
+        r.removeFromRight ((int) (10 * s));
         auditionToggle.setBounds (right.removeFromLeft ((int) (104 * s)).withSizeKeepingCentre ((int) (104 * s), (int) (26 * s)));
         auditionVolume.setBounds (right.reduced (0, (int) (4 * s)));
 

@@ -152,6 +152,21 @@ void SampleLabEditor::toggleTransport()
 
 bool SampleLabEditor::keyPressed (const juce::KeyPress& key)
 {
+    // Scheda Slice: Spazio suona/ferma la zona (non il sequencer), Esc ferma qualsiasi ascolto
+    if (currentTab == 4)
+    {
+        if (key == juce::KeyPress::spaceKey)
+        {
+            slicePanel.togglePlay();
+            return true;
+        }
+        if (key == juce::KeyPress::escapeKey && slicePanel.isPlaying())
+        {
+            slicePanel.stopAll();
+            return true;
+        }
+    }
+
     if (key == juce::KeyPress::spaceKey)
     {
         toggleTransport();
