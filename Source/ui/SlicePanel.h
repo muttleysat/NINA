@@ -113,6 +113,7 @@ private:
     void scaleBpm (double factor);
     void doClickTest();
     void stopTest (bool finished = false);
+    void scrubTo (float pos);                                  // trascinando sulla forma d'onda: breve ascolto nel punto indicato
     void startPreview (float lo, float hi);                    // ascolto di una parte (zona o slice) con il cursore
     void stopPreview (bool finished = false);
     bool cursorActive() const { return chopping || testPlaying || previewing; }
@@ -141,6 +142,7 @@ private:
     // Chop e prova del tempo (cursore sulla forma d'onda)
     bool chopping = false, testPlaying = false, previewing = false;
     double chopStartMs = 0.0, chopDurMs = 0.0;
+    double lastScrubMs = 0.0;
     double cursorLo = 0.0, cursorHi = 1.0;                      // parte del campione che sta suonando (per il cursore)
     uint32_t chopSeen = 0;
     std::vector<double> taps;

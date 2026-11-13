@@ -27,7 +27,7 @@ public:
         zoomIn.onClick = [this] { setZoom (zoom * 1.6f); };
         zoomFit.onClick = [this] { setZoom (1.0f); };
         zoomOut.setTooltip ("Zoom out");
-        zoomIn.setTooltip ("Zoom in (mouse wheel pans, Ctrl + wheel zooms)");
+        zoomIn.setTooltip ("Zoom in (the mouse wheel also zooms, Shift + wheel pans)");
         zoomFit.setTooltip ("Show the whole region");
     }
 
@@ -155,7 +155,7 @@ public:
         }
 
         // Slice sotto il mouse: tinta arancione, icona play e durata
-        if (hover >= 0 && hover + 1 < (int) bnds.size())
+        if (hover >= 0 && hover + 1 < (int) bnds.size() && ! owner.cursorActive() && ! scrubbing)
         {
             const float x0 = juce::jlimit (area.getX(), area.getRight(), xOf (bnds[(size_t) hover]));
             const float x1 = juce::jlimit (area.getX(), area.getRight(), xOf (bnds[(size_t) hover + 1]));
@@ -268,6 +268,18 @@ public:
 
     void mouseDown (const juce::MouseEvent& e) override
     {
+        pressed = scrubbing = false;
+        // Righello del tempo: un clic suona dal punto indicato fino alla fine della zona; trascinando si fa lo scrub
+        if (owner.data() != nullptr && ! e.mods.isPopupMenu() && (float) e.y > 0.0f
+            && (float) e.y < waveArea().getY() - 26.0f * theme::scaleFor (*this))
+        {
+            pressed = true;
+            pressX = e.x;
+            if (! owner.chopping && ! owner.testPlaying)
+                owner.startPreview (pos ((float) e.x), owner.regionEnd());
+            return;
+        }
+
         if (owner.data() == nullptr || ! waveArea().expanded (0.0f, 30.0f).contains (e.position))
             return;
 
@@ -298,12 +310,22 @@ public:
         }
 
         const int slice = sliceAtX ((float) e.x, (float) e.y);
+        pressed = true;                                        // un clic suona la slice; trascinando diventa scrub
+        pressX = e.x;
         if (slice >= 0)
             owner.auditionSlice (slice);
     }
 
     void mouseDrag (const juce::MouseEvent& e) override
     {
+        if (pressed && dragBracket < 0 && dragIndex < 0)
+        {
+            if (! scrubbing && std::abs (e.x - pressX) > 4)
+                scrubbing = true;
+            if (scrubbing)
+                owner.scrubTo (pos ((float) e.x));
+            return;
+        }
         if (dragBracket >= 0)
         {
             const float p = pos ((float) e.x), minLen = 0.0005f;
@@ -334,6 +356,15 @@ public:
 
     void mouseUp (const juce::MouseEvent&) override
     {
+        if (pressed)
+        {
+            const bool wasScrub = scrubbing;
+            pressed = scrubbing = false;
+            if (wasScrub)
+                owner.stopAll();
+            repaint();
+            return;
+        }
         if (dragBracket >= 0)
         {
             dragBracket = -1;
@@ -362,16 +393,20 @@ public:
         repaint();
     }
 
+    // Rotella: zoom attorno al mouse (anche con Ctrl); con Maiusc, o con la rotella orizzontale, si scorre la forma d'onda
     void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w) override
     {
-        if (juce::ModifierKeys::currentModifiers.isCtrlDown())
+        const bool pan = e.mods.isShiftDown() || (w.deltaX != 0.0f && w.deltaY == 0.0f);
+        if (! pan)
         {
-            setZoom (zoom * (w.deltaY > 0 ? 1.25f : 0.8f), (float) e.x);
+            if (w.deltaY != 0.0f)
+                setZoom (zoom * (w.deltaY > 0 ? 1.25f : 0.8f), (float) e.x);
             return;
         }
         holdUntil = juce::Time::getMillisecondCounterHiRes() + 2500.0;
         const auto [a, b] = view();
-        centre += (b - a) * (w.deltaY != 0.0f ? -w.deltaY : -w.deltaX) * 0.5f;
+        const float d = w.deltaX != 0.0f ? w.deltaX : w.deltaY;
+        centre += (b - a) * -d * 0.5f;
         clampCentre();
         peaksDirty = true;
         repaint();
@@ -515,6 +550,8 @@ private:
     float zoom = 1.0f, centre = 0.5f;
     int hover = -1, dragIndex = -1, dragBracket = -1;
     double holdUntil = 0.0;
+    bool pressed = false, scrubbing = false;
+    int pressX = 0;
     bool peaksDirty = true;
     const sl::SampleData* lastData = nullptr;
     int lastWidth = 0;
@@ -1328,6 +1365,21 @@ double SlicePanel::chopPosition (double nowMs) const
 {
     const double t = chopDurMs > 0.0 ? juce::jlimit (0.0, 1.0, (nowMs - chopStartMs) / chopDurMs) : 0.0;
     return cursorLo + t * (cursorHi - cursorLo);
+}
+
+void SlicePanel::scrubTo (float p)
+{
+    const auto d = data();
+    if (d == nullptr || chopping || testPlaying)
+        return;
+    const double now = juce::Time::getMillisecondCounterHiRes();
+    if (now - lastScrubMs < 45.0)
+        return;
+    lastScrubMs = now;
+    const float rs = regionStart(), re = regionEnd();
+    p = juce::jlimit (rs, re, p);
+    const float grain = (float) (0.14 * d->sampleRate / (double) d->numSamples());        // 140 ms ad ogni passo
+    startPreview (p, juce::jmin (re, p + grain));
 }
 
 void SlicePanel::startPreview (float lo, float hi)

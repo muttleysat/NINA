@@ -24,7 +24,7 @@ Sotto, la forma d'onda con i marcatori, la striscia delle celle **CELLS** e la r
    - **Trascina un marcatore** per spostarlo (la bandierina numerata in alto).
    - **Doppio clic** sulla forma d'onda per **aggiungere** un marcatore.
    - **Tasto destro** su un marcatore per **toglierlo**.
-   - I pulsanti **− [ ] +** (in basso a destra) zoomano; con la rotella scorri quando sei zoomato, con Ctrl+rotella zoomi. Le parentesi arancioni sono Start ed End della cella, che si cambiano nella scheda Main.
+   - I pulsanti **− [ ] +** (in basso a destra) zoomano; con la **rotella** zoomi attorno al mouse, con **Maiusc+rotella** scorri. Le parentesi arancioni sono Start ed End della cella, che si cambiano nella scheda Main.
    - Passando il mouse su una slice si vede la sua **durata in ms**.
 4. La striscia **CELLS** mostra le celle che verranno riempite: in arancione con il **numero della slice**, la cella originale con il contorno bianco (**original**), le celle già occupate in rosso con un triangolo e la scritta **occupied** (verrebbero sostituite). **Clicca una cella** per far partire la distribuzione da lì.
 5. **Keep original in A10** (acceso): le slice vanno nelle celle **dopo** l'originale, che resta com'è. Spento: partono dalla cella stessa del loop.
@@ -36,7 +36,8 @@ La scritta in basso a sinistra riassume tutto: numero di slice, da quale a quale
 
 - **Play zone** (riga SOURCE) o la **barra spaziatrice** suona la zona dall'inizio alla fine con un cursore bianco; premi di nuovo (o **Esc**) per **fermare**. Nella scheda Slice la barra spaziatrice comanda quindi l'ascolto della zona e non il sequencer. Esc ferma anche il Chop e il Click test.
 - Un clic su una slice suona solo quella slice (con Audition acceso).
-- Con lo **zoom** la forma d'onda **segue il cursore** mentre suona (a pagine). Se sposti la vista a mano (rotella) il seguimento si ferma per qualche secondo. Lo zoom con i pulsanti **− [ ] +** si centra sul cursore se sta suonando; Ctrl+rotella zooma **attorno al mouse**.
+- Con lo **zoom** la forma d'onda **segue il cursore** mentre suona (a pagine). Se sposti la vista a mano (rotella) il seguimento si ferma per qualche secondo. Lo zoom con i pulsanti **− [ ] +** si centra sul cursore se sta suonando; la rotella zooma **attorno al mouse** (Maiusc+rotella scorre).
+- **Scrub**: **trascina** il mouse sulla forma d'onda per sentire il punto sotto il cursore (brevi ascolti da 140 ms mentre ti muovi). Un clic sul **righello del tempo** (la fascia dei numeri in alto) suona dal punto indicato fino alla fine della zona; trascinando sul righello fai lo scrub. Mentre la musica suona (o durante lo scrub) la slice sotto il mouse non si evidenzia.
 
 ## Sorgente: una cella o un file esterno
 
