@@ -2,6 +2,7 @@
 
 #include "../PluginProcessor.h"
 #include "Theme.h"
+#include <set>
 
 // Griglia di celle (righe A.., colonne 1..) con mini forma d'onda per pad. Selezione, anteprima al clic,
 // drag & drop di file, menu contestuale con il tasto destro.
@@ -17,6 +18,13 @@ public:
 
     int getSelected() const { return selected; }
     void setSelected (int cell);
+
+    // Selezione multipla: Ctrl+clic aggiunge/toglie una cella, Maiusc+clic seleziona l'intervallo dall'ultima cella cliccata,
+    // Ctrl+A seleziona tutte, Esc torna alla sola cella corrente. Su tutte le celle selezionate: Canc / menu per svuotarle.
+    std::vector<int> selectedCells() const;            // tutte le celle selezionate, in ordine (include quella corrente)
+    void selectAll();
+    void clearMultiSelection();
+    void clearSelectedCells();                         // chiede conferma e svuota le celle selezionate che hanno un campione
 
     std::function<void (int)> onSelectionChanged;
     std::function<void (int, const juce::File&)> onFileDropped;   // file da Esplora risorse/Finder
@@ -67,6 +75,9 @@ private:
 
     SampleLabProcessor& processor;
     int selected = 0;
+    std::set<int> multi;               // celle selezionate in piu' rispetto a quella corrente (vuoto = selezione singola)
+    int anchor = 0;                    // da dove parte la selezione a intervallo
+    bool isInSelection (int cell) const { return cell == selected || multi.count (cell) > 0; }
     int hover = -1;
     int heldNote = -1;
     std::vector<int> lastActivity;

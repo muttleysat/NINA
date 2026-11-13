@@ -144,6 +144,26 @@ bool SampleLabEditor::keyPressed (const juce::KeyPress& key)
         toggleTransport();
         return true;
     }
+
+    // Griglia delle celle (scheda Main): Canc/Backspace svuota le celle selezionate, Ctrl+A le seleziona tutte, Esc deseleziona
+    if (currentTab == 0)
+    {
+        if (key == juce::KeyPress::deleteKey || key == juce::KeyPress::backspaceKey)
+        {
+            grid.clearSelectedCells();
+            return true;
+        }
+        if (key == juce::KeyPress ('a', juce::ModifierKeys::commandModifier, 0))
+        {
+            grid.selectAll();
+            return true;
+        }
+        if (key == juce::KeyPress::escapeKey)
+        {
+            grid.clearMultiSelection();
+            return true;
+        }
+    }
     return false;
 }
 

@@ -22,6 +22,21 @@ Formati letti: WAV, AIFF, FLAC, OGG, MP3.
 - **Rename...** – rinomina la cella.
 - **Clear cell** – svuota la cella.
 
+### Selezione multipla
+
+Per lavorare su più celle insieme (per esempio svuotarle in blocco, dopo aver distribuito delle slice):
+
+| Gesto | Effetto |
+|-------|---------|
+| **Ctrl+clic** (Cmd su Mac) su un pad | Aggiunge o toglie quel pad dalla selezione |
+| **Maiusc+clic** su un pad | Seleziona tutti i pad dall'ultimo cliccato a questo (anche su più righe, in ordine A1, A2…) |
+| **Ctrl+A** | Seleziona tutte le celle |
+| **Esc** o un clic semplice | Torna alla sola cella corrente |
+| **Canc** (o Backspace) | **Svuota** le celle selezionate che hanno un campione: chiede conferma e dice quante sono |
+| **Tasto destro** su una cella selezionata | Menu con **Clear N selected cells**, **Add N selected to sequencer**, **Remove N selected from sequencer**, **Select only this cell** |
+
+I pad selezionati hanno il bordo e un velo arancione; quello **corrente** (il cui pannello vedi a destra) ha anche l'alone. Con Ctrl o Maiusc il pad non suona. Non c'è l'annullamento: svuotare una cella toglie il campione (il file sul disco non viene toccato) e le sue impostazioni di cella restano.
+
 ### Selezionare e ascoltare
 
 Un clic sul pad lo **seleziona** e lo fa suonare (finché tieni premuto, per le modalità Gate e Loop). Il pad selezionato ha il bordo arancione, e il pannello a destra, la forma d'onda e i moduli in basso mostrano **le sue** impostazioni.

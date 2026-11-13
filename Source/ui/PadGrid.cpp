@@ -11,12 +11,72 @@ PadGrid::~PadGrid()
         processor.getKeyboardState().noteOff (1, heldNote, 0.0f);
 }
 
+std::vector<int> PadGrid::selectedCells() const
+{
+    std::set<int> all = multi;
+    all.insert (selected);
+    std::vector<int> out;
+    for (const int c : all)
+        if (c >= 0 && c < processor.getKit().numCells())
+            out.push_back (c);
+    return out;
+}
+
+void PadGrid::selectAll()
+{
+    multi.clear();
+    for (int i = 0; i < processor.getKit().numCells(); ++i)
+        multi.insert (i);
+    repaint();
+}
+
+void PadGrid::clearMultiSelection()
+{
+    if (multi.empty())
+        return;
+    multi.clear();
+    repaint();
+}
+
+void PadGrid::clearSelectedCells()
+{
+    std::vector<int> toClear;
+    for (const int c : selectedCells())
+        if (processor.getKit().cells[(size_t) c].hasSample())
+            toClear.push_back (c);
+    if (toClear.empty())
+        return;
+
+    const int n = (int) toClear.size();
+    juce::Component::SafePointer<PadGrid> safe (this);
+    juce::AlertWindow::showAsync (juce::MessageBoxOptions()
+                                      .withIconType (juce::MessageBoxIconType::QuestionIcon)
+                                      .withTitle ("Clear cells")
+                                      .withMessage (n == 1 ? "Remove the sample from the selected cell?"
+                                                           : "Remove the samples from the " + juce::String (n) + " selected cells?")
+                                      .withButton ("Clear")
+                                      .withButton ("Cancel")
+                                      .withAssociatedComponent (this),
+                                  [safe, toClear] (int r)
+                                  {
+                                      if (r != 1 || safe == nullptr)
+                                          return;
+                                      for (const int c : toClear)
+                                          safe->processor.clearCell (c);
+                                      safe->multi.clear();
+                                      safe->repaint();
+                                      if (safe->onKitChanged)
+                                          safe->onKitChanged();
+                                  });
+}
+
 void PadGrid::setSelected (int cell)
 {
     cell = juce::jlimit (0, juce::jmax (0, processor.getKit().numCells() - 1), cell);
     if (cell == selected)
         return;
     selected = cell;
+    anchor = cell;
     repaint();
     if (onSelectionChanged)
         onSelectionChanged (selected);
@@ -177,6 +237,7 @@ void PadGrid::paint (juce::Graphics& g)
         const bool filled = c.hasSample();
         const bool active = i < (int) lastActivity.size() && lastActivity[(size_t) i] > 0;
         const bool sel = (i == selected);
+        const bool inMulti = multi.count (i) > 0 && ! sel;
         const auto col = juce::Colour (c.colour);
         const float rad = 8.0f * s;
 
@@ -237,8 +298,20 @@ void PadGrid::paint (juce::Graphics& g)
             }
         }
 
+        // Selezione multipla: velo arancione e bordo, piu' sobri della cella corrente
+        if (inMulti)
+        {
+            g.setColour (theme::accent.withAlpha (0.14f));
+            g.fillRoundedRectangle (b, rad);
+        }
+
         // Bordo; selezione con alone arancione
-        if (sel)
+        if (inMulti)
+        {
+            g.setColour (theme::accent.withAlpha (0.85f));
+            g.drawRoundedRectangle (b.reduced (0.5f), rad, 1.8f * s);
+        }
+        else if (sel)
         {
             for (int k = 3; k >= 1; --k)
             {
@@ -316,13 +389,65 @@ void PadGrid::mouseDown (const juce::MouseEvent& e)
     if (cell < 0)
         return;
 
-    setSelected (cell);
-
+    // Tasto destro: se la cella non e' gia' nella selezione, la selezione diventa solo lei
     if (e.mods.isPopupMenu())
     {
+        if (! isInSelection (cell))
+        {
+            multi.clear();
+            setSelected (cell);
+        }
+        repaint();
         showContextMenu (cell);
         return;
     }
+
+    // Maiusc+clic: intervallo dall'ultima cella cliccata (nessun suono); l'ancora resta dov'era per poter riallargare l'intervallo
+    if (e.mods.isShiftDown())
+    {
+        const int keep = anchor;
+        const int from = juce::jmin (keep, cell), to = juce::jmax (keep, cell);
+        multi.clear();
+        for (int i = from; i <= to; ++i)
+            if (i != cell)
+                multi.insert (i);
+        setSelected (cell);
+        anchor = keep;
+        repaint();
+        return;
+    }
+
+    // Ctrl (Cmd su Mac) + clic: aggiunge o toglie la cella dalla selezione (nessun suono)
+    if (e.mods.isCommandDown())
+    {
+        if (isInSelection (cell))
+        {
+            if (cell == selected)
+            {
+                if (! multi.empty())                       // la cella corrente esce: ne diventa corrente un'altra della selezione
+                {
+                    const int next = *multi.rbegin();
+                    multi.erase (next);
+                    setSelected (next);
+                }
+            }
+            else
+                multi.erase (cell);
+        }
+        else
+        {
+            multi.insert (selected);                       // la cella corrente resta nella selezione; quella cliccata diventa corrente
+            setSelected (cell);
+        }
+        anchor = cell;
+        repaint();
+        return;
+    }
+
+    // Clic semplice: selezione singola e anteprima
+    multi.clear();
+    anchor = cell;
+    setSelected (cell);
 
     // Anteprima: suona la nota della cella
     const auto& c = processor.getKit().cells[(size_t) cell];
@@ -331,6 +456,7 @@ void PadGrid::mouseDown (const juce::MouseEvent& e)
         heldNote = c.lowNote;
         processor.getKeyboardState().noteOn (1, heldNote, 0.8f);
     }
+    repaint();
 }
 
 void PadGrid::mouseUp (const juce::MouseEvent&)
@@ -344,6 +470,52 @@ void PadGrid::mouseUp (const juce::MouseEvent&)
 
 void PadGrid::showContextMenu (int cell)
 {
+    const auto sel = selectedCells();
+    if (sel.size() > 1)
+    {
+        int withSample = 0, inSeq = 0;
+        for (const int c : sel)
+        {
+            withSample += processor.getKit().cells[(size_t) c].hasSample() ? 1 : 0;
+            inSeq += processor.activePattern().findLane (c) != nullptr ? 1 : 0;
+        }
+        juce::PopupMenu mm;
+        mm.addItem (1, "Add " + juce::String (withSample) + " selected to sequencer", withSample > 0);
+        mm.addItem (2, "Remove " + juce::String (inSeq) + " selected from sequencer", inSeq > 0);
+        mm.addSeparator();
+        mm.addItem (3, "Clear " + juce::String (withSample) + " selected cell" + (withSample == 1 ? "" : "s"), withSample > 0);
+        mm.addSeparator();
+        mm.addItem (4, "Select only this cell");
+        mm.showMenuAsync (juce::PopupMenu::Options().withTargetScreenArea (localAreaToGlobal (cellBounds (cell).toNearestInt())),
+                          [this, sel, cell] (int r)
+                          {
+                              if (r == 1)
+                              {
+                                  for (const int c : sel)
+                                      if (processor.getKit().cells[(size_t) c].hasSample())
+                                          processor.addLaneForCell (c);
+                                  repaint();
+                                  if (onKitChanged) onKitChanged();
+                              }
+                              else if (r == 2)
+                              {
+                                  for (const int c : sel)
+                                      processor.removeLaneForCell (c);
+                                  repaint();
+                                  if (onKitChanged) onKitChanged();
+                              }
+                              else if (r == 3)
+                                  clearSelectedCells();
+                              else if (r == 4)
+                              {
+                                  multi.clear();
+                                  setSelected (cell);
+                                  repaint();
+                              }
+                          });
+        return;
+    }
+
     juce::PopupMenu m;
     const bool filled = processor.getKit().cells[(size_t) cell].hasSample();
     const bool inSequencer = processor.activePattern().findLane (cell) != nullptr;
