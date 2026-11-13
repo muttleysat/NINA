@@ -2,6 +2,7 @@
 
 #include <juce_core/juce_core.h>
 #include <cmath>
+#include <vector>
 #include "FxParams.h"
 
 namespace sl
@@ -35,6 +36,7 @@ struct CellParams
 
     // Loop: se tempoSync e' acceso il campione segue il BPM del progetto (loopBpm = tempo originale del loop, 0 = sconosciuto).
     // keyLock: il cambio di tempo non cambia l'intonazione (Rubber Band); spento il campione cambia anche di altezza (varispeed).
+    std::vector<float> slices;         // marcatori di slice (0..1 sul campione) lasciati nella scheda Slice: solo per riprenderli
     int output = 0;                    // uscita verso la DAW: 0 = Main (mix), 1..15 = Out 2..Out 16 (solo plugin, se il bus e' attivo)
 
     bool tempoSync = false;

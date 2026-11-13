@@ -8,6 +8,7 @@
 #include "ui/CellPanel.h"
 #include "ui/FxPanel.h"
 #include "ui/SeqPanel.h"
+#include "ui/SlicePanel.h"
 #include "ui/SampleBrowser.h"
 
 class SampleLabEditor final : public juce::AudioProcessorEditor,
@@ -67,9 +68,11 @@ private:
     ModulesBar modules;
     FxPanel fxPanel;
     SeqPanel seqPanel;
+    SlicePanel slicePanel;
+    int sliceCell = -1;
     int kickTick = 1000;                // conta i tick dopo l'aggancio alla finestra: a intervalli si rifa il layout di tutto
     int lastLoggedW = 0, lastLoggedH = 0;
-    int currentTab = 0;                 // 0 = Main, 1 = Seq, 3 = FX (Mixer arrivera' con le fasi successive)
+    int currentTab = 0;                 // 0 = Main, 1 = Seq, 3 = FX, 4 = Slice (Mixer arrivera' con le fasi successive)
     std::unique_ptr<juce::FileChooser> chooser;
 
     juce::Rectangle<int> topBar, tabBar;

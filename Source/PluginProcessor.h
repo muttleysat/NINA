@@ -108,6 +108,9 @@ public:
 
     // Loop: sincronizzazione al tempo (BPM della DAW o interno) con Key Lock. Il campione originale non cambia: quello usato
     // dal motore e' una copia elaborata in background con Rubber Band (o l'originale se la sincronizzazione e' spenta).
+    // Slice: anteprima di una regione del campione di una cella; distribuzione delle slice sulle celle (stesso file, Start/End diversi)
+    void auditionCellRegion (int cell, float start, float end, float gainDb);
+    int distributeSlices (int sourceCell, const std::vector<float>& bounds, int firstTarget);   // bounds = n+1 limiti; ritorna le celle riempite
     void detectLoopBpm (int cell);                 // stima il BPM del loop dalla durata (regione Start..End) e lo imposta sulla cella
     bool isStretching (int cell) const;            // true mentre la copia elaborata e' in preparazione
 

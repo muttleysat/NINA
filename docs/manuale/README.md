@@ -16,6 +16,7 @@ Sample Lab è un campionatore a celle (stile drum machine) con sequencer a step,
 | 6 | [Automazione e MIDI learn](06-automazione-e-midi-learn.md) | Parametri della DAW, nomi, MIDI learn dei controlli |
 | 7 | [Esportare nella DAW](07-esportare-nella-daw.md) | MIDI, audio, righe separate, trascinamento in Cubase |
 | 8 | [Scorciatoie, limiti e problemi](08-scorciatoie-limiti-problemi.md) | Tasti rapidi, cosa non c'è ancora, risoluzione dei problemi |
+| 9 | [Slice](09-slice.md) | Tagliare un loop in slice e distribuirle sulle celle |
 
 ## Convenzioni
 

@@ -76,9 +76,11 @@ void Engine::prepare (double sr, int maxBlockSize)
     masterDelayWasOn = masterReverbWasOn = false;
 }
 
-void Engine::playPreview (const SampleData* data, float gain)
+void Engine::playPreview (const SampleData* data, float gain, float start, float end)
 {
     previewGain.store (gain, std::memory_order_relaxed);
+    previewStart.store (juce::jlimit (0.0f, 1.0f, start), std::memory_order_relaxed);
+    previewEnd.store (juce::jlimit (0.0f, 1.0f, end), std::memory_order_relaxed);
 
     auto snap = std::make_shared<KitSnapshot>();
     if (data != nullptr)
@@ -359,6 +361,8 @@ void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& 
         {
             CellDsp d;
             d.gain = previewGain.load (std::memory_order_relaxed);
+            d.start = previewStart.load (std::memory_order_relaxed);
+            d.end = previewEnd.load (std::memory_order_relaxed);
             d.rootNote = d.lowNote = d.highNote = 60;
             d.attack = 0.001f;
             d.release = 0.02f;

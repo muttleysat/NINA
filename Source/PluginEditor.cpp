@@ -22,7 +22,7 @@ void relayoutAll (juce::Component& c)
 }
 
 SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
-    : AudioProcessorEditor (&p), processor (p), grid (p), waveStrip (p), cellPanel (p), modules (p), fxPanel (p), seqPanel (p)
+    : AudioProcessorEditor (&p), processor (p), grid (p), waveStrip (p), cellPanel (p), modules (p), fxPanel (p), seqPanel (p), slicePanel (p)
 {
     juce::LookAndFeel::setDefaultLookAndFeel (&lnf);
 
@@ -68,6 +68,8 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     addAndMakeVisible (modules);
     addChildComponent (fxPanel);
     addChildComponent (seqPanel);
+    addChildComponent (slicePanel);
+    slicePanel.onKitChanged = [this] { refreshAll(); };
 
     browser.onFileActivated = [this] (const juce::File& f) { loadIntoCell (grid.getSelected(), f); };
     browser.onPreview = [this] (const juce::File& f) { processor.auditionFile (f, browser.getPreviewGainDb()); };
@@ -110,6 +112,15 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
         uiLog ("editor created: requested " + juce::String (processor.uiWidth) + "x" + juce::String (processor.uiHeight)
                + " -> " + juce::String (w) + "x" + juce::String (h));
         setSize (w, h);
+    }
+    // Solo per prove: SAMPLELAB_TAB / SAMPLELAB_CELL aprono direttamente una scheda e selezionano una cella (schermate automatiche); SAMPLELAB_DETECT preme Detect
+    if (const auto tabEnv = juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_TAB", {}); tabEnv.isNotEmpty())
+    {
+        if (const auto cellEnv = juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_CELL", {}); cellEnv.isNotEmpty())
+            grid.setSelected (cellEnv.getIntValue());
+        showTab (tabEnv.getIntValue());
+        if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_DETECT", {}).isNotEmpty())
+            slicePanel.runDetect();
     }
     sizeButton.setButtonText ("Size " + juce::String (juce::roundToInt (processor.uiZoom * 100.0f)) + "%");
     refreshAll();
@@ -239,6 +250,13 @@ void SampleLabEditor::refreshCellViews()
     cellPanel.setCell (c);
     modules.setCell (c);
     fxPanel.setCell (c);
+    if (c != sliceCell)
+    {
+        sliceCell = c;
+        slicePanel.setCell (c);
+    }
+    else
+        slicePanel.refresh();
 }
 
 // ------------------------------------------------------------------- Schede
@@ -246,23 +264,26 @@ void SampleLabEditor::refreshCellViews()
 juce::Rectangle<int> SampleLabEditor::tabRect (int index) const
 {
     const float s = theme::scaleFor (*this);
-    auto r = tabBar.reduced ((int) (10 * s), (int) (4 * s));
-    const int tw = (int) (74 * s), gap = (int) (6 * s);
+    auto r = tabBar.reduced ((int) (12 * s), (int) (5 * s));
+    const int tw = (int) (124 * s), gap = (int) (10 * s);
     return { r.getX() + index * (tw + gap), r.getY(), tw, r.getHeight() };
 }
 
 void SampleLabEditor::showTab (int tab)
 {
     currentTab = tab;
-    const bool seq = tab == 1;
+    const bool seq = tab == 1, slice = tab == 4;
 
     // La scheda Seq occupa lo spazio di griglia, forma d'onda e moduli
     browser.setVisible (! seq);
-    cellPanel.setVisible (! seq);
-    grid.setVisible (! seq);
-    waveStrip.setVisible (! seq);
+    cellPanel.setVisible (! seq && ! slice);
+    grid.setVisible (! seq && ! slice);
+    waveStrip.setVisible (! seq && ! slice);
+    slicePanel.setVisible (slice);
     seqPanel.setVisible (seq);
     modules.setVisible (tab == 0);
+    if (slice)
+        slicePanel.setCell (grid.getSelected());
     fxPanel.setVisible (tab == 3);
     if (seq)
         seqPanel.refresh();
@@ -272,8 +293,8 @@ void SampleLabEditor::showTab (int tab)
 
 void SampleLabEditor::mouseDown (const juce::MouseEvent& e)
 {
-    // Schede attive: Main (0), Seq (1) e FX (3)
-    for (int tab : { 0, 1, 3 })
+    // Schede attive: Main (0), Seq (1), FX (3) e Slice (4)
+    for (int tab : { 0, 1, 3, 4 })
         if (tabRect (tab).contains (e.getPosition()))
             showTab (tab);
 }
@@ -529,26 +550,52 @@ void SampleLabEditor::paint (juce::Graphics& g)
     g.setColour (theme::accent);
     g.drawText ("LAB", logoArea.withTrimmedLeft (sw), juce::Justification::centredLeft);
 
-    // Barra delle schede in basso: per ora e' attiva solo "Main" (le altre arriveranno con le fasi successive)
+    // Barra delle schede in basso: pulsanti con icona; quello della scheda aperta e' acceso (arancione con alone)
     g.setColour (theme::panel);
     g.fillRect (tabBar);
     g.setColour (theme::border);
     g.drawHorizontalLine (tabBar.getY(), 0.0f, (float) getWidth());
 
-    const char* tabs[] = { "Main", "Seq", "Mixer", "FX" };
-    g.setFont (juce::FontOptions (juce::jmax (10.0f, 13.0f * s), juce::Font::bold));
-    for (int i = 0; i < 4; ++i)
+    struct TabInfo { const char* name; IconButton::Icon icon; bool enabled; };
+    const TabInfo tabs[] = { { "Main", IconButton::Icon::TabMain, true }, { "Seq", IconButton::Icon::TabSeq, true },
+                             { "Mixer", IconButton::Icon::Mixer, false }, { "FX", IconButton::Icon::Cube, true },
+                             { "Slice", IconButton::Icon::Scissors, true } };
+    for (int i = 0; i < 5; ++i)
     {
-        const auto tab = tabRect (i);
-        if (i == currentTab)
+        const auto tab = tabRect (i).toFloat();
+        const bool active = i == currentTab;
+        const float rad = 9.0f * s;
+
+        if (active)
         {
+            for (int k = 3; k >= 1; --k)                                       // alone
+            {
+                g.setColour (theme::accent.withAlpha (0.07f * (float) (4 - k)));
+                g.drawRoundedRectangle (tab.expanded ((float) k * 1.8f * s), rad + (float) k, 1.8f * s);
+            }
+            g.setGradientFill (juce::ColourGradient (theme::accent.withAlpha (0.42f), 0.0f, tab.getY(), theme::accent.withAlpha (0.16f), 0.0f, tab.getBottom(), false));
+            g.fillRoundedRectangle (tab, rad);
             g.setColour (theme::accent);
-            g.fillRoundedRectangle (tab.toFloat(), 6.0f * s);
-            g.setColour (juce::Colour (0xff1a1006));
+            g.drawRoundedRectangle (tab.reduced (0.7f), rad, 1.8f);
         }
         else
-            g.setColour (i == 0 || i == 1 || i == 3 ? theme::text.withAlpha (0.85f) : theme::textDim.withAlpha (0.45f));   // Mixer arrivera'
-        g.drawText (tabs[i], tab, juce::Justification::centred);
+        {
+            g.setColour (theme::panelHi.withAlpha (tabs[i].enabled ? 1.0f : 0.5f));
+            g.fillRoundedRectangle (tab, rad);
+            g.setColour (theme::border);
+            g.drawRoundedRectangle (tab.reduced (0.5f), rad, 1.0f);
+        }
+
+        const juce::Colour ink = ! tabs[i].enabled ? theme::textDim.withAlpha (0.5f) : (active ? juce::Colour (0xfffff3e8) : theme::text.withAlpha (0.92f));
+        const float isz = juce::jmin (tab.getHeight() * 0.46f, 24.0f * s);
+        const float textW = 44.0f * s;
+        const float contentW = isz + 10.0f * s + textW;
+        const float x0 = tab.getCentreX() - contentW * 0.5f;
+        IconButton::drawIcon (g, tabs[i].icon, juce::Rectangle<float> (x0, tab.getCentreY() - isz * 0.5f, isz, isz),
+                              active ? theme::accentSoft : ink, s);
+        g.setColour (ink);
+        g.setFont (juce::FontOptions (juce::jmax (10.0f, 15.0f * s), juce::Font::bold));
+        g.drawText (tabs[i].name, juce::Rectangle<float> (x0 + isz + 10.0f * s, tab.getY(), textW + 20.0f * s, tab.getHeight()), juce::Justification::centredLeft);
     }
 }
 
@@ -608,7 +655,7 @@ void SampleLabEditor::resized()
         kitMenuButton.setBounds (center.removeFromLeft (btnW));
     }
 
-    tabBar = area.removeFromBottom (juce::jmax (22, (int) (32 * s)));
+    tabBar = area.removeFromBottom (juce::jmax (30, (int) (52 * s)));
     area.reduce (m, m);
 
     // Fila dei moduli, a tutta larghezza: altezza proporzionale (limiti espressi in unita' scalate)
@@ -622,6 +669,7 @@ void SampleLabEditor::resized()
     const auto fullArea = area;
     browser.setBounds (area.removeFromLeft (juce::jlimit (190, 330, getWidth() * 19 / 100)));
     area.removeFromLeft (m);
+    const int browserRight = area.getX();
     cellPanel.setBounds (area.removeFromRight (juce::jlimit (210, 340, getWidth() * 21 / 100)));
     area.removeFromRight (m);
 
@@ -629,6 +677,9 @@ void SampleLabEditor::resized()
     waveStrip.setBounds (area.removeFromBottom (waveH));
     area.removeFromBottom (m);
     grid.setBounds (area);
+
+    // Scheda Slice: tra il browser e il bordo destro, da sopra la griglia fino al fondo dei moduli
+    slicePanel.setBounds (browserRight, fullArea.getY(), fullArea.getRight() - browserRight, bottomArea.getBottom() - fullArea.getY());
 
     // Scheda Seq: da sopra la griglia fino al fondo dei moduli
     seqPanel.setBounds (fullArea.getX(), fullArea.getY(), fullArea.getWidth(), bottomArea.getBottom() - fullArea.getY());

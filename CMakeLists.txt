@@ -56,6 +56,7 @@ juce_add_plugin(SampleLab
 set(SAMPLELAB_CORE_SOURCES
     Source/engine/SampleData.cpp
     Source/engine/LoopStretch.cpp
+    Source/engine/SliceDetect.cpp
     Source/engine/Voice.cpp
     Source/engine/FxChain.cpp
     Source/params/ParamSet.cpp
@@ -80,6 +81,7 @@ target_sources(SampleLab PRIVATE
     Source/ui/Widgets.cpp
     Source/ui/LookAndFeel.cpp
     Source/ui/SampleBrowser.cpp
+    Source/ui/SlicePanel.cpp
 )
 
 target_include_directories(SampleLab PRIVATE Source)

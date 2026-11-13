@@ -6,17 +6,31 @@
 class IconButton : public juce::TextButton
 {
 public:
-    enum class Icon { None, Midi, Wave, Layers, Reset, Grid, More };
+    enum class Icon { None, Midi, Wave, Layers, Reset, Grid, More, TabMain, TabSeq, Mixer, Cube, Scissors, Trash, ArrowRight };
 
     explicit IconButton (const juce::String& text = {}, Icon i = Icon::None) : juce::TextButton (text), icon (i) {}
     void setIcon (Icon i) { icon = i; repaint(); }
+    void setPrimary (bool p) { primary = p; repaint(); }
+    void setIconOnRight (bool r) { iconRight = r; repaint(); }        // pulsante d'azione: pieno arancione con testo scuro
 
     void paintButton (juce::Graphics& g, bool highlighted, bool down) override
     {
-        auto& lf = getLookAndFeel();
-        lf.drawButtonBackground (g, *this, findColour (getToggleState() ? buttonOnColourId : buttonColourId), highlighted, down);
-
         const float s = theme::scaleFor (*this);
+        if (primary)
+        {
+            const auto r = getLocalBounds().toFloat().reduced (0.5f);
+            const auto base = isEnabled() ? theme::accent : theme::panelHi;
+            g.setGradientFill (juce::ColourGradient (base.brighter (down ? 0.0f : (highlighted ? 0.25f : 0.12f)), 0.0f, r.getY(),
+                                                     base.darker (0.12f), 0.0f, r.getBottom(), false));
+            g.fillRoundedRectangle (r, 8.0f * s);
+        }
+        else
+        {
+            auto& lf = getLookAndFeel();
+            lf.drawButtonBackground (g, *this, findColour (getToggleState() ? buttonOnColourId : buttonColourId), highlighted, down);
+        }
+        const juce::Colour ink = primary ? juce::Colour (0xff1a1006) : theme::text;
+        const juce::Colour iconInk = primary ? juce::Colour (0xff1a1006) : theme::accent;
         auto b = getLocalBounds().toFloat();
         const float isz = juce::jmin (b.getHeight() * 0.52f, 15.0f * s);
         const auto label = getButtonText();
@@ -29,23 +43,31 @@ public:
                 iconRect = juce::Rectangle<float> (isz * 1.2f, isz).withCentre (b.getCentre());
             else
             {
-                iconRect = juce::Rectangle<float> (isz, isz).withCentre ({ b.getX() + 10.0f * s + isz * 0.5f, b.getCentreY() });
-                textRect = b.withTrimmedLeft (iconRect.getRight() - b.getX() + 2.0f * s);
+                if (iconRight)
+                {
+                    iconRect = juce::Rectangle<float> (isz * 1.3f, isz).withCentre ({ b.getRight() - 14.0f * s - isz * 0.65f, b.getCentreY() });
+                    textRect = b.withTrimmedRight (b.getRight() - iconRect.getX() + 2.0f * s);
+                }
+                else
+                {
+                    iconRect = juce::Rectangle<float> (isz, isz).withCentre ({ b.getX() + 10.0f * s + isz * 0.5f, b.getCentreY() });
+                    textRect = b.withTrimmedLeft (iconRect.getRight() - b.getX() + 2.0f * s);
+                }
             }
-            drawIcon (g, icon, iconRect, isEnabled() ? theme::accent : theme::textDim, s);
+            drawIcon (g, icon, iconRect, isEnabled() ? iconInk : theme::textDim, s);
         }
 
         if (label.isNotEmpty())
         {
-            g.setColour (isEnabled() ? theme::text : theme::textDim);
+            g.setColour (isEnabled() ? ink : theme::textDim);
             g.setFont (juce::FontOptions (juce::jmax (10.0f, 13.0f * s), juce::Font::bold));
             g.drawText (label, textRect.toNearestInt(), juce::Justification::centred, true);
         }
     }
 
-    static void drawIcon (juce::Graphics& g, Icon icon, juce::Rectangle<float> r, juce::Colour c, float s)
+    static void drawIcon (juce::Graphics& g, Icon icon, juce::Rectangle<float> r, juce::Colour colour, float s)
     {
-        g.setColour (c);
+        g.setColour (colour);
         const float lw = juce::jmax (1.3f, 1.5f * s);
         switch (icon)
         {
@@ -124,10 +146,104 @@ public:
                     g.fillEllipse (r.getCentreX() + (float) k * 5.0f * s - 1.8f * s, r.getCentreY() - 1.8f * s, 3.6f * s, 3.6f * s);
                 break;
             }
+            case Icon::TabMain:         // griglia di 3x3 puntini
+            {
+                const float cell = r.getHeight() / 3.0f;
+                const float dot = cell * 0.52f;
+                const auto o = juce::Rectangle<float> (cell * 3.0f, cell * 3.0f).withCentre (r.getCentre());
+                for (int row = 0; row < 3; ++row)
+                    for (int col = 0; col < 3; ++col)
+                        g.fillEllipse (o.getX() + (float) col * cell + (cell - dot) * 0.5f, o.getY() + (float) row * cell + (cell - dot) * 0.5f, dot, dot);
+                break;
+            }
+            case Icon::TabSeq:          // step di un sequencer: 2 righe di 4 quadratini, alcuni pieni
+            {
+                const float cw = juce::jmin (r.getWidth() * 0.21f, r.getHeight() * 0.42f), gap = cw * 0.28f;
+                const auto o = juce::Rectangle<float> (cw * 4.0f + gap * 3.0f, cw * 2.0f + gap).withCentre (r.getCentre());
+                const bool on[2][4] = { { true, false, true, false }, { false, true, false, true } };
+                for (int row = 0; row < 2; ++row)
+                    for (int col = 0; col < 4; ++col)
+                    {
+                        const auto q = juce::Rectangle<float> (o.getX() + (float) col * (cw + gap), o.getY() + (float) row * (cw + gap), cw, cw);
+                        if (on[row][col])
+                            g.fillRoundedRectangle (q, 1.5f);
+                        else
+                            g.drawRoundedRectangle (q.reduced (0.6f), 1.5f, lw * 0.8f);
+                    }
+                break;
+            }
+            case Icon::Mixer:           // tre cursori verticali a altezze diverse
+            {
+                const float ys[] = { 0.62f, 0.32f, 0.5f };
+                for (int k = 0; k < 3; ++k)
+                {
+                    const float x = r.getX() + r.getWidth() * (0.18f + 0.32f * (float) k);
+                    g.drawLine (x, r.getY() + 1.0f, x, r.getBottom() - 1.0f, lw);
+                    g.fillRoundedRectangle (x - r.getHeight() * 0.18f, r.getY() + r.getHeight() * ys[k] - r.getHeight() * 0.08f,
+                                            r.getHeight() * 0.36f, r.getHeight() * 0.18f, 1.5f);
+                }
+                break;
+            }
+            case Icon::Cube:            // cubo isometrico
+            {
+                const auto c = r.getCentre();
+                const float R = r.getHeight() * 0.52f;
+                juce::Path hex;
+                for (int k = 0; k < 6; ++k)
+                {
+                    const float a = juce::MathConstants<float>::pi / 3.0f * (float) k - juce::MathConstants<float>::halfPi;
+                    const juce::Point<float> p (c.x + std::cos (a) * R, c.y + std::sin (a) * R);
+                    if (k == 0) hex.startNewSubPath (p); else hex.lineTo (p);
+                }
+                hex.closeSubPath();
+                g.strokePath (hex, juce::PathStrokeType (lw, juce::PathStrokeType::curved));
+                g.drawLine (c.x, c.y, c.x, c.y - R, lw);
+                g.drawLine (c.x, c.y, c.x + std::cos (juce::MathConstants<float>::pi / 6.0f) * R, c.y + std::sin (juce::MathConstants<float>::pi / 6.0f) * R, lw);
+                g.drawLine (c.x, c.y, c.x - std::cos (juce::MathConstants<float>::pi / 6.0f) * R, c.y + std::sin (juce::MathConstants<float>::pi / 6.0f) * R, lw);
+                break;
+            }
+            case Icon::Scissors:        // forbici: due lame incrociate e due anelli
+            {
+                const float h = r.getHeight();
+                const auto c = r.getCentre();
+                const float ring = h * 0.17f;
+                g.drawEllipse (c.x - h * 0.30f - ring, c.y + h * 0.30f - ring, ring * 2.0f, ring * 2.0f, lw);
+                g.drawEllipse (c.x + h * 0.30f - ring, c.y + h * 0.30f - ring, ring * 2.0f, ring * 2.0f, lw);
+                g.drawLine (c.x - h * 0.30f + ring * 0.5f, c.y + h * 0.30f - ring * 0.8f, c.x + h * 0.40f, c.y - h * 0.46f, lw * 1.2f);
+                g.drawLine (c.x + h * 0.30f - ring * 0.5f, c.y + h * 0.30f - ring * 0.8f, c.x - h * 0.40f, c.y - h * 0.46f, lw * 1.2f);
+                break;
+            }
+            case Icon::Trash:           // cestino
+            {
+                const float h = r.getHeight();
+                const auto c = r.getCentre();
+                juce::Path bin;
+                bin.startNewSubPath (c.x - h * 0.30f, c.y - h * 0.18f);
+                bin.lineTo (c.x - h * 0.24f, c.y + h * 0.46f);
+                bin.lineTo (c.x + h * 0.24f, c.y + h * 0.46f);
+                bin.lineTo (c.x + h * 0.30f, c.y - h * 0.18f);
+                g.strokePath (bin, juce::PathStrokeType (lw, juce::PathStrokeType::curved));
+                g.drawLine (c.x - h * 0.42f, c.y - h * 0.26f, c.x + h * 0.42f, c.y - h * 0.26f, lw);
+                g.drawLine (c.x - h * 0.14f, c.y - h * 0.26f, c.x - h * 0.10f, c.y - h * 0.44f, lw);
+                g.drawLine (c.x + h * 0.14f, c.y - h * 0.26f, c.x + h * 0.10f, c.y - h * 0.44f, lw);
+                g.drawLine (c.x - h * 0.08f, c.y - h * 0.44f, c.x + h * 0.08f, c.y - h * 0.44f, lw);
+                g.drawLine (c.x, c.y - h * 0.08f, c.x, c.y + h * 0.34f, lw * 0.8f);
+                break;
+            }
+            case Icon::ArrowRight:      // freccia verso destra
+            {
+                const auto c = r.getCentre();
+                const float w = r.getWidth() * 0.5f;
+                g.drawLine (c.x - w, c.y, c.x + w, c.y, lw * 1.2f);
+                g.drawLine (c.x + w, c.y, c.x + w - r.getHeight() * 0.28f, c.y - r.getHeight() * 0.28f, lw * 1.2f);
+                g.drawLine (c.x + w, c.y, c.x + w - r.getHeight() * 0.28f, c.y + r.getHeight() * 0.28f, lw * 1.2f);
+                break;
+            }
             case Icon::None: break;
         }
     }
 
 private:
     Icon icon;
+    bool primary = false, iconRight = false;
 };

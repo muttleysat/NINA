@@ -1,5 +1,6 @@
 #include "engine/Engine.h"
 #include "engine/LoopStretch.h"
+#include "engine/SliceDetect.h"
 #include "kit/KitIO.h"
 #include "params/ParamSet.h"
 #include "params/MidiLearn.h"
@@ -1777,6 +1778,67 @@ public:
             }
             expectEquals (c1, 0);
             expectEquals (c0, 1);
+        }
+
+        beginTest ("Slices: onset detection finds the hits, even divisions are exact");
+        {
+            // 4 colpi (rumore a decadimento rapido) a 0, 0.5, 1.0 e 1.5 s in 2 s di silenzio altrimenti
+            auto d = std::make_shared<SampleData>();
+            const int n = (int) (2.0 * kSR);
+            d->audio.setSize (1, n);
+            d->audio.clear();
+            d->sampleRate = kSR;
+            juce::Random rnd (7);
+            for (const double t0 : { 0.0, 0.5, 1.0, 1.5 })
+            {
+                const int s0 = (int) (t0 * kSR);
+                for (int i = 0; i < (int) (0.2 * kSR) && s0 + i < n; ++i)
+                    d->audio.setSample (0, s0 + i, (rnd.nextFloat() * 2.0f - 1.0f) * std::exp (-(float) i / 2000.0f));
+            }
+
+            const auto m = detectSlices (*d, 0.6f);
+            expectEquals ((int) m.size(), 4);
+            if (m.size() == 4)
+            {
+                expectWithinAbsoluteError (m[0], 0.0f, 1.0e-6f);
+                for (int k = 1; k < 4; ++k)
+                    expect (std::abs (m[(size_t) k] * 2.0f - 0.5f * (float) k) < 0.012f, "marker " + juce::String (k) + " at " + juce::String (m[(size_t) k] * 2.0f));
+            }
+
+            // Regione: tra 0.25 e 0.75 della lunghezza (0.5 s .. 1.5 s): il primo marcatore e' la partenza della regione
+            const auto r = detectSlices (*d, 0.6f, 0.25f, 0.75f);
+            expect (r.size() >= 2 && std::abs (r[0] - 0.25f) < 1.0e-6f, "region starts at 0.25");
+            expect (r.size() == 2 || r.size() == 3, "region markers: " + juce::String ((int) r.size()));
+
+            // Silenzio: solo la partenza
+            auto silent = std::make_shared<SampleData>();
+            silent->audio.setSize (1, (int) kSR);
+            silent->audio.clear();
+            silent->sampleRate = kSR;
+            expectEquals ((int) detectSlices (*silent, 0.9f).size(), 1);
+
+            const auto ev = evenSlices (0.0f, 1.0f, 8);
+            expectEquals ((int) ev.size(), 8);
+            expectWithinAbsoluteError (ev[3], 0.375f, 1.0e-6f);
+            const auto ev2 = evenSlices (0.25f, 0.75f, 4);
+            expectWithinAbsoluteError (ev2[2], 0.5f, 1.0e-6f);
+        }
+
+        beginTest ("Slice markers survive a kit save and load");
+        {
+            auto tmp = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("sl_slice_test");
+            tmp.deleteRecursively();
+            tmp.createDirectory();
+            Kit k = Kit::makeDefault();
+            k.cells[2].slices = { 0.0f, 0.25f, 0.5f };
+            juce::String err;
+            const auto f = tmp.getChildFile ("Slice.slkit");
+            expect (KitIO::save (k, f, err), err);
+            Kit back;
+            expect (KitIO::load (f, back, err), err);
+            expectEquals ((int) back.cells[2].slices.size(), 3);
+            expect (back.cells[0].slices.empty());
+            tmp.deleteRecursively();
         }
     }
 };

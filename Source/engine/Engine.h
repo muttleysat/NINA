@@ -40,7 +40,7 @@ public:
     void publish (KitSnapshotPtr snapshot) { exchange.publish (std::move (snapshot)); }
 
     // Anteprima di un campione (browser). Thread UI/qualsiasi: il campione deve restare vivo finche' suona.
-    void playPreview (const SampleData* data, float gain);
+    void playPreview (const SampleData* data, float gain, float start = 0.0f, float end = 1.0f);   // start/end: regione (0..1)
     void stopPreview();
 
     // Thread audio. Somma nel buffer (che deve essere gia' azzerato dal chiamante).
@@ -98,5 +98,6 @@ private:
     std::array<std::atomic<int>, kMaxCells> activity {};
     std::atomic<float> peakL { 0.0f }, peakR { 0.0f };
     std::atomic<float> previewGain { 1.0f };
+    std::atomic<float> previewStart { 0.0f }, previewEnd { 1.0f };
 };
 }

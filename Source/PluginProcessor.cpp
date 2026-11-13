@@ -249,6 +249,55 @@ void SampleLabProcessor::auditionFile (const juce::File& file, float gainDb)
     });
 }
 
+void SampleLabProcessor::auditionCellRegion (int cell, float start, float end, float gainDb)
+{
+    if (cell < 0 || cell >= (int) cellData.size() || cellData[(size_t) cell] == nullptr)
+        return;
+    auto data = cellData[(size_t) cell];
+    {
+        const juce::ScopedLock lock (auditionLock);
+        auditionKeep.push_back (data);                      // la voce legge dal buffer: deve restare vivo
+        while (auditionKeep.size() > 8)
+            auditionKeep.pop_front();
+    }
+    ++auditionToken;                                         // annulla un'eventuale anteprima di file in caricamento
+    engine.playPreview (data.get(), sl::dbToGain (gainDb), start, end);
+}
+
+int SampleLabProcessor::distributeSlices (int sourceCell, const std::vector<float>& bounds, int firstTarget)
+{
+    if (sourceCell < 0 || sourceCell >= kit.numCells() || bounds.size() < 2 || firstTarget < 0 || ! kit.cells[(size_t) sourceCell].hasSample())
+        return 0;
+
+    const auto path = kit.cells[(size_t) sourceCell].samplePath;
+    const auto baseName = kit.cells[(size_t) sourceCell].name;
+    const juce::File file (path);
+    int filled = 0;
+
+    for (int i = 0; i + 1 < (int) bounds.size(); ++i)
+    {
+        const int target = firstTarget + i;
+        if (target >= kit.numCells())
+            break;
+
+        juce::String err;
+        if (! loadSampleIntoCell (target, file, err))       // stesso file (in cache): nessuna copia dei dati
+            break;
+
+        auto& c = kit.cells[(size_t) target];
+        c.name = baseName + " " + juce::String (i + 1).paddedLeft ('0', 2);
+        c.slices.clear();
+        c.tempoSync = false;
+        c.loopBpm = 0.0f;
+        const auto& refs = params.cell (target);
+        refs.at (sl::CellF::Start)->setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, bounds[(size_t) i]));
+        refs.at (sl::CellF::End)->setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, bounds[(size_t) i + 1]));
+        cellEdited (target);
+        ++filled;
+    }
+    return filled;
+}
+
 void SampleLabProcessor::stopAudition()
 {
     ++auditionToken;

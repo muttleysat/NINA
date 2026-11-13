@@ -116,6 +116,13 @@ static juce::var cellToVar (const CellParams& c, const juce::String& samplePath)
     o->setProperty ("highNote", c.highNote);
     if (c.output != 0)
         o->setProperty ("output", c.output);
+    if (! c.slices.empty())
+    {
+        juce::Array<juce::var> arr;
+        for (const float v : c.slices)
+            arr.add (v);
+        o->setProperty ("slices", arr);
+    }
     if (c.tempoSync || c.loopBpm > 0.0f || ! c.keyLock)
     {
         o->setProperty ("tempoSync", c.tempoSync);
@@ -362,6 +369,10 @@ bool fromJson (const juce::String& text, const juce::File& baseDir, Kit& kit, ju
         c.lowNote = getI (o, "lowNote", defNote);
         c.highNote = getI (o, "highNote", defNote);
         c.output = juce::jlimit (0, 15, getI (o, "output", 0));
+        c.slices.clear();
+        if (auto* sliceArr = o["slices"].getArray())
+            for (const auto& v : *sliceArr)
+                c.slices.push_back (juce::jlimit (0.0f, 1.0f, (float) v));
         c.tempoSync = getB (o, "tempoSync", false);
         c.keyLock = getB (o, "keyLock", true);
         c.loopBpm = getF (o, "loopBpm", 0.0f);
