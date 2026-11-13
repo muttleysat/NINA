@@ -299,6 +299,7 @@ int SampleLabProcessor::distributeSlices (int sourceCell, const std::vector<floa
     {
         const auto& sp = params.cell (sourceCell);
         loopBpm = (float) sl::estimateLoopBpm (*cellData[(size_t) sourceCell], sp.at (sl::CellF::Start)->get(), sp.at (sl::CellF::End)->get());
+        kit.cells[(size_t) sourceCell].loopBpm = loopBpm;      // anche la cella originale mostra il valore stimato (modificabile)
     }
     const bool srcSync = kit.cells[(size_t) sourceCell].tempoSync, srcKeyLock = kit.cells[(size_t) sourceCell].keyLock;
     const juce::File file (path);
