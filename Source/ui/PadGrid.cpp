@@ -538,12 +538,20 @@ void PadGrid::showContextMenu (int cell)
         const int def = sl::Kit::kFirstNote + cell;
         m.addSeparator();
         m.addItem (5, "Reset key range (" + theme::noteName (def) + ")", cc.lowNote != def || cc.highNote != def || cc.rootNote != def);
+        if (const int cov = rangeInfo (cell).coveredBy; cov >= 0)
+            m.addItem (6, "Reset key range of " + theme::cellId (cov, processor.getKit().cols) + " (covers this pad)");
     }
 
     m.showMenuAsync (juce::PopupMenu::Options().withTargetScreenArea (localAreaToGlobal (cellBounds (cell).toNearestInt())),
-                     [this, cell, inSequencer] (int r)
+                     [this, cell, inSequencer, coverer = rangeInfo (cell).coveredBy] (int r)
                      {
-                         if (r == 1 && onLoadRequested) onLoadRequested (cell);
+                         if (r == 6 && coverer >= 0)
+                         {
+                             processor.resetKeyRange (coverer);
+                             repaint();
+                             if (onKitChanged) onKitChanged();
+                         }
+                         else if (r == 1 && onLoadRequested) onLoadRequested (cell);
                          else if (r == 2) renameCell (cell);
                          else if (r == 3)
                          {

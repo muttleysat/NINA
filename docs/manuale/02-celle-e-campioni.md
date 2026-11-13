@@ -73,7 +73,7 @@ Di default il pad **A1 suona C1** (nota MIDI 36) e ogni pad successivo la nota d
 - Un pad **vuoto** la cui nota rientra nell'intervallo di un'altra cella si vede con **strisce** del colore di quella cella e la scritta `← A1`: significa che premendo quel tasto suona la cella A1, e che caricando un campione in quel pad le due celle suonerebbero insieme.
 - Un triangolo arancione **!** in alto a destra segnala che due celle **con campione** condividono dei tasti. Passando il mouse sul pad, il tooltip elenca quali.
 
-**Se un pad vuoto ha le strisce:** vuol dire che il range di un'altra cella (la sigla accanto alla freccia, per esempio `← A10`) copre la sua nota. Non è una cella cancellata male: per toglierle, riporta quella cella al suo tasto con il tasto destro sul pad → **Reset key range** (o rimetti Key low e Key high uguali nel pannello a destra). Anche **Clear cell** riporta la cella cancellata al suo tasto di partenza.
+**Se un pad vuoto ha le strisce:** vuol dire che il range di un'altra cella (la sigla accanto alla freccia, per esempio `← A10`) copre la sua nota. Non è una cella cancellata male: per toglierle, tasto destro sul pad a righe → **Reset key range of A10** (la cella che lo copre), oppure sul pad di quella cella → **Reset key range** (o rimetti Key low e Key high uguali nel pannello a destra). Anche **Clear cell** riporta la cella cancellata al suo tasto di partenza.
 
 Nota: le note dei tasti MIDI valgono anche per il sequencer, ma ogni riga suona la sua cella solo con la nota **Key low**; gli altri tasti dell'intervallo servono per suonare dalla tastiera.
 
