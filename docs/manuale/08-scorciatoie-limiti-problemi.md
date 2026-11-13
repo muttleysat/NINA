@@ -4,7 +4,9 @@
 
 | Gesto | Funzione |
 |-------|----------|
-| **Barra spaziatrice** | Play/Stop del sequencer |
+| **Barra spaziatrice** | Play/Stop del sequencer (nella scheda Slice: suona/ferma la zona) |
+| **Ctrl+Z** | Annulla (schede Main, FX e Slice) |
+| **Ctrl+Y** oppure **Ctrl+Maiusc+Z** | Ripeti |
 | Clic su un pad | Seleziona e suona la cella |
 | Tasto destro su un pad | Menu della cella (aggiungi al sequencer, carica, rinomina, svuota) |
 | Doppio clic su un file del browser | Carica il campione nel pad selezionato |
@@ -16,13 +18,23 @@
 | Clic sul nome di una riga | Fa suonare la cella e la seleziona |
 | Passare il mouse su una voce di **+ Cell** | Fa suonare la cella per sceglierla ascoltando |
 
+## Annulla e ripeti
+
+**Ctrl+Z** annulla, **Ctrl+Y** (o Ctrl+Maiusc+Z) ripete; le stesse voci sono nel menu **Kit** (in alto). Valgono nelle schede **Main**, **FX** e **Slice**.
+
+- Si annullano: il caricamento e lo svuotamento di celle (anche in blocco), le slice distribuite, il nome, i tasti e il range MIDI, **tutte le manopole e gli interruttori** (inviluppo, pitch, effetti, Sync, Key lock, Loop BPM, uscita...), i marcatori di slice di una cella.
+- Una trascinata di manopola o una distribuzione di slice è **un solo passo**. Si tengono gli ultimi 100.
+- Nella scheda Slice con sorgente **File** si annullano anche i marcatori, la zona (le parentesi) e il Source BPM. Annulla toglie sempre l'ultima cosa fatta, che sia nella sorgente File o nelle celle.
+- **Non** si annullano: il sequencer (step, righe, pattern, effetti degli step), il MIDI learn, il salvataggio dei kit e lo spostamento di una cella tra Main e sequencer (Add to sequencer). Aprire o creare un kit azzera la cronologia.
+- Le modifiche fatte dall'automazione della DAW non entrano nella cronologia: conta solo quello che fai tu nell'interfaccia.
+
 ## Cosa non c'è ancora
 
 - Il rilevamento del tempo dei loop è una **stima dalla durata** (non analizza i colpi): per loop non tagliati a battute esatte il BPM va scritto a mano.
 - La sincronizzazione dei loop funziona sul campione **intero** (Start/End si riferiscono sempre all'originale): non c'è ancora un modo di allineare la griglia del loop (per esempio spostare l'inizio del primo colpo).
-- Per lo slicing: nessun allineamento dei tagli alla griglia del tempo e nessun annullamento (vedi capitolo 9). Il tempo dei brani non a tempo fisso va stimato per zone brevi (nessuna mappa dei battiti).
+- Per lo slicing: nessun allineamento dei tagli alla griglia del tempo (vedi capitolo 9). Il tempo dei brani non a tempo fisso va stimato per zone brevi (nessuna mappa dei battiti).
 - **Quantizzazione** degli step e registrazione da tastiera nel sequencer.
-- **Undo/redo**.
+- **Undo/redo nel sequencer** (step, righe, pattern): l'annullamento c'è solo in Main, FX e Slice.
 - Altri effetti: EQ, chorus, flanger, phaser, stutter e altri effetti creativi.
 - Aggiungere **righe e celle** oltre le 48 della griglia.
 - La scheda **Mixer**.

@@ -829,6 +829,7 @@ sl::SampleDataPtr SampleLabProcessor::getCellData (int cell) const
 
 bool SampleLabProcessor::loadSampleIntoCell (int cell, const juce::File& file, juce::String& error)
 {
+    noteUserInput();
     if (cell < 0 || cell >= kit.numCells())
         return false;
 
@@ -929,6 +930,138 @@ int SampleLabProcessor::normalizeAllCells (float targetDb)
     return count;
 }
 
+// ------------------------------------------------------------- Annulla / ripeti
+
+namespace
+{
+inline void mixHash (juce::uint64& h, juce::uint64 v) { h ^= v + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2); }
+inline juce::uint64 bitsOf (float f) { juce::uint32 u = 0; std::memcpy (&u, &f, sizeof u); return u; }
+}
+
+const std::vector<juce::RangedAudioParameter*>& SampleLabProcessor::undoParams() const
+{
+    if (undoParamList.empty())
+        undoParamList = params.all();
+    return undoParamList;
+}
+
+juce::uint64 SampleLabProcessor::hashUndoState() const
+{
+    juce::uint64 h = 1469598103934665603ULL;
+    for (size_t i = 0; i < kit.cells.size(); ++i)
+    {
+        const auto& cl = kit.cells[i];
+        mixHash (h, (juce::uint64) cl.name.hashCode64());
+        mixHash (h, (juce::uint64) cl.samplePath.hashCode64());
+        mixHash (h, cl.colour);
+        mixHash (h, (juce::uint64) ((cl.rootNote * 1000003) + (cl.lowNote * 1009) + cl.highNote));
+        mixHash (h, (juce::uint64) (cl.output + 1));
+        mixHash (h, (cl.tempoSync ? 1u : 0u) | (cl.keyLock ? 2u : 0u));
+        mixHash (h, bitsOf (cl.loopBpm));
+        mixHash (h, (juce::uint64) cl.slices.size());
+        for (const float v : cl.slices)
+            mixHash (h, bitsOf (v));
+        mixHash (h, i < cellData.size() ? (juce::uint64) (std::uintptr_t) cellData[i].get() : 0u);
+    }
+    for (auto* p : undoParams())
+        mixHash (h, bitsOf (p->getValue()));
+    return h;
+}
+
+SampleLabProcessor::UndoSnap SampleLabProcessor::captureUndo() const
+{
+    UndoSnap s;
+    s.cells = kit.cells;
+    s.data = cellData;
+    s.params.reserve (undoParams().size());
+    for (auto* p : undoParams())
+        s.params.push_back (p->getValue());
+    s.hash = hashUndoState();
+    return s;
+}
+
+void SampleLabProcessor::applyUndo (const UndoSnap& s)
+{
+    kit.cells = s.cells;
+    cellData = s.data;
+    const auto& list = undoParams();
+    for (size_t i = 0; i < list.size() && i < s.params.size(); ++i)
+        if (std::abs (list[i]->getValue() - s.params[i]) > 1.0e-7f)
+            list[i]->setValueNotifyingHost (s.params[i]);
+    dirty = true;
+    publishKit (true);
+}
+
+void SampleLabProcessor::undoTick (bool mouseDown)
+{
+    if (mouseDown)
+        return;                                            // durante una trascinata non si registra nulla: la gesto e' una voce sola
+    const double now = juce::Time::getMillisecondCounterHiRes();
+    if (! undoBaselineValid)
+    {
+        undoBaseline = captureUndo();
+        undoBaselineValid = true;
+        undoBaselineAt = now;
+        return;
+    }
+    if (hashUndoState() == undoBaseline.hash)
+    {
+        undoBaselineAt = now;                              // nulla e' cambiato: da qui in poi un'azione dell'utente conta come nuova
+        return;
+    }
+
+    if (lastUserInputMs >= undoBaselineAt)                 // c'e' stata un'azione dell'utente: lo stato precedente diventa un passo di annullamento
+    {
+        undoBaseline.when = now;
+        undoStack.push_back (std::move (undoBaseline));
+        if (undoStack.size() > 100)
+            undoStack.erase (undoStack.begin());
+        redoStack.clear();
+    }
+    undoBaseline = captureUndo();                          // altrimenti (automazione della DAW) lo stato di riferimento si aggiorna in silenzio
+    undoBaselineAt = now;
+}
+
+bool SampleLabProcessor::undo()
+{
+    undoTick (false);                                      // registra subito eventuali modifiche appena fatte
+    if (undoStack.empty())
+        return false;
+    auto target = std::move (undoStack.back());
+    undoStack.pop_back();
+    auto cur = captureUndo();
+    cur.when = juce::Time::getMillisecondCounterHiRes();
+    redoStack.push_back (std::move (cur));
+    applyUndo (target);
+    undoBaseline = captureUndo();
+    undoBaselineValid = true;
+    undoBaselineAt = juce::Time::getMillisecondCounterHiRes();
+    return true;
+}
+
+bool SampleLabProcessor::redo()
+{
+    if (redoStack.empty())
+        return false;
+    auto target = std::move (redoStack.back());
+    redoStack.pop_back();
+    auto cur = captureUndo();
+    cur.when = juce::Time::getMillisecondCounterHiRes();
+    undoStack.push_back (std::move (cur));
+    applyUndo (target);
+    undoBaseline = captureUndo();
+    undoBaselineValid = true;
+    undoBaselineAt = juce::Time::getMillisecondCounterHiRes();
+    return true;
+}
+
+void SampleLabProcessor::resetUndo()
+{
+    undoStack.clear();
+    redoStack.clear();
+    undoBaselineValid = false;
+}
+
 void SampleLabProcessor::cellEdited (int)
 {
     dirty = true;
@@ -970,6 +1103,7 @@ void SampleLabProcessor::newKit()
     params.readFromKit (kit);
     midiLearn.setMappings (kit.midiMap);
     dirty = false;          // dopo readFromKit: impostare i parametri li marca come modificati
+    resetUndo();
 }
 
 bool SampleLabProcessor::openKit (const juce::File& file, juce::String& error)
@@ -984,6 +1118,7 @@ bool SampleLabProcessor::openKit (const juce::File& file, juce::String& error)
     params.readFromKit (kit);
     midiLearn.setMappings (kit.midiMap);
     dirty = false;
+    resetUndo();
     addRecentKit (file);
     return true;
 }
@@ -1107,6 +1242,7 @@ void SampleLabProcessor::setStateInformation (const void* data, int sizeInBytes)
             params.readFromKit (kit);
             midiLearn.setMappings (kit.midiMap);
             dirty = (bool) state.getProperty ("dirty", false);
+            resetUndo();
         }
     }
 }

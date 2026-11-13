@@ -338,6 +338,7 @@ public:
         {
             dragBracket = -1;
             owner.regionChanged();
+            owner.localCommit();
             repaint();
             return;
         }
@@ -875,6 +876,86 @@ void SlicePanel::refresh()
     repaint();
 }
 
+SlicePanel::LocalSnap SlicePanel::localCapture() const
+{
+    LocalSnap s;
+    s.markers = markers;
+    s.start = extStart;
+    s.end = extEnd;
+    s.bpm = extBpm;
+    return s;
+}
+
+void SlicePanel::localReset()
+{
+    localUndoStack.clear();
+    localRedoStack.clear();
+    localBase = localCapture();
+}
+
+void SlicePanel::localCommit()
+{
+    if (source != Source::File)
+        return;
+    const auto cur = localCapture();
+    if (cur.markers == localBase.markers && cur.start == localBase.start && cur.end == localBase.end && cur.bpm == localBase.bpm)
+        return;
+    localBase.when = juce::Time::getMillisecondCounterHiRes();
+    localUndoStack.push_back (localBase);
+    if (localUndoStack.size() > 100)
+        localUndoStack.erase (localUndoStack.begin());
+    localRedoStack.clear();
+    localBase = cur;
+}
+
+void SlicePanel::localApply (const LocalSnap& t)
+{
+    stopAll();
+    markers = t.markers;
+    extStart = t.start;
+    extEnd = t.end;
+    extBpm = t.bpm;
+    extMarkers = markers;
+    localBase = localCapture();
+    refresh();
+}
+
+bool SlicePanel::localUndo()
+{
+    if (source != Source::File)
+        return false;
+    localCommit();
+    if (localUndoStack.empty())
+        return false;
+    auto t = localUndoStack.back();
+    localUndoStack.pop_back();
+    auto cur = localCapture();
+    cur.when = juce::Time::getMillisecondCounterHiRes();
+    localRedoStack.push_back (cur);
+    localApply (t);
+    return true;
+}
+
+bool SlicePanel::localRedo()
+{
+    if (source != Source::File || localRedoStack.empty())
+        return false;
+    auto t = localRedoStack.back();
+    localRedoStack.pop_back();
+    auto cur = localCapture();
+    cur.when = juce::Time::getMillisecondCounterHiRes();
+    localUndoStack.push_back (cur);
+    localApply (t);
+    return true;
+}
+
+void SlicePanel::reloadFromKit()
+{
+    if (source == Source::Cell && cell < processor.getKit().numCells())
+        markers = processor.getKit().cells[(size_t) cell].slices;
+    refresh();
+}
+
 void SlicePanel::regionChanged()
 {
     clampMarkers();
@@ -902,6 +983,8 @@ void SlicePanel::setSource (Source s)
         source = s;
         targetStart = -1;
         markers = (s == Source::File) ? extMarkers : processor.getKit().cells[(size_t) cell].slices;
+        if (s == Source::File)
+            localBase = localCapture();
     }
     updateSourceControls();
     resized();
@@ -929,6 +1012,7 @@ void SlicePanel::loadFile (const juce::File& f)
     targetStart = -1;
     source = Source::File;
     markers = extMarkers;
+    localReset();
     updateSourceControls();
     resized();
     refresh();
@@ -1013,6 +1097,7 @@ void SlicePanel::markersChanged()
     }
     cellsStrip->repaint();
     repaint();
+    localCommit();
 }
 
 void SlicePanel::auditionSlice (int index)
@@ -1126,6 +1211,7 @@ void SlicePanel::setSrcBpm (float bpm)
         processor.cellEdited (cell);
     }
     bpmSlider.setValue ((double) bpm, juce::dontSendNotification);
+    localCommit();
 }
 
 void SlicePanel::doDetectBpm()

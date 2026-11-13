@@ -99,6 +99,19 @@ public:
 
     bool loadSampleIntoCell (int cell, const juce::File& file, juce::String& error);
     void clearCell (int cell);                     // toglie il campione e riporta la cella al suo tasto di partenza
+    // Annulla / ripeti per le schede Main, FX e Slice: celle (campioni, nome, tasti, slice, tempo), tutti i parametri (manopole). Non riguarda
+    // il sequencer. Le modifiche si riconoscono confrontando lo stato a intervalli (undoTick, ~10 Hz): una trascinata di manopola o una
+    // distribuzione di slice e' una voce sola. Contano solo le modifiche fatte dall'utente (noteUserInput), non l'automazione della DAW.
+    void undoTick (bool mouseDown);
+    void noteUserInput() { lastUserInputMs = juce::Time::getMillisecondCounterHiRes(); }
+    bool canUndo() const { return ! undoStack.empty(); }
+    bool canRedo() const { return ! redoStack.empty(); }
+    double undoTime() const { return undoStack.empty() ? 0.0 : undoStack.back().when; }     // per decidere quale annullamento e' il piu' recente
+    double redoTime() const { return redoStack.empty() ? 0.0 : redoStack.back().when; }
+    bool undo();
+    bool redo();
+    void resetUndo();                              // dopo aver aperto/creato un kit: la cronologia riparte
+
     void resetKeyRange (int cell);                 // root/low/high tornano al tasto predefinito della cella (A1 = C1, A2 = C#1...)
 
     // Normalizzazione: porta il picco del campione (tra Start ed End) al livello target regolando il Level della cella.
@@ -247,6 +260,24 @@ private:
     juce::CriticalSection auditionLock;
     std::deque<sl::SampleDataPtr> auditionKeep;
     std::atomic<int> auditionToken { 0 };
+    struct UndoSnap
+    {
+        std::vector<sl::CellParams> cells;
+        std::vector<sl::SampleDataPtr> data;
+        std::vector<float> params;
+        juce::uint64 hash = 0;
+        double when = 0.0;
+    };
+    UndoSnap captureUndo() const;
+    juce::uint64 hashUndoState() const;
+    void applyUndo (const UndoSnap&);
+    const std::vector<juce::RangedAudioParameter*>& undoParams() const;
+    UndoSnap undoBaseline;
+    bool undoBaselineValid = false;
+    double undoBaselineAt = 0.0, lastUserInputMs = 0.0;
+    std::vector<UndoSnap> undoStack, redoStack;
+    mutable std::vector<juce::RangedAudioParameter*> undoParamList;
+
     std::atomic<bool> chopCapture { false };
     std::array<std::atomic<double>, 32> chopTimes {};
     std::atomic<uint32_t> chopHead { 0 };

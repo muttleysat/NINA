@@ -21,6 +21,13 @@ public:
     void runDetect() { doDetect(); }       // come premere Detect (anche per le schermate automatiche)
     void runDetectBpm() { doDetectBpm(); }  // come premere Detect nella riga TEMPO
     void loadFile (const juce::File& file); // carica un file esterno come sorgente (passa alla modalita' File)
+    void reloadFromKit();                  // dopo un annullamento: i marcatori della cella tornano quelli del kit
+
+    // Annulla / ripeti locale per la sorgente File (marcatori, zona, BPM): per la sorgente Cell se ne occupa la cronologia del kit
+    double localUndoTime() const { return source == Source::File && ! localUndoStack.empty() ? localUndoStack.back().when : 0.0; }
+    double localRedoTime() const { return source == Source::File && ! localRedoStack.empty() ? localRedoStack.back().when : 0.0; }
+    bool localUndo();
+    bool localRedo();
 
     // Chop: il loop suona e ogni pressione di M (o di una nota MIDI) mette un marcatore nel punto in cui si trova
     bool isChopping() const { return chopping; }
@@ -69,6 +76,19 @@ private:
     void cellsStripRepaint();
     void markersChanged();                                     // salva nel kit (Cell) o nello stato della scheda (File) e ridisegna
     void regionChanged();                                      // la zona del file e' stata cambiata: marcatori dentro la zona
+    struct LocalSnap
+    {
+        std::vector<float> markers;
+        float start = 0.0f, end = 1.0f, bpm = 0.0f;
+        double when = 0.0;
+    };
+    LocalSnap localCapture() const;
+    void localCommit();                                        // se qualcosa e' cambiato dall'ultimo passo, registra lo stato precedente
+    void localReset();
+    void localApply (const LocalSnap&);
+    LocalSnap localBase;
+    std::vector<LocalSnap> localUndoStack, localRedoStack;
+
     void clampMarkers();                                       // marcatori sempre dentro la regione e almeno uno: l'inizio
     int distributeFromFile (const std::vector<float>& bounds, int firstTarget);
     void setSource (Source s);

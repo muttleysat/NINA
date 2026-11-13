@@ -138,6 +138,43 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     sizeButton.setButtonText ("Size " + juce::String (juce::roundToInt (processor.uiZoom * 100.0f)) + "%");
     refreshAll();
 
+    // Solo per prove: SAMPLELAB_UNDOTEST esegue una sequenza di modifiche con annulla/ripeti e scrive l'esito in ui.log
+    if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_UNDOTEST", {}).isNotEmpty())
+    {
+        juce::RangedAudioParameter* lvl = processor.getParams().cell (0).at (sl::CellF::Level);
+        auto& c0 = processor.getKit().cells[0];
+        processor.resetUndo();
+        processor.undoTick (false);                              // stato di riferimento
+        const float v0 = lvl->getValue();
+        const int note0 = c0.lowNote;
+        processor.noteUserInput();
+        lvl->setValueNotifyingHost (0.8f);
+        processor.undoTick (false);                              // modifica 1: parametro
+        processor.noteUserInput();
+        c0.lowNote = note0 + 5;
+        processor.cellEdited (0);
+        processor.undoTick (false);                              // modifica 2: tasto della cella
+        const bool a1 = processor.canUndo();
+        processor.undo();
+        const bool a2 = c0.lowNote == note0 && std::abs (lvl->getValue() - 0.8f) < 1.0e-4f;
+        processor.undo();
+        const bool a3 = std::abs (lvl->getValue() - v0) < 1.0e-4f;
+        processor.redo();
+        const bool a4 = std::abs (lvl->getValue() - 0.8f) < 1.0e-4f && c0.lowNote == note0;
+        processor.redo();
+        const bool a5 = c0.lowNote == note0 + 5;
+        // L'automazione (nessuna azione dell'utente) non entra nella cronologia
+        processor.undoTick (false);
+        const bool before = processor.canUndo();
+        processor.undoTick (false);
+        lvl->setValueNotifyingHost (0.3f);
+        processor.undoTick (false);
+        const bool a6 = processor.canUndo() == before && std::abs (lvl->getValue() - 0.3f) < 1.0e-4f;
+        uiLog ("UNDOTEST canUndo=" + juce::String ((int) a1) + " step1=" + juce::String ((int) a2) + " step2=" + juce::String ((int) a3)
+               + " redo1=" + juce::String ((int) a4) + " redo2=" + juce::String ((int) a5) + " automation-ignored=" + juce::String ((int) a6));
+    }
+
+    juce::Desktop::getInstance().addGlobalMouseListener (&inputWatcher);
     setWantsKeyboardFocus (true);
     theme::noButtonFocus (*this);
     startTimerHz (10);
@@ -150,8 +187,44 @@ void SampleLabEditor::toggleTransport()
     processor.setSequencerRunning (! processor.isSequencerRunning());
 }
 
+void SampleLabEditor::doUndoRedo (bool redo)
+{
+    processor.noteUserInput();
+    processor.undoTick (false);
+    const double gt = redo ? processor.redoTime() : processor.undoTime();
+    const double lt = currentTab == 4 ? (redo ? slicePanel.localRedoTime() : slicePanel.localUndoTime()) : 0.0;
+    bool done = false;
+    if (lt > 0.0 && lt >= gt)                                  // l'ultima cosa fatta e' stata nella sorgente File della scheda Slice
+        done = redo ? slicePanel.localRedo() : slicePanel.localUndo();
+    else if (gt > 0.0)
+        done = redo ? processor.redo() : processor.undo();
+    if (done)
+    {
+        slicePanel.reloadFromKit();
+        refreshAll();
+    }
+}
+
 bool SampleLabEditor::keyPressed (const juce::KeyPress& key)
 {
+    processor.noteUserInput();
+
+    // Annulla / ripeti (Main, FX, Slice): Ctrl+Z, Ctrl+Y o Ctrl+Maiusc+Z
+    if ((currentTab == 0 || currentTab == 3 || currentTab == 4) && key.getModifiers().isCommandDown())
+    {
+        const int k = key.getKeyCode();
+        if (k == 'Z' || k == 'z')
+        {
+            doUndoRedo (key.getModifiers().isShiftDown());
+            return true;
+        }
+        if (k == 'Y' || k == 'y')
+        {
+            doUndoRedo (true);
+            return true;
+        }
+    }
+
     // Scheda Slice: Spazio suona/ferma la zona (non il sequencer), Esc ferma qualsiasi ascolto
     if (currentTab == 4)
     {
@@ -219,6 +292,9 @@ void SampleLabEditor::timerCallback()
     }
 
     processor.pollMidiLearn();      // completa l'assegnazione se e' arrivato un CC durante il MIDI learn
+    processor.undoTick (juce::ModifierKeys::getCurrentModifiersRealtime().isAnyMouseButtonDown());
+    if (dynamic_cast<juce::TextEditor*> (juce::Component::getCurrentlyFocusedComponent()) != nullptr)
+        processor.noteUserInput();      // si sta scrivendo un valore (campo di una manopola): conta come azione dell'utente
     refreshTopBar();
 
     transportButton.setButtonText (processor.isSequencerPlaying() ? "Stop" : "Play");
@@ -237,6 +313,7 @@ void SampleLabEditor::timerCallback()
 
 SampleLabEditor::~SampleLabEditor()
 {
+    juce::Desktop::getInstance().removeGlobalMouseListener (&inputWatcher);
     stopTimer();
     if (&juce::LookAndFeel::getDefaultLookAndFeel() == &lnf)
         juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
@@ -394,6 +471,10 @@ void SampleLabEditor::confirmDiscard (std::function<void()> proceed)
 void SampleLabEditor::showKitMenu()
 {
     juce::PopupMenu m;
+    const bool undoTab = currentTab == 0 || currentTab == 3 || currentTab == 4;
+    m.addItem (30, "Undo  (Ctrl+Z)", undoTab && (processor.canUndo() || slicePanel.localUndoTime() > 0.0));
+    m.addItem (31, "Redo  (Ctrl+Y)", undoTab && (processor.canRedo() || slicePanel.localRedoTime() > 0.0));
+    m.addSeparator();
     m.addItem (1, "New kit");
     m.addItem (2, "Open...");
     m.addItem (3, "Save");
@@ -424,7 +505,9 @@ void SampleLabEditor::showKitMenu()
     m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (kitMenuButton),
                      [this, recents] (int r)
                      {
-                         if (r == 1) confirmDiscard ([this] { doNew(); });
+                         if (r == 30) doUndoRedo (false);
+                         else if (r == 31) doUndoRedo (true);
+                         else if (r == 1) confirmDiscard ([this] { doNew(); });
                          else if (r == 2) confirmDiscard ([this] { doOpen(); });
                          else if (r == 3) doSave();
                          else if (r == 4) doSaveAs();

@@ -86,4 +86,4 @@ Il suono esce con il ritardo della scheda audio: se tagli sempre un po' in ritar
 
 - Il rilevamento dei colpi funziona bene su percussioni con attacchi netti (batterie, loop ritmici). Su materiale tenuto o molto denso (pad, musica completa) trova molti punti o pochi: abbassa o alza **Sensitivity** e correggi a mano.
 - I tagli cadono sul punto in cui sale il suono; non c'è ancora l'allineamento alla griglia del tempo.
-- La scheda lavora su una cella alla volta e non ha ancora annullamento (undo): se sbagli una distribuzione, svuota le celle (tasto destro → Clear cell) e ripeti.
+- La scheda lavora su una cella alla volta. Se sbagli una distribuzione, annullala con **Ctrl+Z**.

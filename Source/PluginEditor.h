@@ -27,6 +27,7 @@ public:
 
 private:
     void toggleTransport();
+    void doUndoRedo (bool redo);
     void timerCallback() override;
     void showTab (int tab);
     juce::Rectangle<int> tabRect (int index) const;
@@ -53,6 +54,18 @@ private:
 
     SampleLabLookAndFeel lnf;
     SampleLabProcessor& processor;
+
+    // Ogni evento del mouse nell'applicazione segnala un'azione dell'utente alla cronologia di annullamento
+    struct InputWatcher final : public juce::MouseListener
+    {
+        explicit InputWatcher (SampleLabProcessor& p) : proc (p) {}
+        void mouseDown (const juce::MouseEvent&) override { proc.noteUserInput(); }
+        void mouseUp (const juce::MouseEvent&) override { proc.noteUserInput(); }
+        void mouseDrag (const juce::MouseEvent&) override { proc.noteUserInput(); }
+        void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override { proc.noteUserInput(); }
+        SampleLabProcessor& proc;
+    };
+    InputWatcher inputWatcher { processor };
 
     juce::Label kitLabel;               // nome del kit (come il file salvato; "Untitled" finche' non si salva)
     juce::TextButton kitMenuButton { "Kit" };                 // menu del kit: Nuovo, Apri, Salva, Recenti...

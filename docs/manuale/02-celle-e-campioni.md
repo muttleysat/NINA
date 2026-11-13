@@ -35,7 +35,7 @@ Per lavorare su più celle insieme (per esempio svuotarle in blocco, dopo aver d
 | **Canc** (o Backspace) | **Svuota** le celle selezionate che hanno un campione: chiede conferma e dice quante sono |
 | **Tasto destro** su una cella selezionata | Menu con **Clear N selected cells**, **Add N selected to sequencer**, **Remove N selected from sequencer**, **Select only this cell** |
 
-I pad selezionati hanno il bordo e un velo arancione; quello **corrente** (il cui pannello vedi a destra) ha anche l'alone. Con Ctrl o Maiusc il pad non suona. Non c'è l'annullamento: svuotare una cella toglie il campione (il file sul disco non viene toccato) e le sue impostazioni di cella restano.
+I pad selezionati hanno il bordo e un velo arancione; quello **corrente** (il cui pannello vedi a destra) ha anche l'alone. Con Ctrl o Maiusc il pad non suona. Svuotare una cella toglie il campione e riporta la cella al suo tasto (il file sul disco non viene toccato) e si può **annullare** con Ctrl+Z (vedi capitolo 8).
 
 **Opzioni su più celle insieme.** Con più celle selezionate, il titolo del pannello a destra mostra `(+N)` e queste opzioni si applicano a **tutte** le celle selezionate con un campione: **Trigger mode**, **Reverse**, **Normalize**, **Sync to tempo**, **Key lock**, **Loop BPM**, **Detect** e **Output**. I valori mostrati sono quelli della cella corrente. Restano della sola cella corrente il mapping MIDI (Root note, Key low/high) e le manopole di inviluppo ed effetti.
 
