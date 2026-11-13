@@ -20,6 +20,7 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
+    void parentHierarchyChanged() override;
     void mouseDown (const juce::MouseEvent&) override;
     bool keyPressed (const juce::KeyPress&) override;      // barra spaziatrice = Play/Stop del sequencer
 
@@ -66,6 +67,8 @@ private:
     ModulesBar modules;
     FxPanel fxPanel;
     SeqPanel seqPanel;
+    int kickTick = 1000;                // conta i tick dopo l'aggancio alla finestra: a intervalli si rifa il layout di tutto
+    int lastLoggedW = 0, lastLoggedH = 0;
     int currentTab = 0;                 // 0 = Main, 1 = Seq, 3 = FX (Mixer arrivera' con le fasi successive)
     std::unique_ptr<juce::FileChooser> chooser;
 

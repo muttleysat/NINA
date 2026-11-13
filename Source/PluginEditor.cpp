@@ -1,5 +1,26 @@
 #include "PluginEditor.h"
 
+namespace
+{
+// Diario minimo dell'interfaccia (dimensioni, scala, apertura nella DAW): serve a capire problemi di layout all'apertura.
+void uiLog (const juce::String& text)
+{
+    auto f = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory).getChildFile ("SampleLab").getChildFile ("ui.log");
+    f.getParentDirectory().createDirectory();
+    if (f.getSize() > 100000)
+        f.deleteFile();
+    f.appendText (juce::Time::getCurrentTime().toString (true, true, true, true) + "  " + text + "\n");
+}
+
+// Rifa il layout di un componente e di tutti i suoi figli (anche se la loro dimensione non e' cambiata)
+void relayoutAll (juce::Component& c)
+{
+    c.resized();
+    for (auto* child : c.getChildren())
+        relayoutAll (*child);
+}
+}
+
 SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     : AudioProcessorEditor (&p), processor (p), grid (p), waveStrip (p), cellPanel (p), modules (p), fxPanel (p), seqPanel (p)
 {
@@ -78,7 +99,18 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     seqPanel.onCellSelected = [this] (int cell) { grid.setSelected (cell); };     // lo step selezionato porta con se' la sua cella
     cellPanel.onLoadRequested = [this] (int c) { requestLoadDialog (c); };
 
-    setSize (processor.uiWidth, processor.uiHeight);
+    // Dimensione iniziale: quella salvata, ma mai piu' grande dello schermo (altrimenti la DAW la riduce e il layout resta a meta')
+    {
+        int w = processor.uiWidth, h = processor.uiHeight;
+        if (auto* d = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay())
+        {
+            w = juce::jmin (w, juce::jmax (1000, d->userArea.getWidth() - 60));
+            h = juce::jmin (h, juce::jmax (640, d->userArea.getHeight() - 140));
+        }
+        uiLog ("editor created: requested " + juce::String (processor.uiWidth) + "x" + juce::String (processor.uiHeight)
+               + " -> " + juce::String (w) + "x" + juce::String (h));
+        setSize (w, h);
+    }
     sizeButton.setButtonText ("Size " + juce::String (juce::roundToInt (processor.uiZoom * 100.0f)) + "%");
     refreshAll();
 
@@ -107,6 +139,19 @@ bool SampleLabEditor::keyPressed (const juce::KeyPress& key)
 // Il nome del kit mostra l'asterisco anche quando un parametro cambia dall'automazione o dal MIDI
 void SampleLabEditor::timerCallback()
 {
+    // Subito dopo l'aggancio alla finestra della DAW si rifa piu' volte il layout di tutti i componenti (a 0.1, 0.3, 1 e 3 s):
+    // se la DAW assegna dimensione/scala in ritardo, nessun componente resta con una disposizione calcolata per valori provvisori
+    if (kickTick < 40)
+    {
+        ++kickTick;
+        if (kickTick == 1 || kickTick == 3 || kickTick == 10 || kickTick == 30)
+        {
+            relayoutAll (*this);
+            repaint();
+            uiLog ("relayout tick " + juce::String (kickTick) + ": " + juce::String (getWidth()) + "x" + juce::String (getHeight()));
+        }
+    }
+
     processor.pollMidiLearn();      // completa l'assegnazione se e' arrivato un CC durante il MIDI learn
     refreshTopBar();
 
@@ -507,10 +552,28 @@ void SampleLabEditor::paint (juce::Graphics& g)
     }
 }
 
+void SampleLabEditor::parentHierarchyChanged()
+{
+    // L'editor e' stato agganciato (o spostato) nella finestra della DAW: si rifa il layout subito e di nuovo tra poco,
+    // quando la DAW ha finito di assegnare dimensione e scala
+    kickTick = 0;
+    if (auto* top = getTopLevelComponent())
+        uiLog ("attached: editor " + juce::String (getWidth()) + "x" + juce::String (getHeight()) + ", top-level "
+               + juce::String (top->getWidth()) + "x" + juce::String (top->getHeight())
+               + ", display scale " + juce::String (juce::Desktop::getInstance().getDisplays().getPrimaryDisplay() != nullptr
+                                                        ? juce::Desktop::getInstance().getDisplays().getPrimaryDisplay()->scale : 0.0, 2));
+}
+
 void SampleLabEditor::resized()
 {
     processor.uiWidth  = getWidth();
     processor.uiHeight = getHeight();
+    if (getWidth() != lastLoggedW || getHeight() != lastLoggedH)
+    {
+        lastLoggedW = getWidth();
+        lastLoggedH = getHeight();
+        uiLog ("resized: " + juce::String (getWidth()) + "x" + juce::String (getHeight()) + " scale " + juce::String (theme::scaleFor (*this), 3));
+    }
 
     // Scala sul lato piu' stretto (vedi theme::scaleForSize): anche in una finestra bassa tutti i controlli restano visibili
     const float s = theme::scaleFor (*this);
