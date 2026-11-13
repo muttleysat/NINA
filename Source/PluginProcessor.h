@@ -2,6 +2,7 @@
 
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <map>
+#include <array>
 #include <deque>
 #include <optional>
 #include <atomic>
@@ -137,6 +138,12 @@ public:
 
     // Anteprima da UI (pad cliccato) e attivita' per l'indicatore delle celle
     juce::MidiKeyboardState& getKeyboardState() { return keyboardState; }
+
+    // Chop (scheda Slice): con la cattura accesa le note MIDI in ingresso non suonano le celle ma vengono solo registrate
+    // (istante di ogni nota, in ms del contatore ad alta risoluzione) per mettere i marcatori mentre il loop suona.
+    void setChopCapture (bool on) { chopCapture.store (on, std::memory_order_relaxed); }
+    uint32_t chopNoteCount() const { return chopHead.load (std::memory_order_acquire); }
+    double chopNoteTime (uint32_t index) const { return chopTimes[index % chopTimes.size()].load (std::memory_order_relaxed); }
     int getCellActivity (int cell) const { return engine.getCellActivity (cell); }
 
     // Dimensione/zoom dell'interfaccia (persistiti nello stato del progetto, UI-12)
@@ -235,6 +242,9 @@ private:
     juce::CriticalSection auditionLock;
     std::deque<sl::SampleDataPtr> auditionKeep;
     std::atomic<int> auditionToken { 0 };
+    std::atomic<bool> chopCapture { false };
+    std::array<std::atomic<double>, 32> chopTimes {};
+    std::atomic<uint32_t> chopHead { 0 };
     juce::ThreadPool auditionPool { 1 };
     juce::ThreadPool stretchPool { 1 };    // ultimo membro: viene distrutto (e atteso) per primo
 

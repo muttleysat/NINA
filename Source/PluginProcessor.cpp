@@ -64,6 +64,27 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
 
     keyboardState.processNextMidiBuffer (midi, 0, buffer.getNumSamples(), true);
 
+    // Chop: le note vengono registrate e tolte dal flusso (non suonano le celle); gli altri messaggi (CC...) passano
+    if (chopCapture.load (std::memory_order_relaxed) && ! midi.isEmpty())
+    {
+        const double now = juce::Time::getMillisecondCounterHiRes();
+        const double sr = getSampleRate() > 0.0 ? getSampleRate() : 44100.0;
+        juce::MidiBuffer rest;
+        for (const auto meta : midi)
+        {
+            const auto m = meta.getMessage();
+            if (m.isNoteOn())
+            {
+                const auto h = chopHead.load (std::memory_order_relaxed);
+                chopTimes[h % chopTimes.size()].store (now + 1000.0 * (double) meta.samplePosition / sr, std::memory_order_relaxed);
+                chopHead.store (h + 1, std::memory_order_release);
+            }
+            else if (! m.isNoteOff())
+                rest.addEvent (m, meta.samplePosition);
+        }
+        midi.swapWith (rest);
+    }
+
     // MIDI learn: i CC assegnati muovono i parametri (prima della lettura dei valori, nello stesso blocco)
     midiLearn.process (midi);
 

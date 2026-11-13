@@ -196,6 +196,17 @@ public:
             g.drawLine (x, area.getBottom(), x + tick, area.getBottom(), 2.2f);
         }
 
+        // Chop: cursore di lettura
+        if (owner.chopping)
+        {
+            const float x = xOf ((float) owner.chopPosition (juce::Time::getMillisecondCounterHiRes()));
+            if (x >= area.getX() && x <= area.getRight())
+            {
+                g.setColour (juce::Colours::white.withAlpha (0.95f));
+                g.drawLine (x, area.getY() - 6.0f * s, x, area.getBottom(), 1.8f);
+            }
+        }
+
         // Suggerimento
         g.setColour (theme::textDim);
         g.setFont (juce::FontOptions (juce::jmax (9.0f, 12.0f * s)));
@@ -588,6 +599,10 @@ SlicePanel::SlicePanel (SampleLabProcessor& p) : processor (p)
     };
     addAndMakeVisible (evenBox);
 
+    chopButton.setTooltip ("Play the region and press M (or a MIDI note) to drop a marker at the playing position. Click again to stop.");
+    chopButton.onClick = [this] { if (chopping) stopChop(); else startChop(); };
+    addAndMakeVisible (chopButton);
+
     clearButton.setTooltip ("Remove all markers");
     clearButton.onClick = [this] { doClear(); };
     addAndMakeVisible (clearButton);
@@ -625,7 +640,7 @@ SlicePanel::SlicePanel (SampleLabProcessor& p) : processor (p)
     setCell (0);
 }
 
-SlicePanel::~SlicePanel() = default;
+SlicePanel::~SlicePanel() { processor.setChopCapture (false); }
 
 float SlicePanel::regionStart() const
 {
@@ -664,6 +679,7 @@ std::vector<int> SlicePanel::targetCells() const
 
 void SlicePanel::setCell (int c)
 {
+    stopChop();
     cell = juce::jlimit (0, juce::jmax (0, processor.getKit().numCells() - 1), c);
     targetStart = -1;
     markers = processor.getKit().cells[(size_t) cell].slices;
@@ -687,7 +703,7 @@ void SlicePanel::refresh()
     markers = m;
 
     const bool has = data() != nullptr && ! processor.getKit().cells[(size_t) cell].missing;
-    for (auto* c : std::initializer_list<juce::Component*> { &detectButton, &sensitivity, &evenBox, &clearButton, &distributeButton })
+    for (auto* c : std::initializer_list<juce::Component*> { &detectButton, &sensitivity, &evenBox, &clearButton, &chopButton, &distributeButton })
         c->setEnabled (has);
     keepToggle.setButtonText ("Keep original in " + theme::cellId (cell, processor.getKit().cols));
     wave->touch();
@@ -755,19 +771,106 @@ void SlicePanel::setTargetStart (int cellIndex)
 void SlicePanel::showStatus (const juce::String& text)
 {
     status = text;
-    statusTicks = 40;
-    startTimerHz (10);
+    statusUntil = juce::Time::getMillisecondCounterHiRes() + 4000.0;
+    startTimerHz (60);
     repaint();
 }
 
 void SlicePanel::timerCallback()
 {
-    if (--statusTicks <= 0)
+    const double now = juce::Time::getMillisecondCounterHiRes();
+    if (chopping)
+    {
+        const auto head = processor.chopNoteCount();
+        for (auto i = juce::jmax (chopSeen, head > 32 ? head - 32 : 0u); i < head; ++i)
+            addChopMarker (processor.chopNoteTime (i));
+        chopSeen = head;
+
+        if (now - chopStartMs >= chopDurMs + 60.0)
+            stopChop (true);
+        else
+            wave->repaint();
+    }
+    if (status.isNotEmpty() && now >= statusUntil)
     {
         status.clear();
-        stopTimer();
         repaint();
     }
+    if (! chopping && status.isEmpty())
+        stopTimer();
+}
+
+double SlicePanel::chopPosition (double nowMs) const
+{
+    const float rs = regionStart(), re = regionEnd();
+    const double t = chopDurMs > 0.0 ? juce::jlimit (0.0, 1.0, (nowMs - chopStartMs) / chopDurMs) : 0.0;
+    return (double) rs + t * (double) (re - rs);
+}
+
+void SlicePanel::startChop()
+{
+    const auto d = data();
+    if (d == nullptr || processor.getKit().cells[(size_t) cell].missing)
+        return;
+    const float rs = regionStart(), re = regionEnd();
+    if (re <= rs)
+        return;
+
+    markers = { rs };                                          // si riparte da zero: il primo marcatore e' l'inizio
+    markersChanged();
+    chopDurMs = (double) (re - rs) * (double) d->numSamples() / d->sampleRate * 1000.0;
+    chopSeen = processor.chopNoteCount();
+    processor.setChopCapture (true);
+    processor.auditionCellRegion (cell, rs, re, (float) auditionVolume.getValue());
+    chopStartMs = juce::Time::getMillisecondCounterHiRes();
+    chopping = true;
+    chopButton.setButtonText ("Stop chop");
+    chopButton.setPrimary (true);
+    startTimerHz (60);
+    wave->touch();
+}
+
+void SlicePanel::stopChop (bool finished)
+{
+    if (! chopping)
+        return;
+    chopping = false;
+    processor.setChopCapture (false);
+    if (! finished)
+        processor.stopAudition();
+    chopButton.setButtonText ("Chop");
+    chopButton.setPrimary (false);
+    showStatus ("Chop done: " + juce::String ((int) markers.size()) + " slice" + (markers.size() == 1 ? "" : "s")
+                + " - adjust the markers, then Distribute");
+    wave->touch();
+}
+
+void SlicePanel::chopMark()
+{
+    if (chopping)
+        addChopMarker (juce::Time::getMillisecondCounterHiRes());
+}
+
+void SlicePanel::addChopMarker (double timeMs)
+{
+    const auto d = data();
+    if (! chopping || d == nullptr)
+        return;
+    const float rs = regionStart(), re = regionEnd();
+    const double t = (timeMs - chopStartMs) / chopDurMs;
+    if (t <= 0.0 || t >= 1.0)
+        return;
+    const float p = rs + (float) t * (re - rs);
+    const float minGap = (float) (0.004 * d->sampleRate / (double) d->numSamples());
+    for (const float m : markers)
+        if (std::abs (m - p) < minGap)
+            return;
+    if (re - p < minGap)
+        return;
+    markers.push_back (p);
+    std::sort (markers.begin(), markers.end());
+    markersChanged();
+    wave->repaint();
 }
 
 void SlicePanel::doDistribute()
@@ -866,7 +969,12 @@ void SlicePanel::paint (juce::Graphics& g)
     }
     g.setColour (status.isNotEmpty() ? theme::accent : theme::textDim);
     g.setFont (juce::FontOptions (juce::jmax (10.0f, 13.0f * s), status.isNotEmpty() ? juce::Font::bold : juce::Font::plain));
-    g.drawText (status.isNotEmpty() ? status : summary, actionRect.reduced ((int) (18 * s), 0).withTrimmedRight ((int) (470 * s)),
+    if (chopping)
+    {
+        summary = "Chopping: " + juce::String ((int) markers.size() - 1) + " cut" + (markers.size() == 2 ? "" : "s") + " - press M or a MIDI note";
+        g.setColour (theme::accent);
+    }
+    g.drawText (status.isNotEmpty() && ! chopping ? status : summary, actionRect.reduced ((int) (18 * s), 0).withTrimmedLeft ((int) (126 * s)).withTrimmedRight ((int) (470 * s)),
                 juce::Justification::centredLeft, true);
 
     // Scheda informazioni sul campione
@@ -955,6 +1063,7 @@ void SlicePanel::resized()
     area.removeFromBottom (gap);
     {
         auto r = actionRect.reduced ((int) (14 * s), (int) (10 * s));
+        chopButton.setBounds (r.removeFromLeft ((int) (112 * s)));
         distributeButton.setBounds (r.removeFromRight ((int) (230 * s)));
         r.removeFromRight ((int) (16 * s));
         keepToggle.setBounds (r.removeFromRight ((int) (230 * s)).withSizeKeepingCentre ((int) (230 * s), (int) (26 * s)));

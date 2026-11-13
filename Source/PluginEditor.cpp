@@ -145,6 +145,13 @@ bool SampleLabEditor::keyPressed (const juce::KeyPress& key)
         return true;
     }
 
+    // Scheda Slice: M mette un marcatore durante il Chop
+    if (currentTab == 4 && slicePanel.isChopping() && (key.getTextCharacter() == 'm' || key.getTextCharacter() == 'M'))
+    {
+        slicePanel.chopMark();
+        return true;
+    }
+
     // Griglia delle celle (scheda Main): Canc/Backspace svuota le celle selezionate, Ctrl+A le seleziona tutte, Esc deseleziona
     if (currentTab == 0)
     {

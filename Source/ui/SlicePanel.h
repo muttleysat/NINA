@@ -16,10 +16,15 @@ public:
     void refresh();                        // il kit o la regione Start/End sono cambiati
     void runDetect() { doDetect(); }       // come premere Detect (anche per le schermate automatiche)
 
+    // Chop: il loop suona e ogni pressione di M (o di una nota MIDI) mette un marcatore nel punto in cui si trova
+    bool isChopping() const { return chopping; }
+    void chopMark();                       // tasto M
+
     std::function<void()> onKitChanged;    // dopo la distribuzione: l'editor ridisegna griglia e pannelli
 
     void paint (juce::Graphics&) override;
     void resized() override;
+    void visibilityChanged() override { if (! isShowing()) stopChop(); }
 
 private:
     class WaveView;
@@ -41,6 +46,10 @@ private:
     void doEven (int count);
     void doClear();
     void doDistribute();
+    void startChop();
+    void stopChop (bool finished = false);
+    void addChopMarker (double timeMs);
+    double chopPosition (double nowMs) const;                  // posizione (0..1 sul campione) raggiunta dall'anteprima
     void setTargetStart (int cellIndex);
     void showStatus (const juce::String& text);
     void timerCallback() override;
@@ -51,13 +60,17 @@ private:
     int targetStart = -1;                                      // -1 = automatico (cella dopo l'originale)
     bool keepOriginal = true;
     juce::String status;
-    int statusTicks = 0;
+    double statusUntil = 0.0;
+    bool chopping = false;
+    double chopStartMs = 0.0, chopDurMs = 0.0;
+    uint32_t chopSeen = 0;
 
     // Barra degli strumenti
     IconButton detectButton { "Detect", IconButton::Icon::Wave };
     juce::Slider sensitivity;
     juce::ComboBox evenBox;
     IconButton clearButton { "Clear", IconButton::Icon::Trash };
+    IconButton chopButton { "Chop", IconButton::Icon::Scissors };
     juce::ToggleButton auditionToggle { "Audition" };
     juce::Slider auditionVolume;
 
