@@ -394,16 +394,20 @@ bool SampleLabProcessor::bouncePatternWav (const juce::File& file, int bars, juc
     params.fillLive (eng->live);
     eng->live.bpm = bpm;
 
-    auto out = sl::SequencerExport::renderOffline (*eng, activePattern(), bars, bpm, sr);
-    const int totalSamples = out.getNumSamples();
+    const auto tail = exportTail.load();
+    auto out = sl::SequencerExport::renderBounce (*eng, activePattern(), bars, bpm, sr, tail);
+    int numSamples = out.getNumSamples();
 
-    // Si taglia il silenzio finale oltre la coda
-    int lastAudible = totalSamples;
-    while (lastAudible > 0 && out.getMagnitude (0, lastAudible - 1, 1) < 1.0e-5f && out.getMagnitude (1, lastAudible - 1, 1) < 1.0e-5f)
-        --lastAudible;
-    lastAudible = juce::jmin (totalSamples, lastAudible + (int) (0.05 * sr));
+    // Solo con la coda intera: si taglia il silenzio finale oltre la coda. Con Cut/Loop la lunghezza resta esattamente quella delle battute.
+    if (tail == sl::SequencerExport::TailMode::Keep)
+    {
+        int lastAudible = numSamples;
+        while (lastAudible > 0 && out.getMagnitude (0, lastAudible - 1, 1) < 1.0e-5f && out.getMagnitude (1, lastAudible - 1, 1) < 1.0e-5f)
+            --lastAudible;
+        numSamples = juce::jmin (numSamples, lastAudible + (int) (0.05 * sr));
+    }
 
-    return writeWav24 (file, out, sr, lastAudible, error);
+    return writeWav24 (file, out, sr, numSamples, error);
 }
 
 bool SampleLabProcessor::writeWav24 (const juce::File& file, const juce::AudioBuffer<float>& audio, double sr, int numSamples, juce::String& error)
@@ -457,7 +461,7 @@ int SampleLabProcessor::exportPatternStems (const juce::File& folder, int bars, 
         eng->live.masterFx = sl::FxParams();                        // niente effetti master negli stem: si rimixano nella DAW
         eng->live.masterGain = 1.0f;
 
-        auto audio = sl::SequencerExport::renderOffline (*eng, sl::SequencerExport::isolateLane (pattern, i), bars, bpm, sr);
+        auto audio = sl::SequencerExport::renderBounce (*eng, sl::SequencerExport::isolateLane (pattern, i), bars, bpm, sr, exportTail.load());
 
         juce::String base = sl::KitIO::sanitiseName (sl::cellLabel (cell, kit.cols) + "_" + (kit.cells[(size_t) cell].name.isEmpty() ? juce::String ("cell") : kit.cells[(size_t) cell].name));
         juce::String name = base;

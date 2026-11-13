@@ -797,6 +797,17 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     prevPattern.onClick = [this] { patternBox.setSelectedId (juce::jmax (1, patternBox.getSelectedId() - 1)); };
     nextPattern.onClick = [this] { patternBox.setSelectedId (juce::jmin (sl::kNumPatterns, patternBox.getSelectedId() + 1)); };
 
+    tailBox.addItem ("Tail: cut", 1);
+    tailBox.addItem ("Tail: loop", 2);
+    tailBox.addItem ("Tail: keep", 3);
+    tailBox.setSelectedId (juce::jlimit (0, 2, (int) processor.getExportTail()) + 1, juce::dontSendNotification);
+    tailBox.setTooltip ("What to do with delay/reverb tails in audio exports (Bounce WAV, Export lanes, Drag audio/lanes).\n"
+                        "Cut: the file is exactly the chosen number of bars, so it snaps to the grid in your DAW; tails past the end are cut.\n"
+                        "Loop: exactly the chosen bars too, but the tail of the end wraps around to the start, so a looped clip sounds seamless.\n"
+                        "Keep: the full tail after the end (the file is longer than the bars).");
+    tailBox.onChange = [this] { processor.setExportTail ((SampleLabProcessor::ExportTail) (tailBox.getSelectedId() - 1)); };
+    addAndMakeVisible (tailBox);
+
     for (const char* t : { "Export 1 bar", "Export 2 bars", "Export 4 bars", "Export 8 bars" })
         barsBox.addItem (t, barsBox.getNumItems() + 1);
     barsBox.setSelectedId (2, juce::dontSendNotification);
@@ -937,6 +948,7 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
         if (card->effect == sl::FxB::Delay)
         {
             card->syncButton = std::make_unique<juce::TextButton> ("Sync");
+            card->syncButton->setClickingTogglesState (true);          // senza questo il clic non cambia lo stato e il parametro non si muove
             card->syncButton->setTooltip ("Lock the delay time to the project tempo (host or internal BPM)");
             card->divisionBox = std::make_unique<juce::ComboBox>();
             card->divisionBox->setTooltip ("Note value of the delay when Sync is on");
@@ -1481,6 +1493,8 @@ void SeqPanel::resized()
     // Riga 2: esportazione (battute, MIDI, audio)
     auto row2 = area.removeFromTop ((int) (26 * s));
     barsBox.setBounds (row2.removeFromLeft ((int) (130 * s)));
+    row2.removeFromLeft (gap);
+    tailBox.setBounds (row2.removeFromLeft ((int) (104 * s)));
     row2.removeFromLeft (gap);
     midiButton.setBounds (row2.removeFromLeft ((int) (104 * s)));
     row2.removeFromLeft (gap);

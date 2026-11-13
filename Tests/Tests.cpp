@@ -1700,6 +1700,42 @@ public:
             expectEquals (back.cells[0].output, 0);
             tmp.deleteRecursively();
         }
+
+        beginTest ("Audio export tail modes: Cut and Loop are exactly N bars, Keep is longer");
+        {
+            Pattern p;
+            Lane l; l.cell = 0; l.division = 4; l.length = 4; l.steps[3].on = true;      // un colpo sull'ultimo quarto
+            p.lanes.push_back (l);
+
+            auto make = [&]
+            {
+                auto c = cell (36, TriggerMode::OneShot);
+                c.fx.delayOn = true; c.fx.delaySync = true; c.fx.delayDivision = 1;   // 1/2 = 1 s
+                c.fx.delayFeedback = 0.0f; c.fx.delayMix = 1.0f;
+                auto r = std::make_unique<Rig>();
+                auto imp = std::make_shared<SampleData>();
+                imp->audio.setSize (1, 200);
+                imp->audio.clear();
+                imp->audio.setSample (0, 0, 1.0f);
+                imp->sampleRate = kSR;
+                r->setCells ({ { c, imp } });
+                r->engine.live.bpm = 120.0;
+                return r;
+            };
+
+            const int bar = (int) std::llround (4.0 * 60.0 / 120.0 * kSR);       // 1 battuta a 120 BPM = 2 s
+            auto cutRig = make(), loopRig = make(), keepRig = make();
+            auto cut = SequencerExport::renderBounce (cutRig->engine, p, 1, 120.0, kSR, SequencerExport::TailMode::Cut);
+            auto loop = SequencerExport::renderBounce (loopRig->engine, p, 1, 120.0, kSR, SequencerExport::TailMode::Loop);
+            auto keep = SequencerExport::renderBounce (keepRig->engine, p, 1, 120.0, kSR, SequencerExport::TailMode::Keep);
+            expectEquals (cut.getNumSamples(), bar);
+            expectEquals (loop.getNumSamples(), bar);
+            expect (keep.getNumSamples() > bar + (int) kSR, "keep is longer: " + juce::String (keep.getNumSamples()));
+            // Colpo sul 4o quarto (1.5 s) + eco a 1/2 (1 s dopo) = 2.5 s: oltre la fine nel Cut, a 0.5 s dall'inizio nel Loop
+            expect (peak (cut, 0, (int) cut.getNumSamples()) < 0.001f || peak (cut, 22000, 22100) < 0.001f, "cut: no wrapped echo");
+            expect (peak (loop, 22000, 22100) > 0.3f, "loop: the echo wraps to the start, peak " + juce::String (peak (loop, 22000, 22100)));
+            expect (peak (keep, 110000, 110500) > 0.3f, "keep: the echo is after the end");
+        }
     }
 };
 

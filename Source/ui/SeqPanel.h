@@ -63,7 +63,7 @@ private:
     // Trasporto e pattern
     juce::TextButton playButton { "Play" }, addButton { "+ Cell" }, midiButton { "Export MIDI" }, wavButton { "Bounce WAV" },
                      stemsButton { "Export lanes" }, reseedButton { "Reset seed" }, prevPattern { "<" }, nextPattern { ">" };
-    juce::ComboBox patternBox, barsBox;
+    juce::ComboBox patternBox, barsBox, tailBox;
     juce::Slider swingSlider;
     int lastViewX = 0;                 // scroll orizzontale corrente (l'intestazione delle righe resta ferma)
 

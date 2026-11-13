@@ -7,12 +7,24 @@ Dalla scheda **Seq** puoi portare il pattern in Cubase in tre modi. Tutti usano 
 | Opzione | Contenuto | Effetti inclusi? |
 |---------|-----------|------------------|
 | **MIDI** | Le note del pattern come clip MIDI. Ogni cella suona la sua nota (**Key low** della cella), con velocity, ratchet, swing e probabilità già "risolti" in note fisse | **No** (il MIDI non può contenerli) |
-| **Audio** (Bounce WAV) | L'intera sequenza in **un solo file** WAV a 24 bit | **Sì**: effetti delle celle, lock degli step, delay sincronizzato, code, effetti master |
+| **Audio** (Bounce WAV) | L'intera sequenza in **un solo file** WAV a 24 bit | **Sì**: effetti delle celle, lock degli step, delay sincronizzato, code (vedi Tail), effetti master |
 | **Righe** (Export lanes) | **Un file WAV per ogni riga** in una cartella, tutti **della stessa lunghezza** | Sì: gli effetti di ogni cella (con delay sincronizzato e code). **Senza** gli effetti master |
 
 I file delle righe sommati danno esattamente l'audio intero (senza gli effetti master). Usali per **rimixare** ogni suono sulla sua traccia.
 
 Reverse e lock degli effetti non esistono nel MIDI: per averli nella DAW usa l'audio.
+
+## Le code di delay e riverbero: Tail
+
+Accanto al menu delle battute c'è il menu **Tail**, che decide cosa succede alle code degli effetti nei file **audio** (Bounce WAV, Export lanes, Drag audio, Drag lanes):
+
+| Tail | Lunghezza del file | Cosa fa |
+|------|--------------------|---------|
+| **cut** (predefinito) | **Esattamente** le battute scelte | La coda oltre la fine viene tagliata: il file è quantizzato e si allinea alla griglia della DAW |
+| **loop** | Esattamente le battute scelte | La coda della fine **rientra all'inizio**: la clip in loop suona senza stacchi (come se il pattern girasse) |
+| **keep** | Battute + tutta la coda | Il file è più lungo del pattern; si ferma quando la coda finisce |
+
+Per un loop in Cubase usa **cut** o **loop** (meglio loop se l'eco deve continuare tra un giro e l'altro). Con **loop** il pattern viene suonato due volte e si tiene la seconda: eco molto lunghe (oltre una battuta) possono essere incomplete all'inizio.
 
 ## Il metodo più veloce: trascinare nella DAW
 
@@ -59,4 +71,4 @@ Le uscite singole sono **prima** degli effetti master e del volume master (resta
 - L'export non include l'**automazione** della DAW, ma i valori correnti dei controlli.
 - Il delay sincronizzato usa il BPM **del momento dell'export**.
 - Un'esportazione **non fa il tempo reale**: è più veloce, e non dipende dalla DAW.
-- Un file audio dell'intera sequenza è tagliato dopo la fine delle code per non avere silenzio inutile; i file delle righe **non** sono tagliati, per restare allineati.
+- Con **Tail: keep** il file dell'intera sequenza è tagliato dopo la fine della coda per non avere silenzio inutile; i file delle righe restano della stessa lunghezza tra loro, in ogni modalità.

@@ -19,6 +19,17 @@ bool writeMidiFile (const juce::MidiFile& midi, const juce::File& file);
 // Copia del pattern in cui suona solo la lane indicata (per l'esportazione degli stem: un file per cella)
 Pattern isolateLane (const Pattern& pattern, int lane);
 
+// Come trattare le code di delay/riverbero nei file audio esportati
+enum class TailMode
+{
+    Cut = 0,    // lunghezza esatta delle battute: file "quantizzato", la coda oltre la fine e' tagliata
+    Loop,       // lunghezza esatta; la coda della fine rientra all'inizio (clip in loop senza stacchi)
+    Keep        // le battute piu' tutta la coda (file piu' lungo)
+};
+
+// Rendering per l'esportazione audio con la gestione delle code scelta. Cut/Loop: esattamente 'bars' battute di campioni.
+juce::AudioBuffer<float> renderBounce (Engine& engine, const Pattern& pattern, int bars, double bpm, double sampleRate, TailMode tail);
+
 // Rendering offline (SQ-10): suona il pattern dall'inizio per 'bars' battute con un motore gia' preparato
 // (prepare, snapshot pubblicato, parametri live impostati) e aggiunge 'tailSeconds' per le code di delay/riverbero.
 // Piu' veloce del tempo reale, senza passare dalla DAW.

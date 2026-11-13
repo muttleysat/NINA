@@ -65,6 +65,33 @@ Pattern isolateLane (const Pattern& pattern, int lane)
     return p;
 }
 
+juce::AudioBuffer<float> renderBounce (Engine& engine, const Pattern& pattern, int bars, double bpm, double sr, TailMode tail)
+{
+    const int oneRun = (int) std::llround ((double) juce::jmax (1, bars) * 4.0 * 60.0 / bpm * sr);   // lunghezza esatta in campioni
+
+    if (tail == TailMode::Keep)
+        return renderOffline (engine, pattern, bars, bpm, sr, 4.0);
+
+    if (tail == TailMode::Cut)
+    {
+        auto full = renderOffline (engine, pattern, bars, bpm, sr, 0.0);
+        juce::AudioBuffer<float> out (2, oneRun);
+        out.clear();
+        for (int c = 0; c < 2; ++c)
+            out.copyFrom (c, 0, full, c, 0, juce::jmin (oneRun, full.getNumSamples()));
+        return out;
+    }
+
+    // Loop: si suona il pattern due volte e si tiene la seconda: contiene la coda della prima all'inizio (stato "a regime")
+    auto twice = renderOffline (engine, pattern, juce::jmax (1, bars) * 2, bpm, sr, 0.0);
+    juce::AudioBuffer<float> out (2, oneRun);
+    out.clear();
+    const int available = juce::jmax (0, twice.getNumSamples() - oneRun);
+    for (int c = 0; c < 2; ++c)
+        out.copyFrom (c, 0, twice, c, oneRun, juce::jmin (oneRun, available));
+    return out;
+}
+
 juce::AudioBuffer<float> renderOffline (Engine& engine, const Pattern& pattern, int bars, double bpm, double sr, double tailSeconds)
 {
     constexpr int block = 512;

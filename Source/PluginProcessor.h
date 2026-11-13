@@ -7,6 +7,7 @@
 #include "engine/Engine.h"
 #include "engine/LoopStretch.h"
 #include "kit/KitIO.h"
+#include "sequencer/SequencerExport.h"
 #include "params/ParamSet.h"
 #include "params/MidiLearn.h"
 
@@ -61,6 +62,11 @@ public:
     // Esportazione del pattern attivo: clip MIDI e audio (WAV 24 bit con effetti, lock e tail)
     bool exportPatternMidi (const juce::File& file, int bars, juce::String& error);
     bool bouncePatternWav (const juce::File& file, int bars, juce::String& error);
+
+    // Code di delay/riverbero nei file audio esportati (Bounce WAV, Export lanes e le maniglie Drag audio/lanes)
+    using ExportTail = sl::SequencerExport::TailMode;
+    ExportTail getExportTail() const { return exportTail.load(); }
+    void setExportTail (ExportTail t) { exportTail.store (t); }
     int exportPatternStems (const juce::File& folder, int bars, juce::String& error);    // un WAV per riga; ritorna quanti, -1 se errore
 
     // ---- MIDI learn dei parametri ----
@@ -183,6 +189,7 @@ private:
     } tempoTimer;
     std::map<juce::String, sl::SampleDataPtr> sampleCache;   // i campioni restano in memoria per la sessione
     std::atomic<bool> dirty { false };
+    std::atomic<sl::SequencerExport::TailMode> exportTail { sl::SequencerExport::TailMode::Cut };
     DirtyListener dirtyListener { dirty };
     std::atomic<double> internalBpm { 120.0 }, currentBpm { 120.0 };
     std::atomic<bool> hostTempo { false };
