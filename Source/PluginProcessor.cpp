@@ -730,10 +730,25 @@ void SampleLabProcessor::clearCell (int cell)
     c.name = {};
     c.missing = false;
     cellData[(size_t) cell] = nullptr;
+    // Una cella svuotata torna al suo tasto di partenza: un range esteso non deve continuare a coprire i pad vicini
+    c.rootNote = c.lowNote = c.highNote = juce::jlimit (0, 127, sl::Kit::kFirstNote + cell);
+    c.output = 0;
+    c.slices.clear();
+    c.tempoSync = false;
+    c.loopBpm = 0.0f;
 
     const auto& refs = params.cell (cell);
     refs.at (sl::CellF::Start)->setValueNotifyingHost (0.0f);
     refs.at (sl::CellF::End)->setValueNotifyingHost (1.0f);
+    cellEdited (cell);
+}
+
+void SampleLabProcessor::resetKeyRange (int cell)
+{
+    if (cell < 0 || cell >= kit.numCells())
+        return;
+    auto& c = kit.cells[(size_t) cell];
+    c.rootNote = c.lowNote = c.highNote = juce::jlimit (0, 127, sl::Kit::kFirstNote + cell);
     cellEdited (cell);
 }
 

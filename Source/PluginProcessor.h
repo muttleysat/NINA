@@ -97,7 +97,8 @@ public:
     bool isDirty() const { return dirty.load(); }
 
     bool loadSampleIntoCell (int cell, const juce::File& file, juce::String& error);
-    void clearCell (int cell);
+    void clearCell (int cell);                     // toglie il campione e riporta la cella al suo tasto di partenza
+    void resetKeyRange (int cell);                 // root/low/high tornano al tasto predefinito della cella (A1 = C1, A2 = C#1...)
 
     // Normalizzazione: porta il picco del campione (tra Start ed End) al livello target regolando il Level della cella.
     // Non modifica il file audio. Ritorna il guadagno applicato in dB; 0 se la cella e' vuota o silenziosa.

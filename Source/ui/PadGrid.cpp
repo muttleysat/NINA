@@ -485,6 +485,8 @@ void PadGrid::showContextMenu (int cell)
         mm.addSeparator();
         mm.addItem (3, "Clear " + juce::String (withSample) + " selected cell" + (withSample == 1 ? "" : "s"), withSample > 0);
         mm.addSeparator();
+        mm.addItem (5, "Reset key range of selected cells");
+        mm.addSeparator();
         mm.addItem (4, "Select only this cell");
         mm.showMenuAsync (juce::PopupMenu::Options().withTargetScreenArea (localAreaToGlobal (cellBounds (cell).toNearestInt())),
                           [this, sel, cell] (int r)
@@ -506,6 +508,13 @@ void PadGrid::showContextMenu (int cell)
                               }
                               else if (r == 3)
                                   clearSelectedCells();
+                              else if (r == 5)
+                              {
+                                  for (const int c : sel)
+                                      processor.resetKeyRange (c);
+                                  repaint();
+                                  if (onKitChanged) onKitChanged();
+                              }
                               else if (r == 4)
                               {
                                   multi.clear();
@@ -524,6 +533,12 @@ void PadGrid::showContextMenu (int cell)
     m.addItem (1, "Load sample...");
     m.addItem (2, "Rename...", filled);
     m.addItem (3, "Clear cell", filled);
+    {
+        const auto& cc = processor.getKit().cells[(size_t) cell];
+        const int def = sl::Kit::kFirstNote + cell;
+        m.addSeparator();
+        m.addItem (5, "Reset key range (" + theme::noteName (def) + ")", cc.lowNote != def || cc.highNote != def || cc.rootNote != def);
+    }
 
     m.showMenuAsync (juce::PopupMenu::Options().withTargetScreenArea (localAreaToGlobal (cellBounds (cell).toNearestInt())),
                      [this, cell, inSequencer] (int r)
@@ -533,6 +548,12 @@ void PadGrid::showContextMenu (int cell)
                          else if (r == 3)
                          {
                              processor.clearCell (cell);
+                             if (onKitChanged) onKitChanged();
+                         }
+                         else if (r == 5)
+                         {
+                             processor.resetKeyRange (cell);
+                             repaint();
                              if (onKitChanged) onKitChanged();
                          }
                          else if (r == 4)
