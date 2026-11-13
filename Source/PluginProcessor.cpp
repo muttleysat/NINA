@@ -342,6 +342,9 @@ int SampleLabProcessor::distributeSliceData (sl::SampleDataPtr data, const juce:
         c.slices.clear();
         c.tempoSync = sync;
         c.loopBpm = bpm;
+        c.rootNote = c.lowNote = c.highNote = juce::jlimit (0, 127, sl::Kit::kFirstNote + target);   // tasto proprio: nessuna trasposizione residua
+        for (const auto f : { sl::CellF::Tune, sl::CellF::Pitch })                                     // le slice suonano all'intonazione originale
+            params.cell (target).at (f)->setValueNotifyingHost (static_cast<juce::RangedAudioParameter*> (params.cell (target).at (f))->getDefaultValue());
         cellEdited (target);
         ++filled;
     }
@@ -384,6 +387,9 @@ int SampleLabProcessor::distributeSlices (int sourceCell, const std::vector<floa
         c.tempoSync = srcSync;
         c.keyLock = srcKeyLock;
         c.loopBpm = loopBpm;
+        c.rootNote = c.lowNote = c.highNote = juce::jlimit (0, 127, sl::Kit::kFirstNote + target);   // tasto proprio: nessuna trasposizione residua
+        for (const auto f : { sl::CellF::Tune, sl::CellF::Pitch })                                     // intonazione come quella del loop
+            params.cell (target).at (f)->setValueNotifyingHost (static_cast<juce::RangedAudioParameter*> (params.cell (sourceCell).at (f))->getValue());
         const auto& refs = params.cell (target);
         refs.at (sl::CellF::Start)->setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, bounds[(size_t) i]));
         refs.at (sl::CellF::End)->setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, bounds[(size_t) i + 1]));
