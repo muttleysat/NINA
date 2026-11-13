@@ -22,6 +22,17 @@ La scheda **Slice** (ultima in basso, con l'icona delle forbici) taglia il campi
 
 La scritta in basso a sinistra riassume tutto: numero di slice, da quale a quale cella, quante verranno sovrascritte.
 
+## Chop: tagliare ascoltando (stile MPC)
+
+Il pulsante **Chop** (in basso a sinistra) fa suonare la regione dall'inizio alla fine e ti lascia mettere i tagli **a tempo**, mentre ascolti:
+
+1. Premi **Chop**: i marcatori esistenti vengono tolti (resta solo l'inizio), il loop parte e un **cursore bianco** scorre sulla forma d'onda.
+2. Ogni volta che premi **M** sulla tastiera del computer, o **una nota qualsiasi** della tastiera MIDI, viene messo un marcatore nel punto in cui si trova il cursore. Durante il Chop le note MIDI non suonano le celle: servono solo per tagliare.
+3. Il Chop finisce da solo alla fine della regione, oppure premendo di nuovo il pulsante (**Stop chop**). Cambiando scheda o cella si ferma.
+4. Rifinisci i marcatori a mano (trascina, doppio clic, tasto destro) e premi **Distribute to cells**.
+
+Il suono esce con il ritardo della scheda audio: se tagli sempre un po' in ritardo, anticipa leggermente il tasto o sposta i marcatori dopo.
+
 ## Cosa succede alle celle
 
 - Ogni cella riceve lo **stesso file** del loop (nessuna copia dei dati: non occupa memoria in più) con il proprio **Start/End** dell'inizio e della fine della slice. Il nome è quello del loop più un numero (`amen 01`, `amen 02`…).
