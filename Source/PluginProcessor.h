@@ -165,6 +165,16 @@ public:
     double getCurrentBpm() const { return currentBpm.load(); }
     bool isHostTempo() const { return hostTempo.load(); }
     void setInternalBpm (double bpm) { internalBpm.store (juce::jlimit (20.0, 400.0, bpm)); }
+    void setInternalBpmByUser (double bpm) { setInternalBpm (bpm); bpmEdited.store (true); }   // scritto a mano nel riquadro BPM
+    // Le esportazioni audio hanno bisogno del tempo del progetto. Nel plugin lo si conosce solo dopo che la DAW lo ha mandato (di solito
+    // quando parte il trasporto) o se e' stato scritto a mano: altrimenti si esporterebbe al tempo interno predefinito (120), sbagliato.
+    bool exportTempoKnown() const { return wrapperType == juce::AudioProcessor::wrapperType_Standalone || lastHostBpm.load() > 0.0 || bpmEdited.load(); }
+    static juce::String tempoUnknownMessage()
+    {
+        return "NINA hasn't received the project tempo from your DAW yet, so the audio would be rendered at the wrong speed.\n\n"
+               "Press Play in the DAW once (NINA then reads the tempo and remembers it), or type the tempo in the BPM box at the top "
+               "(double-click it), and then export again.";
+    }
 
     // Anteprima dei file del browser (caricamento in background, riproduzione su una voce dedicata)
     void auditionFile (const juce::File& file, float gainDb);
@@ -297,6 +307,8 @@ private:
     DirtyListener dirtyListener { dirty };
     std::atomic<double> internalBpm { 120.0 }, currentBpm { 120.0 };
     std::atomic<bool> hostTempo { false };
+    std::atomic<double> lastHostBpm { 0.0 };                 // ultimo tempo ricevuto dalla DAW (0 = mai)
+    std::atomic<bool> bpmEdited { false };
     int generation = 0;
 
     mutable std::unique_ptr<juce::ApplicationProperties> appProps;

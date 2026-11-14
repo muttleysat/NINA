@@ -289,7 +289,11 @@ SongPanel::SongPanel (SampleLabProcessor& p) : processor (p)
             dir.createDirectory();
             const auto file = dir.getChildFile (baseName() + ".wav");
             juce::String err;
-            return processor.bounceSongWav (file, err) ? juce::StringArray (file.getFullPathName()) : juce::StringArray();
+            if (processor.bounceSongWav (file, err))
+                return juce::StringArray (file.getFullPathName());
+            if (err.isNotEmpty())
+                juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<SongPanel> (this), err] { if (safe != nullptr) safe->showMessage (err); });
+            return juce::StringArray();
         });
     dragLanes = std::make_unique<DragHandle> ("Drag lanes", "Drag this into the DAW: one audio file per cell used in the song (same length)",
         [this] () -> juce::StringArray
@@ -298,7 +302,11 @@ SongPanel::SongPanel (SampleLabProcessor& p) : processor (p)
             dir.deleteRecursively();
             juce::String err;
             if (processor.exportSongStems (dir, err) <= 0)
+            {
+                if (err.isNotEmpty())
+                    juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<SongPanel> (this), err] { if (safe != nullptr) safe->showMessage (err); });
                 return {};
+            }
             juce::StringArray files;
             for (const auto& f : dir.findChildFiles (juce::File::findFiles, false, "*.wav"))
                 files.add (f.getFullPathName());
@@ -598,7 +606,8 @@ void SongPanel::bounceWav()
                                   f = f.withFileExtension ("wav");
                               juce::String err;
                               if (processor.bounceSongWav (f, err))
-                                  showMessage ("Audio bounced:\n" + f.getFullPathName());
+                                  showMessage ("Audio bounced:\n" + f.getFullPathName() + "\n\nRendered at " + juce::String (processor.getCurrentBpm(), 2) + " BPM, "
+                                           + juce::String (processor.getSampleRate(), 0) + " Hz.");
                               else
                                   showMessage (err.isEmpty() ? juce::String ("Bounce failed") : err);
                           });

@@ -62,7 +62,7 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     bpmLabel.setColour (juce::TextEditor::backgroundColourId, theme::panelHi);
     bpmLabel.onTextChange = [this]
     {
-        processor.setInternalBpm (bpmLabel.getText().retainCharacters ("0123456789.").getDoubleValue());
+        processor.setInternalBpmByUser (bpmLabel.getText().retainCharacters ("0123456789.").getDoubleValue());
     };
     addAndMakeVisible (bpmLabel);
 
@@ -498,7 +498,8 @@ void SampleLabEditor::timerCallback()
     // BPM: dalla DAW (non modificabile) oppure interno (si modifica con doppio clic)
     const bool host = processor.isHostTempo();
     bpmLabel.setEditable (! host, ! host, false);
-    bpmLabel.setTooltip (host ? "Tempo from the host" : "Internal tempo (double-click to edit)");
+    bpmLabel.setTooltip (host ? "Tempo from the host (the last one received)"
+                              : "Internal tempo (double-click to edit). In a DAW, NINA takes the tempo from the project once the transport has run.");
     if (! bpmLabel.isBeingEdited())
         bpmLabel.setText (juce::String (processor.getCurrentBpm(), 1) + " BPM", juce::dontSendNotification);
 }

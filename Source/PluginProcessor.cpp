@@ -102,6 +102,13 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
                 bpm = *hostBpm;
                 fromHost = true;
             }
+    if (fromHost)
+        lastHostBpm.store (bpm, std::memory_order_relaxed);
+    else if (wrapperType != juce::AudioProcessor::wrapperType_Standalone && lastHostBpm.load (std::memory_order_relaxed) > 0.0)
+    {
+        bpm = lastHostBpm.load (std::memory_order_relaxed);        // la DAW non manda il tempo a trasporto fermo: si tiene l'ultimo ricevuto
+        fromHost = true;
+    }
     engine.live.bpm = bpm;
     currentBpm.store (bpm, std::memory_order_relaxed);
     hostTempo.store (fromHost, std::memory_order_relaxed);
@@ -803,6 +810,11 @@ bool SampleLabProcessor::exportSongMidi (const juce::File& file, juce::String& e
 
 bool SampleLabProcessor::bounceSongWav (const juce::File& file, juce::String& error)
 {
+    if (! exportTempoKnown())
+    {
+        error = tempoUnknownMessage();
+        return false;
+    }
     std::vector<sl::Pattern> pats;
     std::vector<sl::Segment> segs;
     double total = 0.0;
@@ -837,6 +849,11 @@ bool SampleLabProcessor::bounceSongWav (const juce::File& file, juce::String& er
 // Un WAV per ogni cella suonata dalla song (tutti della stessa lunghezza), con gli effetti della cella ma senza gli effetti master
 int SampleLabProcessor::exportSongStems (const juce::File& folder, juce::String& error)
 {
+    if (! exportTempoKnown())
+    {
+        error = tempoUnknownMessage();
+        return -1;
+    }
     std::set<int> cells;
     for (const auto& b : kit.song.blocks)
         if (b.pattern >= 0 && b.pattern < (int) kit.patterns.size())
@@ -1001,6 +1018,11 @@ bool SampleLabProcessor::exportPatternMidi (const juce::File& file, int bars, ju
 // L'automazione della DAW non e' inclusa: si usano i valori correnti dei parametri.
 bool SampleLabProcessor::bouncePatternWav (const juce::File& file, int bars, juce::String& error)
 {
+    if (! exportTempoKnown())
+    {
+        error = tempoUnknownMessage();
+        return false;
+    }
     const double sr = currentSampleRate > 0.0 ? currentSampleRate : 44100.0;
     const double bpm = currentBpm.load();
     constexpr int block = 512;
@@ -1052,6 +1074,11 @@ bool SampleLabProcessor::writeWav24 (const juce::File& file, const juce::AudioBu
 // per allinearli in Cubase.
 int SampleLabProcessor::exportPatternStems (const juce::File& folder, int bars, juce::String& error)
 {
+    if (! exportTempoKnown())
+    {
+        error = tempoUnknownMessage();
+        return -1;
+    }
     const double sr = currentSampleRate > 0.0 ? currentSampleRate : 44100.0;
     const double bpm = currentBpm.load();
     const auto& pattern = activePattern();
@@ -1560,6 +1587,7 @@ void SampleLabProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("uiHeight", uiHeight, nullptr);
     state.setProperty ("uiZoom", uiZoom, nullptr);
     state.setProperty ("internalBpm", internalBpm.load(), nullptr);
+    state.setProperty ("bpmEdited", bpmEdited.load(), nullptr);
     state.setProperty ("hostSeqMode", hostSeqMode.load(), nullptr);
     state.setProperty ("metronome", clickOn.load(), nullptr);
     state.setProperty ("clickVolume", clickVol.load(), nullptr);
@@ -1583,6 +1611,7 @@ void SampleLabProcessor::setStateInformation (const void* data, int sizeInBytes)
     uiHeight = state.getProperty ("uiHeight", uiHeight);
     uiZoom   = state.getProperty ("uiZoom", uiZoom);
     setInternalBpm (state.getProperty ("internalBpm", 120.0));
+    bpmEdited.store ((bool) state.getProperty ("bpmEdited", false));
     hostSeqMode.store (juce::jlimit (0, 2, (int) state.getProperty ("hostSeqMode", (int) HostSeqMode::MuteOnRecord)));
     songMode.store ((bool) state.getProperty ("songMode", false));
     clickOn.store ((bool) state.getProperty ("metronome", false));

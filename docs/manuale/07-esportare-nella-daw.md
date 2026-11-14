@@ -2,6 +2,15 @@
 
 Dalla scheda **Seq** puoi portare il pattern in Cubase in tre modi. Tutti usano **il tempo e la lunghezza correnti**: il BPM mostrato in alto e il menu **1/2/4/8 bars**.
 
+## Il tempo dell'esportazione audio (plugin)
+
+L'audio (Bounce WAV, Export lanes, Drag audio, Drag lanes) viene creato **al tempo del progetto**. Nel plugin NINA conosce il tempo della DAW solo **dopo che la DAW glielo ha mandato**, cioè di solito quando il trasporto è partito almeno una volta (poi se lo ricorda, anche a DAW ferma: il riquadro BPM in alto diventa non modificabile e indica "last received"). Per evitare file a velocità sbagliata (per esempio a 120 BPM predefiniti quando il tuo progetto è a 90), **se NINA non ha ancora ricevuto il tempo l'esportazione audio si ferma con un avviso**.
+
+- Soluzione 1: premi **Play** nella DAW (anche per un secondo) e riprova.
+- Soluzione 2: scrivi il tempo del progetto nel riquadro **BPM** (doppio clic) e riprova.
+- La finestra di conferma dopo **Bounce WAV** indica **a quanti BPM e a quanti Hz** è stato creato il file: controlla che coincidano con il progetto.
+- Se il progetto cambia tempo, NINA usa quello ricevuto ultimamente (un solo tempo per tutto il file). L'esportazione **MIDI** non ha questo problema: le note seguono il tempo del progetto in qualunque caso.
+
 ## Cosa esporta ogni opzione
 
 | Opzione | Contenuto | Effetti inclusi? |
