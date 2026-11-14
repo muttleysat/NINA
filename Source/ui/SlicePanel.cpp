@@ -1513,7 +1513,7 @@ int SlicePanel::distributeFromFile (const std::vector<float>& b, int first)
 {
     const auto& kit = processor.getKit();
     const auto base = kit.file.getFullPathName().isNotEmpty() ? kit.file.getSiblingFile ("Slices")
-                                                              : juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("Sample Lab Slices");
+                                                              : juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("NINA Slices");
     const auto stem = sl::KitIO::sanitiseName (extFile.getFileNameWithoutExtension());
     auto dir = base.getChildFile (stem);
     for (int i = 2; dir.exists() && i < 1000; ++i)             // mai sovrascrivere i pezzi di una distribuzione precedente

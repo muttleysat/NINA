@@ -60,8 +60,8 @@ Il nome proposto contiene kit, pattern, BPM e battute (per esempio `MioKit_Patte
 
 ## Un flusso consigliato in Cubase
 
-1. Imposta il tempo del progetto e prepara il pattern in Sample Lab (stesso BPM).
-2. Se vuoi poter **modificare le note**: *Drag MIDI* su una traccia che suona Sample Lab (o un altro strumento).
+1. Imposta il tempo del progetto e prepara il pattern in NINA (stesso BPM).
+2. Se vuoi poter **modificare le note**: *Drag MIDI* su una traccia che suona NINA (o un altro strumento).
 3. Se vuoi **il suono finito**: *Drag audio* su una traccia audio.
 4. Se vuoi **rimixare** ogni suono: *Drag lanes*, poi bilancia le tracce.
 5. Se cambi il pattern o il tempo, **riesporta**: l'export è un'istantanea, non un collegamento.

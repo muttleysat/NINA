@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include <BinaryData.h>
 
 namespace
 {
@@ -442,7 +443,7 @@ void SampleLabEditor::refreshAll()
 
 void SampleLabEditor::showError (const juce::String& message)
 {
-    juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, "Sample Lab", message);
+    juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, "NINA", message);
 }
 
 void SampleLabEditor::confirmDiscard (std::function<void()> proceed)
@@ -516,7 +517,7 @@ void SampleLabEditor::showKitMenu()
                          {
                              const int n = processor.normalizeAllCells();
                              refreshCellViews();
-                             juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "Sample Lab",
+                             juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "NINA",
                                  juce::String (n) + " cell(s) normalized: each Level was set so the loudest peak reaches -1 dBFS.\n"
                                                     "The audio files are not modified; you can still adjust each Level.");
                          }
@@ -679,14 +680,13 @@ void SampleLabEditor::paint (juce::Graphics& g)
     g.setColour (theme::border);
     g.drawHorizontalLine (topBar.getBottom() - 1, 0.0f, (float) getWidth());
 
-    const auto logoArea = topBar.reduced ((int) (18 * s), 0).withWidth ((int) (260 * s));
-    g.setFont (juce::FontOptions (juce::jmax (15.0f, 24.0f * s), juce::Font::bold));
-    const juce::String sample = "SAMPLE ";
-    const int sw = juce::GlyphArrangement::getStringWidthInt (g.getCurrentFont(), sample);
-    g.setColour (theme::text);
-    g.drawText (sample, logoArea, juce::Justification::centredLeft);
-    g.setColour (theme::accent);
-    g.drawText ("LAB", logoArea.withTrimmedLeft (sw), juce::Justification::centredLeft);
+    // Logo NINA (incorporato), allineato a sinistra nella barra superiore
+    {
+        static const juce::Image logo = juce::ImageCache::getFromMemory (BinaryData::nina_logo_png, BinaryData::nina_logo_pngSize);
+        const auto logoArea = topBar.reduced ((int) (14 * s), (int) (2 * s)).withWidth ((int) (230 * s));
+        g.setImageResamplingQuality (juce::Graphics::highResamplingQuality);
+        g.drawImage (logo, logoArea.toFloat(), juce::RectanglePlacement::xLeft | juce::RectanglePlacement::yMid);
+    }
 
     // Barra delle schede in basso: pulsanti con icona; quello della scheda aperta e' acceso (arancione con alone)
     g.setColour (theme::panel);

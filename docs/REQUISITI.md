@@ -1,11 +1,11 @@
-# Sample Lab – Requisiti di prodotto
+# NINA – Requisiti di prodotto
 
 Versione: 1.6 (bozza) – 2026-11-12
 Stato: documento vivo, da estendere iterativamente.
 
 ## 1. Visione
 
-**Sample Lab** (nome temporaneo) è un plugin **VST3** di tipo drum sampler/sample player, ispirato a Native Instruments Battery. Permette di caricare singoli campioni o loop su una griglia di celle, mapparli su una tastiera MIDI, modificarli in modo non distruttivo (forma d'onda, dinamica, tune, time-stretch) e processarli con effetti per cella e globali. I kit si salvano come file `.slkit` collegato a una cartella con i sample, che restano file audio normali recuperabili direttamente.
+**NINA** (Drum Sampler) è un plugin **VST3** di tipo drum sampler/sample player, ispirato a Native Instruments Battery. Permette di caricare singoli campioni o loop su una griglia di celle, mapparli su una tastiera MIDI, modificarli in modo non distruttivo (forma d'onda, dinamica, tune, time-stretch) e processarli con effetti per cella e globali. I kit si salvano come file `.slkit` collegato a una cartella con i sample, che restano file audio normali recuperabili direttamente.
 
 ## 2. Ambito della v1
 
@@ -182,7 +182,7 @@ Sequencer interno che suona le celle del kit e consente di creare una **frase MI
 
 ### 9.2 Versione standalone (Windows e macOS)
 
-Oltre al VST3, Sample Lab è distribuito come **applicazione autonoma** per Windows e macOS, con lo stesso motore audio, la stessa interfaccia e gli stessi kit del plugin. Utile per usare il sequencer e il sampler senza DAW e per preparare pattern e kit da portare poi in Cubase.
+Oltre al VST3, NINA è distribuito come **applicazione autonoma** per Windows e macOS, con lo stesso motore audio, la stessa interfaccia e gli stessi kit del plugin. Utile per usare il sequencer e il sampler senza DAW e per preparare pattern e kit da portare poi in Cubase.
 
 | ID | Requisito | Priorità |
 |----|-----------|----------|

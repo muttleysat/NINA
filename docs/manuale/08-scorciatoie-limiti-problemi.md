@@ -54,7 +54,7 @@
 
 **Il suono è troppo basso.** Prova **Normalize** sulla cella o **Kit → Normalize all cells**, poi alza **Level** o il **Volume** master (fino a +12 dB).
 
-**Il plugin non compare in Cubase.** Verifica di aver copiato `Sample Lab.vst3` in `C:\Program Files\Common Files\VST3` e rifai la scansione dei plugin.
+**Il plugin non compare in Cubase.** Verifica di aver copiato `NINA.vst3` in `C:\Program Files\Common Files\VST3` e rifai la scansione dei plugin.
 
 **Un'eco si sente su tutti gli step.** Il Delay è acceso sulla cella: tutte le note mandano l'eco. Spegni l'interruttore del Delay sulla cella (scheda FX) e usa il **Send** per step.
 
@@ -72,4 +72,4 @@
 
 - Kit salvati: dove hai scelto, in coppia `.slkit` + cartella.
 - Esportazioni: cartella **Bounces** accanto al kit (o Documenti).
-- Stato dello standalone: nelle impostazioni dell'applicazione di Windows (cartella `Sample Lab` in `AppData\Roaming`).
+- Stato dello standalone: nelle impostazioni dell'applicazione di Windows (cartella `NINA` in `AppData\Roaming`).

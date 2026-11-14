@@ -2,7 +2,7 @@
 
 ## Automazione dalla DAW (plugin VST3)
 
-Tutti i controlli di Sample Lab sono **parametri automatizzabili** dalla DAW, in lettura e scrittura, con **nomi leggibili** (non numeri di CC).
+Tutti i controlli di NINA sono **parametri automatizzabili** dalla DAW, in lettura e scrittura, con **nomi leggibili** (non numeri di CC).
 
 ### Come compaiono nella DAW
 
@@ -19,13 +19,13 @@ I parametri sono raggruppati per cella ed effetto (per esempio *Cell A1 → A1 F
 
 ### Registrare automazione
 
-Muovendo un controllo di Sample Lab mentre la DAW è in registrazione dell'automazione (Write, Touch, Latch), il movimento viene registrato. Il movimento di una manopola segnala alla DAW l'inizio e la fine del gesto. L'automazione registrata si **riproduce** muovendo le manopole.
+Muovendo un controllo di NINA mentre la DAW è in registrazione dell'automazione (Write, Touch, Latch), il movimento viene registrato. Il movimento di una manopola segnala alla DAW l'inizio e la fine del gesto. L'automazione registrata si **riproduce** muovendo le manopole.
 
 ### Cose da sapere
 
 - **Gli ID dei parametri sono stabili**: non cambieranno tra le versioni, così le automazioni dei tuoi progetti non si rompono.
 - L'automazione agisce anche nell'**esportazione offline** della DAW.
-- Il **Bounce WAV** e **Export lanes** di Sample Lab usano i valori **correnti** dei controlli, **non** l'automazione della DAW.
+- Il **Bounce WAV** e **Export lanes** di NINA usano i valori **correnti** dei controlli, **non** l'automazione della DAW.
 - I valori dei lock degli step (capitolo 4) non sono parametri della DAW: sono dentro il pattern.
 - Il mapping delle note (Root, Key low, Key high) non è automatizzabile.
 
@@ -33,7 +33,7 @@ Muovendo un controllo di Sample Lab mentre la DAW è in registrazione dell'autom
 
 ## MIDI learn
 
-Il MIDI learn collega una manopola o un fader del tuo controller MIDI a un controllo di Sample Lab.
+Il MIDI learn collega una manopola o un fader del tuo controller MIDI a un controllo di NINA.
 
 ### Assegnare
 
@@ -51,7 +51,7 @@ Tasto destro sul controllo → **Clear MIDI mapping**. Per annullare un apprendi
 - Un parametro ha **un solo** CC; lo stesso CC può muovere **più parametri**.
 - Le assegnazioni si **salvano con il kit** (`.slkit`) e nel progetto della DAW.
 - Nel plugin i CC arrivano dalla DAW (per esempio da una traccia MIDI che li invia allo strumento); nello standalone arrivano dal dispositivo MIDI scelto in **Options**.
-- Il MIDI learn vale per i controlli di Sample Lab; le note che suonano le celle (capitolo 2) sono separate.
+- Il MIDI learn vale per i controlli di NINA; le note che suonano le celle (capitolo 2) sono separate.
 
 ### Non ancora disponibile
 

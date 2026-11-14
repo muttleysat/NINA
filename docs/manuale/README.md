@@ -1,6 +1,6 @@
-# Sample Lab – Manuale d'uso
+# NINA – Manuale d'uso
 
-Sample Lab è un campionatore a celle (stile drum machine) con sequencer a step, disponibile come plugin **VST3** e come applicazione **standalone**. Questa raccolta spiega come usarlo, dal primo avvio all'esportazione nella DAW.
+NINA è un campionatore a celle (stile drum machine) con sequencer a step, disponibile come plugin **VST3** e come applicazione **standalone**. Questa raccolta spiega come usarlo, dal primo avvio all'esportazione nella DAW.
 
 > Versione di riferimento: stato del progetto al commit più recente. Le funzioni non ancora presenti o non ancora verificate sono indicate in ogni capitolo e nell'elenco dei limiti (capitolo 8).
 

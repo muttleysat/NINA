@@ -38,7 +38,7 @@ set_target_properties(rubberband_single PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_compile_definitions(rubberband_single PRIVATE NOMINMAX _USE_MATH_DEFINES)
 
 juce_add_plugin(SampleLab
-    PRODUCT_NAME "Sample Lab"
+    PRODUCT_NAME "NINA"
     COMPANY_NAME "SampleLab"
     BUNDLE_ID "com.samplelab.samplelab"
     PLUGIN_MANUFACTURER_CODE SmpL
@@ -85,6 +85,10 @@ target_sources(SampleLab PRIVATE
 )
 
 target_include_directories(SampleLab PRIVATE Source)
+
+# Risorse incorporate (logo)
+juce_add_binary_data(SampleLabAssets SOURCES Source/assets/nina_logo.png)
+target_link_libraries(SampleLab PRIVATE SampleLabAssets)
 target_link_libraries(SampleLab PRIVATE rubberband_single)
 
 # Test automatici (motore + formato kit)

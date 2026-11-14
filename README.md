@@ -1,4 +1,4 @@
-# Sample Lab
+# NINA
 
 Sampler/drum machine VST3 + standalone (Windows e macOS), ispirato a Native Instruments Battery, con sequencer a step. Uso personale.
 

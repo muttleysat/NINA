@@ -10,8 +10,8 @@
 
 Il progetto si compila dal codice sorgente (vedi il README nella cartella principale). Dopo la compilazione trovi:
 
-- **Standalone:** `build\SampleLab_artefacts\Release\Standalone\Sample Lab.exe`: si avvia con un doppio clic.
-- **Plugin VST3:** la cartella `build\SampleLab_artefacts\Release\VST3\Sample Lab.vst3`. Per farlo vedere a Cubase copiala in `C:\Program Files\Common Files\VST3` (servono i permessi di amministratore) e riavvia la scansione dei plugin della DAW.
+- **Standalone:** `build\SampleLab_artefacts\Release\Standalone\NINA.exe`: si avvia con un doppio clic.
+- **Plugin VST3:** la cartella `build\SampleLab_artefacts\Release\VST3\NINA.vst3`. Per farlo vedere a Cubase copiala in `C:\Program Files\Common Files\VST3` (servono i permessi di amministratore) e riavvia la scansione dei plugin della DAW.
 
 ## Prima apertura dello standalone
 
@@ -22,7 +22,7 @@ Il progetto si compila dal codice sorgente (vedi il README nella cartella princi
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────┐
-│ SAMPLE LAB   [<] nome kit [>] [Save] [Kit]            [Play] [BPM] [Size]       │ barra superiore
+│ NINA   [<] nome kit [>] [Save] [Kit]            [Play] [BPM] [Size]       │ barra superiore
 ├────────────┬──────────────────────────────────────────────┬────────────────────┤
 │ Browser    │  Griglia 4×12 di celle (pad)                 │ Pannello della     │
 │ dei file   │  ─────────────────────────────────────────── │ cella selezionata  │

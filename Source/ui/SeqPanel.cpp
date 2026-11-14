@@ -989,7 +989,7 @@ SeqPanel::~SeqPanel()
 
 void SeqPanel::showMessage (const juce::String& text)
 {
-    juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "Sample Lab", text);
+    juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "NINA", text);
 }
 
 void SeqPanel::edited()
@@ -1298,7 +1298,7 @@ void SeqPanel::showPatternMenu()
                 safe->refresh();
             }
             else
-                juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "Sample Lab",
+                juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "NINA",
                                                         "There is no empty pattern left to duplicate into.\nClear a pattern first, or use Copy and Paste.");
         }
         else if (r == 2)
