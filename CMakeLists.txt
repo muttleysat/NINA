@@ -84,12 +84,13 @@ target_sources(SampleLab PRIVATE
     Source/ui/SlicePanel.cpp
     Source/ui/SongPanel.cpp
     Source/ui/MixerPanel.cpp
+    Source/ui/AboutPanel.cpp
 )
 
 target_include_directories(SampleLab PRIVATE Source)
 
 # Risorse incorporate (logo)
-juce_add_binary_data(SampleLabAssets SOURCES Source/assets/nina_logo.png)
+juce_add_binary_data(SampleLabAssets SOURCES Source/assets/nina_logo.png Source/assets/asio_logo.jpg)
 target_link_libraries(SampleLab PRIVATE SampleLabAssets)
 target_link_libraries(SampleLab PRIVATE rubberband_single)
 

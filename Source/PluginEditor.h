@@ -72,7 +72,7 @@ private:
 
     juce::Label kitLabel;               // nome del kit (come il file salvato; "Untitled" finche' non si salva)
     juce::TextButton kitMenuButton { "Kit" };                 // menu del kit: Nuovo, Apri, Salva, Recenti...
-    juce::TextButton prevKitButton { "<" }, nextKitButton { ">" }, saveButton { "Save" }, sizeButton { "Size 100%" };
+    juce::TextButton prevKitButton { "<" }, nextKitButton { ">" }, saveButton { "Save" }, sizeButton { "Size 100%" }, infoButton { "i" };
     juce::File lastKitFile;
     juce::Array<juce::File> neighbourKits;                    // kit nella stessa cartella (per le frecce)
     juce::TextButton transportButton { "Play" };    // Play/Stop del sequencer, sempre visibile

@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include <BinaryData.h>
+#include "ui/AboutPanel.h"
 
 namespace
 {
@@ -44,7 +45,10 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     nextKitButton.onClick = [this] { confirmDiscard ([this] { doOpenAdjacent (+1); }); };
     saveButton.onClick = [this] { doSave(); };
     sizeButton.onClick = [this] { showSizeMenu(); };
-    for (auto* b : { &kitMenuButton, &prevKitButton, &nextKitButton, &saveButton, &sizeButton })
+    infoButton.setTooltip ("About NINA: version, credits");
+    infoButton.onClick = [this] { AboutPanel::show (theme::scaleFor (*this)); };
+    addAndMakeVisible (infoButton);
+    for (auto* b : { &kitMenuButton, &prevKitButton, &nextKitButton, &saveButton, &sizeButton, &infoButton })
         addAndMakeVisible (b);
     addAndMakeVisible (kitLabel);
 
@@ -247,6 +251,19 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
             juce::Timer::callAfterDelay (8000, [this] { uiLog ("SONGPLAY t=8s running=" + juce::String ((int) processor.isSequencerRunning())
                                                                 + " playing=" + juce::String ((int) processor.isSequencerPlaying())); });
         }
+    }
+
+    // Solo per prove: SAMPLELAB_ABOUT apre la finestra Info all'avvio
+    if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_ABOUT", {}).isNotEmpty())
+    {
+        AboutPanel probe (1.0f);
+        const auto img = probe.createComponentSnapshot (probe.getLocalBounds());
+        juce::PNGImageFormat png;
+        const auto f = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("about_probe.png");
+        f.deleteFile();
+        if (auto out = f.createOutputStream())
+            png.writeImageToStream (img, *out);
+        juce::MessageManager::callAsync ([this] { AboutPanel::show (theme::scaleFor (*this)); });
     }
 
     // Solo per prove: SAMPLELAB_MIXERDEMO carica dei toni sintetici in alcune celle e li suona (per vedere i meter del mixer)
@@ -908,6 +925,8 @@ void SampleLabEditor::resized()
     topBar = area.removeFromTop (juce::jmax (36, (int) (56 * s)));
     {
         auto bar = topBar.reduced ((int) (10 * s), (int) (8 * s));
+        infoButton.setBounds (bar.removeFromRight (juce::jmax (30, (int) (36 * s))));
+        bar.removeFromRight ((int) (8 * s));
         sizeButton.setBounds (bar.removeFromRight (juce::jmax (84, (int) (108 * s))));
         bar.removeFromRight ((int) (8 * s));
         bpmLabel.setBounds (bar.removeFromRight (juce::jmax (80, (int) (110 * s))));
