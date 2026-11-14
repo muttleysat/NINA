@@ -231,15 +231,9 @@ SongPanel::SongPanel (SampleLabProcessor& p) : processor (p)
     viewport.setScrollBarsShown (true, false);            // solo scorrimento verticale: i blocchi vanno a capo
     addAndMakeVisible (viewport);
 
-    for (juce::Button* b : std::initializer_list<juce::Button*> { &songModeButton, &loopButton, &addButton, &moreButton, &openButton,
+    for (juce::Button* b : std::initializer_list<juce::Button*> { &loopButton, &addButton, &moreButton, &openButton,
                                                                   &saveButton, &midiButton, &wavButton, &stemsButton })
         addAndMakeVisible (*b);
-
-    songModeButton.setClickingTogglesState (true);
-    songModeButton.setToggleState (processor.isSongMode(), juce::dontSendNotification);
-    songModeButton.setTooltip ("On: the sequencer's Play (top bar or Space) plays this chain of patterns from the start.\n"
-                               "Off: Play plays only the pattern selected in the Seq tab.");
-    songModeButton.onClick = [this] { processor.setSongMode (songModeButton.getToggleState()); };
 
     loopButton.setClickingTogglesState (true);
     loopButton.setToggleState (song().loop, juce::dontSendNotification);
@@ -323,7 +317,6 @@ void SongPanel::refresh()
 {
     if (selected >= (int) song().blocks.size())
         selected = -1;
-    songModeButton.setToggleState (processor.isSongMode(), juce::dontSendNotification);
     loopButton.setToggleState (song().loop, juce::dontSendNotification);
     if (! nameBox.hasKeyboardFocus (true))
         nameBox.setText (song().name, juce::dontSendNotification);
@@ -378,8 +371,6 @@ void SongPanel::timerCallback()
     // Stato che puo' cambiare da fuori (annulla, apertura di un kit): si riallinea
     if (strip->numCards() != (int) song().blocks.size())
         refresh();
-    if (songModeButton.getToggleState() != processor.isSongMode())
-        songModeButton.setToggleState (processor.isSongMode(), juce::dontSendNotification);
     if (loopButton.getToggleState() != song().loop)
         loopButton.setToggleState (song().loop, juce::dontSendNotification);
 }
@@ -654,6 +645,11 @@ void SongPanel::paint (juce::Graphics& g)
         g.drawLine ((float) x, (float) top + 6.0f * s, (float) x, (float) bottom - 6.0f * s, 1.0f);
     }
 
+    // Il Play (barra in alto, barra spaziatrice) in questa scheda suona la song
+    g.setColour (theme::accentSoft);
+    g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.5f * s), juce::Font::bold));
+    g.drawText ("Play here plays the song", hintRect, juce::Justification::centredLeft, true);
+
     // Durata (a destra dell'etichetta della mappa)
     g.setColour (theme::textDim);
     g.setFont (juce::FontOptions (juce::jmax (9.0f, 12.0f * s)));
@@ -726,8 +722,6 @@ void SongPanel::resized()
     auto groupEnd = [&] (juce::Rectangle<int>& r) { separatorsX.push_back ({ r.getX() + sGap / 2, 0 }); r.removeFromLeft (sGap); };
 
     auto r1 = row1Rect;
-    songModeButton.setBounds (r1.removeFromLeft ((int) (116 * s)));
-    r1.removeFromLeft (gGap);
     loopButton.setBounds (r1.removeFromLeft ((int) (72 * s)));
     groupEnd (r1);
     addButton.setBounds (r1.removeFromLeft ((int) (96 * s)));
@@ -741,6 +735,7 @@ void SongPanel::resized()
     wavButton.setBounds (r1.removeFromLeft ((int) (128 * s)));
     r1.removeFromLeft (gGap);
     stemsButton.setBounds (r1.removeFromLeft ((int) (128 * s)));
+    hintRect = r1.withTrimmedLeft (sGap);
 
     {
         auto d = row2Rect;

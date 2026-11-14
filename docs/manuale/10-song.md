@@ -22,13 +22,12 @@ Il **nome** della song (campo accanto a Open/Save) si usa per i nomi dei file es
 
 ## Suonare la song
 
-- Accendi **Song mode**: il **Play** del sequencer (barra in alto o barra spaziatrice) suona la **catena dall'inizio** invece del solo pattern attivo. Con Song mode spento, Play suona come sempre il pattern selezionato nella scheda Seq.
+- Il **Play** (barra in alto o barra spaziatrice) è legato alla **scheda aperta**: nella scheda **Song** suona la **catena dall'inizio**; in tutte le altre (Main, Seq, FX...) suona come sempre il **pattern** selezionato nella scheda Seq. Nella scheda Song lo ricorda la scritta «Play here plays the song». Se cambi scheda mentre sta suonando, la riproduzione continua com'era; il nuovo modo vale dal prossimo Play.
 - Durante l'ascolto il blocco in riproduzione si illumina con una barra di avanzamento e sulla mappa corre il cursore.
 - **Loop** acceso: alla fine la song ricomincia dal primo blocco. Spento: alla fine il Play si ferma (e il prossimo Play riparte dall'inizio).
-- Nel **plugin**, in Song mode la posizione segue la DAW: la song parte dal punto zero del progetto. Con il Loop acceso si ripete quando la DAW supera la fine.
+- Nel **plugin**, quando la song è quella che suona, la posizione segue la DAW: la song parte dal punto zero del progetto. Con il Loop acceso si ripete quando la DAW supera la fine.
 - Ogni pattern parte sempre dall'inizio quando comincia il suo blocco. Le note ancora tenute (modalità Gate o Loop) si chiudono alla fine di ogni blocco.
 - Mentre la song suona puoi modificare i pattern nella scheda Seq: il cambiamento si sente subito.
-- Song mode si ricorda nel progetto della DAW e nello stato dell'applicazione.
 
 ## Salvare e aprire la song
 

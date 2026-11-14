@@ -394,8 +394,18 @@ bool SampleLabEditor::keyPressed (const juce::KeyPress& key)
 }
 
 // Il nome del kit mostra l'asterisco anche quando un parametro cambia dall'automazione o dal MIDI
+// Il Play suona la song solo nella scheda Song; nelle altre suona il pattern. Il modo non cambia mentre si sta suonando
+// (cambiando scheda durante l'ascolto la riproduzione continua com'era e il modo si aggiorna allo stop).
+void SampleLabEditor::updatePlayMode()
+{
+    if (! processor.isSequencerPlaying())
+        processor.setSongMode (currentTab == 5);
+}
+
 void SampleLabEditor::timerCallback()
 {
+    updatePlayMode();
+
     // Subito dopo l'aggancio alla finestra della DAW si rifa piu' volte il layout di tutti i componenti (a 0.1, 0.3, 1 e 3 s):
     // se la DAW assegna dimensione/scala in ritardo, nessun componente resta con una disposizione calcolata per valori provvisori
     if (kickTick < 40)
@@ -523,6 +533,7 @@ juce::Rectangle<int> SampleLabEditor::tabRect (int index) const
 void SampleLabEditor::showTab (int tab)
 {
     currentTab = tab;
+    updatePlayMode();
     const bool seq = tab == 1, slice = tab == 4, song = tab == 5, mixer = tab == 2;
 
     // Le schede Seq e Song occupano lo spazio di griglia, forma d'onda e moduli

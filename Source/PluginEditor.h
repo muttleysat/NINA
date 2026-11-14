@@ -32,6 +32,7 @@ private:
     void doUndoRedo (bool redo);
     void timerCallback() override;
     void showTab (int tab);
+    void updatePlayMode();              // Play: song nella scheda Song, pattern nelle altre
     juce::Rectangle<int> tabRect (int index) const;
     void showSizeMenu();
     void applyScale (float zoom);

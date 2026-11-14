@@ -48,7 +48,7 @@ private:
 
     SampleLabProcessor& processor;
 
-    juce::TextButton songModeButton { "Song mode" }, loopButton { "Loop" };
+    juce::TextButton loopButton { "Loop" };
     IconButton addButton { "+ Block", IconButton::Icon::None }, moreButton { {}, IconButton::Icon::More },
                openButton { "Open song", IconButton::Icon::None }, saveButton { "Save song", IconButton::Icon::None },
                midiButton { "Export MIDI", IconButton::Icon::Midi }, wavButton { "Bounce WAV", IconButton::Icon::Wave },
@@ -60,7 +60,7 @@ private:
     std::unique_ptr<Strip> strip;
     juce::Viewport viewport;
 
-    juce::Rectangle<int> row1Rect, row2Rect, infoRect, mapRect, stripRect;
+    juce::Rectangle<int> hintRect, row1Rect, row2Rect, infoRect, mapRect, stripRect;
     std::vector<std::pair<int, int>> separatorsX;
     int playingBlock = -1;             // blocco in riproduzione (-1 = fermo)
     double playFraction = 0.0;         // avanzamento dentro il blocco (0..1)
