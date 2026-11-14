@@ -9,6 +9,8 @@ L'audio (Bounce WAV, Export lanes, Drag audio, Drag lanes) viene creato **al tem
 - Soluzione 1: premi **Play** nella DAW (anche per un secondo) e riprova.
 - Soluzione 2: scrivi il tempo del progetto nel riquadro **BPM** (doppio clic) e riprova.
 - La finestra di conferma dopo **Bounce WAV** indica **a quanti BPM e a quanti Hz** è stato creato il file: controlla che coincidano con il progetto.
+- Se il tempo che NINA ha ricevuto **non è quello del tuo brano**, puoi scegliere a mano il **tempo di esportazione**: nel plugin fai doppio clic sul riquadro **BPM** in alto e scrivi il tempo (per esempio 126). Il valore compare in arancione con un asterisco (`126.0 BPM *`) e vale per **tutte le esportazioni** (audio e MIDI) finché non lo rimetti a **0**, che torna al tempo automatico della DAW. Il tempo della riproduzione resta quello della DAW.
+- Ogni esportazione audio scrive una riga nel diario `ui.log` (cartella `SampleLab` dentro `AppData\Roaming`) che comincia con `EXPORT`: contiene il **tempo usato**, il tempo corrente, quello ricevuto dalla DAW, il tempo scelto a mano e la **frequenza di campionamento**. Serve per capire da dove viene un file a velocità sbagliata.
 - Se il progetto cambia tempo, NINA usa quello ricevuto ultimamente (un solo tempo per tutto il file). L'esportazione **MIDI** non ha questo problema: le note seguono il tempo del progetto in qualunque caso.
 
 ## Cosa esporta ogni opzione
