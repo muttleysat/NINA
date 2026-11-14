@@ -39,6 +39,8 @@ target_compile_definitions(rubberband_single PRIVATE NOMINMAX _USE_MATH_DEFINES)
 
 juce_add_plugin(SampleLab
     PRODUCT_NAME "NINA"
+    ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Source/assets/nina_icon_512.png"
+    ICON_SMALL "${CMAKE_CURRENT_SOURCE_DIR}/Source/assets/nina_icon_256.png"
     COMPANY_NAME "SampleLab"
     BUNDLE_ID "com.samplelab.samplelab"
     PLUGIN_MANUFACTURER_CODE SmpL
