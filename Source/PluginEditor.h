@@ -49,6 +49,8 @@ private:
     void doOpenAdjacent (int direction);
     void doSave();
     void doSaveAs();
+    void doSaveSoundsOnly();            // salva i soli suoni (senza sequenze e song)
+    void doOpenKeepSequences();         // apre un kit tenendo le sequenze e la song correnti
     void showError (const juce::String& message);
 
     // Celle

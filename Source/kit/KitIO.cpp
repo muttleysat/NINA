@@ -591,4 +591,27 @@ bool songFromJson (const juce::String& text, Song& song, juce::String& error)
     song = songFromVar (v);
     return true;
 }
+
+juce::String sequencesToJson (const Kit& kit)
+{
+    auto* root = new juce::DynamicObject();
+    root->setProperty ("type", "slseq");
+    root->setProperty ("schemaVersion", 1);
+    root->setProperty ("patterns", patternsToVar (kit));
+    root->setProperty ("activePattern", kit.activePattern);
+    return juce::JSON::toString (juce::var (root), false);
+}
+
+bool sequencesFromJson (const juce::String& text, Kit& kit, juce::String& error)
+{
+    const auto v = juce::JSON::parse (text);
+    if (! v.isObject() || v["type"].toString() != "slseq")
+    {
+        error = "File sequenze non valido";
+        return false;
+    }
+    patternsFromVar (v["patterns"], kit);
+    kit.activePattern = juce::jlimit (0, kNumPatterns - 1, getI (v, "activePattern", 0));
+    return true;
+}
 }

@@ -1427,6 +1427,67 @@ void SeqPanel::showQuantizeMenu()
     });
 }
 
+void SeqPanel::saveSequences()
+{
+    const auto& kit = processor.getKit();
+    const auto dir = kit.file.getFullPathName().isNotEmpty() ? kit.file.getSiblingFile ("Sequences")
+                                                             : juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
+    dir.createDirectory();
+    chooser = std::make_unique<juce::FileChooser> ("Save all sequences", dir.getChildFile (sl::KitIO::sanitiseName (kit.name) + "_sequences.slseq"), "*.slseq");
+    chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
+                              | juce::FileBrowserComponent::warnAboutOverwriting,
+                          [this] (const juce::FileChooser& fc)
+                          {
+                              auto f = fc.getResult();
+                              if (f == juce::File())
+                                  return;
+                              if (! f.hasFileExtension ("slseq"))
+                                  f = f.withFileExtension ("slseq");
+                              juce::String err;
+                              if (processor.saveSequencesFile (f, err))
+                                  showMessage ("Sequences saved:\n" + f.getFullPathName() + "\n\nAll 16 patterns (steps, lanes, swing, names). "
+                                               "The lanes refer to cells by number, so they work with the kit you open them in.");
+                              else
+                                  showMessage (err);
+                          });
+}
+
+void SeqPanel::openSequences()
+{
+    const auto& kit = processor.getKit();
+    const auto dir = kit.file.getFullPathName().isNotEmpty() ? kit.file.getSiblingFile ("Sequences")
+                                                             : juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
+    chooser = std::make_unique<juce::FileChooser> ("Open sequences", dir, "*.slseq");
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                          [this] (const juce::FileChooser& fc)
+                          {
+                              const auto f = fc.getResult();
+                              if (! f.existsAsFile())
+                                  return;
+                              juce::Component::SafePointer<SeqPanel> safe (this);
+                              juce::AlertWindow::showAsync (juce::MessageBoxOptions()
+                                                                .withIconType (juce::MessageBoxIconType::QuestionIcon)
+                                                                .withTitle ("Open sequences")
+                                                                .withMessage ("Replace ALL 16 patterns of this kit with the ones in the file?\nYou can undo with Ctrl+Z.")
+                                                                .withButton ("Replace")
+                                                                .withButton ("Cancel")
+                                                                .withAssociatedComponent (this),
+                                                            [safe, f] (int res)
+                                                            {
+                                                                if (res != 1 || safe == nullptr)
+                                                                    return;
+                                                                juce::String err;
+                                                                if (safe->processor.loadSequencesFile (f, err))
+                                                                {
+                                                                    safe->selLane = safe->selStep = -1;
+                                                                    safe->refresh();
+                                                                }
+                                                                else
+                                                                    safe->showMessage (err);
+                                                            });
+                          });
+}
+
 void SeqPanel::showPatternMenu()
 {
     const int cur = processor.getActivePatternIndex();
@@ -1438,6 +1499,9 @@ void SeqPanel::showPatternMenu()
     m.addItem (4, "Clear pattern", ! pat().lanes.empty());
     m.addSeparator();
     m.addItem (5, "Rename...");
+    m.addSeparator();
+    m.addItem (20, "Save all sequences (16 patterns) to a file...");
+    m.addItem (21, "Open sequences from a file...");
     m.addSeparator();
     {
         const bool has = ! pat().lanes.empty();
@@ -1470,6 +1534,10 @@ void SeqPanel::showPatternMenu()
                 juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "NINA",
                                                         "There is no empty pattern left to duplicate into.\nClear a pattern first, or use Copy and Paste.");
         }
+        else if (r == 20)
+            safe->saveSequences();
+        else if (r == 21)
+            safe->openSequences();
         else if (r >= 100 && r < 107)
         {
             static const int lens[] = { 8, 12, 16, 24, 32, 48, 64 };

@@ -336,6 +336,32 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
             });
         });
 
+    // Solo per prove: SAMPLELAB_SAVETEST salva i soli suoni in una cartella temporanea e ne legge il contenuto (non modifica il kit in uso)
+    if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_SAVETEST", {}).isNotEmpty())
+        juce::Timer::callAfterDelay (2500, [this]
+        {
+            const auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("savetest");
+            dir.deleteRecursively();
+            dir.createDirectory();
+            juce::String err;
+            const int lanesBefore = [&] { int n = 0; for (auto& p : processor.getKit().patterns) n += (int) p.lanes.size(); return n; }();
+            const int blocksBefore = (int) processor.getKit().song.blocks.size();
+            const bool ok = processor.saveKitSoundsOnly (dir.getChildFile ("sounds.slkit"), err);
+            sl::Kit loaded;
+            const bool ok2 = sl::KitIO::load (dir.getChildFile ("sounds.slkit"), loaded, err);
+            int lanesFile = 0, samplesFile = 0;
+            for (auto& p : loaded.patterns) lanesFile += (int) p.lanes.size();
+            for (auto& c : loaded.cells) samplesFile += c.hasSample() ? 1 : 0;
+            int lanesAfter = 0;
+            for (auto& p : processor.getKit().patterns) lanesAfter += (int) p.lanes.size();
+            const bool okSeq = processor.saveSequencesFile (dir.getChildFile ("seq.slseq"), err);
+            uiLog ("SAVETEST kitOnly ok=" + juce::String ((int) ok) + juce::String ((int) ok2) + " fileLanes=" + juce::String (lanesFile) + " fileSong=" + juce::String ((int) loaded.song.blocks.size())
+                   + " fileSamples=" + juce::String (samplesFile) + " | live lanes before/after=" + juce::String (lanesBefore) + "/" + juce::String (lanesAfter)
+                   + " liveSong=" + juce::String (blocksBefore) + "/" + juce::String ((int) processor.getKit().song.blocks.size()) + " | seqFile ok=" + juce::String ((int) okSeq)
+                   + " bytes=" + juce::String (dir.getChildFile ("seq.slseq").getSize()) + " err=" + err);
+            dir.deleteRecursively();
+        });
+
     // Solo per prove: SAMPLELAB_ABOUT apre la finestra Info all'avvio
     if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_ABOUT", {}).isNotEmpty())
     {
@@ -731,6 +757,8 @@ void SampleLabEditor::showKitMenu()
     m.addItem (2, "Open...");
     m.addItem (3, "Save");
     m.addItem (4, "Save as...");
+    m.addItem (9, "Save kit sounds only (no sequences or song)...");
+    m.addItem (10, "Open kit sounds only (keep my sequences and song)...");
     m.addSeparator();
     m.addItem (6, "Normalize all cells (peak -1 dBFS)");
     m.addSeparator();
@@ -763,6 +791,8 @@ void SampleLabEditor::showKitMenu()
                          else if (r == 2) confirmDiscard ([this] { doOpen(); });
                          else if (r == 3) doSave();
                          else if (r == 4) doSaveAs();
+                         else if (r == 9) doSaveSoundsOnly();
+                         else if (r == 10) confirmDiscard ([this] { doOpenKeepSequences(); });
                          else if (r == 5) processor.clearRecentKits();
                          else if (r == 6)
                          {
@@ -861,6 +891,56 @@ void SampleLabEditor::doSave()
     if (! processor.saveKit (kit.file, err))
         showError (err);
     refreshAll();
+}
+
+void SampleLabEditor::doSaveSoundsOnly()
+{
+    const auto& kit = processor.getKit();
+    const auto dir = kit.file.getFullPathName().isNotEmpty() ? kit.file.getParentDirectory() : juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
+    chooser = std::make_unique<juce::FileChooser> ("Save kit sounds only", dir.getChildFile (sl::KitIO::sanitiseName (kit.name) + "_sounds.slkit"), "*.slkit");
+    chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
+                              | juce::FileBrowserComponent::warnAboutOverwriting,
+                          [this] (const juce::FileChooser& fc)
+                          {
+                              auto f = fc.getResult();
+                              if (f == juce::File())
+                                  return;
+                              if (! f.hasFileExtension ("slkit"))
+                                  f = f.withFileExtension ("slkit");
+                              juce::String err;
+                              if (processor.saveKitSoundsOnly (f, err))
+                                  juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "NINA",
+                                      "Kit saved (sounds, effects and MIDI learn only):\n" + f.getFullPathName()
+                                      + "\n\nNo sequences or song inside. The kit you are working on is unchanged.");
+                              else
+                                  showError (err);
+                          });
+}
+
+void SampleLabEditor::doOpenKeepSequences()
+{
+    auto start = processor.getKit().file.existsAsFile() ? processor.getKit().file.getParentDirectory()
+                                                        : juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
+    chooser = std::make_unique<juce::FileChooser> ("Open kit sounds (keep my sequences and song)", start, "*.slkit");
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                          [this] (const juce::FileChooser& fc)
+                          {
+                              const auto f = fc.getResult();
+                              if (! f.existsAsFile())
+                                  return;
+                              juce::String err;
+                              if (! processor.openKitKeepSequences (f, err))
+                              {
+                                  showError (err);
+                                  return;
+                              }
+                              refreshAll();
+                              int missing = 0;
+                              for (const auto& c : processor.getKit().cells)
+                                  if (c.missing) ++missing;
+                              if (missing > 0)
+                                  showError (juce::String (missing) + " sample(s) could not be found next to the kit (marked MISSING in the grid).");
+                          });
 }
 
 void SampleLabEditor::doSaveAs()

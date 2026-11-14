@@ -151,6 +151,12 @@ public:
     void newKit();
     bool openKit (const juce::File& file, juce::String& error);
     bool saveKit (const juce::File& file, juce::String& error);
+    // Salvataggi per sezione: i suoni (celle, master, effetti, MIDI learn) senza sequenze e song (non cambia il kit corrente), e le sole
+    // sequenze (16 pattern). La song ha il suo file (.slsong). Aprendo i soli suoni si tengono le sequenze e la song correnti.
+    bool saveKitSoundsOnly (const juce::File& file, juce::String& error);
+    bool openKitKeepSequences (const juce::File& file, juce::String& error);
+    bool saveSequencesFile (const juce::File& file, juce::String& error) const;
+    bool loadSequencesFile (const juce::File& file, juce::String& error);
 
     // Kit recenti (ultimi 5, il piu' recente in alto), condivisi tra tutte le istanze
     juce::StringArray getRecentKits() const;

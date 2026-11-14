@@ -1081,6 +1081,33 @@ public:
             expectEquals (n, 1);                                                                      // solo il colpo a 0
         }
 
+        beginTest ("Sequences: saved as a separate .slseq text and restored (patterns only)");
+        {
+            Kit kit = Kit::makeDefault();
+            kit.patterns[2].name = "Funk";
+            kit.patterns[2].swing = 0.2f;
+            Lane l; l.cell = 5; l.division = 11; l.length = 12;
+            l.steps[3].on = true; l.steps[3].velocity = 77;
+            kit.patterns[2].lanes.push_back (l);
+            kit.activePattern = 2;
+            kit.song.blocks = { { 2, 3 } };
+
+            const auto json = KitIO::sequencesToJson (kit);
+            expect (json.contains ("slseq"));
+            Kit other = Kit::makeDefault();                              // un altro kit con una sua song
+            other.song.blocks = { { 0, 1 } };
+            juce::String err;
+            expect (KitIO::sequencesFromJson (json, other, err), err);
+            expectEquals (other.patterns[2].name, juce::String ("Funk"));
+            expectEquals ((int) other.patterns[2].lanes.size(), 1);
+            expect (other.patterns[2].lanes[0].steps[3].on);
+            expectEquals ((int) other.patterns[2].lanes[0].steps[3].velocity, 77);
+            expectEquals (other.activePattern, 2);
+            expectEquals ((int) other.song.blocks.size(), 1);            // la song non viene toccata
+            expectEquals (other.song.blocks[0].pattern, 0);
+            expect (! KitIO::sequencesFromJson ("{\"type\":\"slsong\"}", other, err));
+        }
+
         beginTest ("Song: saved with the kit and as a .slsong text");
         {
             Kit kit = Kit::makeDefault();

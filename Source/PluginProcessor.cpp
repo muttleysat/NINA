@@ -1552,6 +1552,60 @@ bool SampleLabProcessor::saveKit (const juce::File& file, juce::String& error)
     return true;
 }
 
+bool SampleLabProcessor::saveKitSoundsOnly (const juce::File& file, juce::String& error)
+{
+    params.writeToKit (kit);
+    kit.midiMap = midiLearn.mappings();
+    sl::Kit k = kit;                                                   // si salva una copia: il kit in uso non cambia (file, percorsi, modificato)
+    k.patterns = sl::Kit::makeDefault (k.rows, k.cols).patterns;       // pattern vuoti
+    k.activePattern = 0;
+    k.song = sl::Song();
+    return sl::KitIO::save (k, file, error);
+}
+
+bool SampleLabProcessor::openKitKeepSequences (const juce::File& file, juce::String& error)
+{
+    const auto pats = kit.patterns;
+    const int active = kit.activePattern;
+    const auto song = kit.song;
+    if (! openKit (file, error))
+        return false;
+    kit.patterns = pats;                                               // si rimettono le sequenze e la song che c'erano
+    kit.activePattern = active;
+    kit.song = song;
+    publishPattern();
+    if (songMode.load())
+        publishSong();
+    dirty = true;
+    return true;
+}
+
+bool SampleLabProcessor::saveSequencesFile (const juce::File& file, juce::String& error) const
+{
+    if (! file.replaceWithText (sl::KitIO::sequencesToJson (kit)))
+    {
+        error = "Impossibile scrivere " + file.getFullPathName();
+        return false;
+    }
+    return true;
+}
+
+bool SampleLabProcessor::loadSequencesFile (const juce::File& file, juce::String& error)
+{
+    sl::Kit k = kit;
+    if (! file.existsAsFile() || ! sl::KitIO::sequencesFromJson (file.loadFileAsString(), k, error))
+    {
+        if (error.isEmpty())
+            error = "Impossibile leggere " + file.getFullPathName();
+        return false;
+    }
+    noteUserInput();
+    kit.patterns = k.patterns;
+    kit.activePattern = k.activePattern;
+    patternEdited();
+    return true;
+}
+
 // ------------------------------------------------------- Kit recenti
 
 juce::PropertiesFile& SampleLabProcessor::getSettings() const

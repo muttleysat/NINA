@@ -19,6 +19,23 @@ Kits/
 - Nel file `.slkit` i campioni sono scritti con percorsi **relativi**: puoi spostare o copiare insieme file e cartella.
 - Le modifiche (Start/End, effetti, livelli…) sono salvate nel `.slkit` e **non alterano mai** i file audio.
 
+## Cosa contiene un kit, e salvare per sezione
+
+Il salvataggio normale (**Save**, **Save as...**) scrive un **progetto completo** in un solo file `.slkit`: celle e campioni, effetti, master, MIDI learn, i **16 pattern** del sequencer e la **song**. Per tenere le parti separate ci sono tre salvataggi, uno per sezione:
+
+| Sezione | Cosa salva | Dove | File |
+|---------|------------|------|------|
+| **Kit** (suoni) | Celle, campioni (copiati nella cartella), effetti, master, MIDI learn. **Senza** sequenze e song | **Kit → Save kit sounds only...** | `.slkit` |
+| **Sequenze** | I **16 pattern** (righe, step, lock, swing, nomi) e il pattern attivo | Scheda **Seq**, menu **⋯** accanto al nome del pattern → **Save all sequences...** | `.slseq` |
+| **Song** | La catena di blocchi, il Loop e il nome | Scheda **Song** → **Save song** | `.slsong` |
+
+Per ricaricarli: **Kit → Open kit sounds only (keep my sequences and song)...** apre i suoni di un kit **mantenendo** le sequenze e la song che hai ora (così puoi cambiare i suoni senza perdere il lavoro); **Open sequences from a file...** (menu ⋯ della scheda Seq) sostituisce **tutti i 16 pattern** con quelli del file (chiede conferma, si annulla con Ctrl+Z); **Open song** (scheda Song) carica una catena.
+
+Cose da sapere:
+- **Save kit sounds only** salva una **copia**: il kit su cui stai lavorando non cambia (nome, percorso e asterisco restano come sono). I campioni vengono copiati nella cartella accanto al file, come per il salvataggio normale.
+- Aprendo i soli suoni, il kit risulta **modificato** (asterisco): contiene le sequenze di prima, che non sono nel file aperto. Un **Save** normale lo sovrascriverebbe con tutto.
+- Le righe dei pattern e i blocchi della song richiamano le celle e i pattern **per numero** (A1 è la cella 0...): funzionano con qualunque kit, ma suonano ciò che c'è in quelle celle.
+
 ## Il menu Kit e i pulsanti in alto
 
 | Comando | Cosa fa |
@@ -28,7 +45,8 @@ Kits/
 | **Save** | Salva il kit (la prima volta chiede il nome) |
 | **Kit → New kit** | Crea un kit vuoto |
 | **Kit → Open...** | Apre un file `.slkit` |
-| **Kit → Save** / **Save as...** | Salva / salva con un altro nome |
+| **Kit → Save** / **Save as...** | Salva / salva con un altro nome (progetto completo) |
+| **Kit → Save kit sounds only...** / **Open kit sounds only...** | Salva i soli suoni / apre i suoni tenendo le tue sequenze e la tua song (vedi sopra) |
 | **Kit → Normalize all cells** | Normalizza il Level di tutte le celle (picco a −1 dBFS) |
 | **Kit → Recent kits** | Gli **ultimi 5 kit** aperti o salvati, con **Clear recent** per svuotare l'elenco |
 
