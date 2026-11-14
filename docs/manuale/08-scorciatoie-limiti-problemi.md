@@ -5,6 +5,7 @@
 | Gesto | Funzione |
 |-------|----------|
 | **Barra spaziatrice** | Play/Stop del sequencer (nella scheda Slice: suona/ferma la zona) |
+| **Ctrl+C / Ctrl+V** | Copia / incolla lo step selezionato (scheda Seq) |
 | **Ctrl+Z** | Annulla (schede Main, Seq, FX e Slice) |
 | **Ctrl+Y** oppure **Ctrl+Maiusc+Z** | Ripeti |
 | Clic su un pad | Seleziona e suona la cella |

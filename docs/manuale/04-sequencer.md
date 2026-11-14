@@ -52,6 +52,12 @@ La scheda Seq usa tutta la larghezza della finestra (browser e pannello della ce
 
 Sullo step acceso, piccoli segni indicano: un **pallino** = ha dei lock sugli effetti; **x2/x3/x4** = ratchet; **%** = probabilità sotto il 100%.
 
+### Copiare e incollare step e righe
+
+- **Step singolo:** seleziona uno step (tasto destro o Maiusc+clic lo seleziona senza cambiarlo) e premi **Ctrl+C**; seleziona un altro step e premi **Ctrl+V**. Si copia tutto lo step: acceso/spento, velocity, probabilità, ratchet, nudge, gate, pitch, reverse, modalità e **lock** degli effetti. Si può incollare anche su un'altra riga o in un altro pattern.
+- **Riga intera:** tasto destro sulla riga (sul nome della cella o su uno spazio vuoto dell'intestazione) → **Copy lane**; poi sulla riga di destinazione → **Paste into this lane**. Si copiano gli step, la lunghezza e la risoluzione; la cella, Mute, Solo e FX della riga di destinazione restano. **Clear all steps** svuota la riga.
+- Tutto si annulla con **Ctrl+Z**.
+
 ## L'editor dello step (STEP EDIT)
 
 In basso, per lo step selezionato. In alto il titolo dice quale step stai modificando.
@@ -149,6 +155,6 @@ Una nota che cade tra due step va a quello più vicino. Quanto del tuo "feeling"
 
 ## Cose da sapere
 
-- Copia e incolla valgono per l'intero pattern, non per singoli step o righe. **Ctrl+Z / Ctrl+Y** annullano e ripetono anche le modifiche al sequencer (capitolo 8).
+- Copia e incolla valgono per singolo step, riga intera o pattern intero, non per gruppi di step. **Ctrl+Z / Ctrl+Y** annullano e ripetono anche le modifiche al sequencer (capitolo 8).
 - Un lock vale per il colpo di quello step; la sua eco (delay/riverbero) continua anche dopo.
 - Modificare una cella (nome, effetti, livelli) cambia anche come suona nel sequencer, perché la cella è la stessa.

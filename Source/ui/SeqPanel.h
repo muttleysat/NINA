@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 #include "../PluginProcessor.h"
 #include "Theme.h"
 #include "KnobBox.h"
@@ -14,6 +16,9 @@ class SeqPanel final : public juce::Component, private juce::Timer
 public:
     explicit SeqPanel (SampleLabProcessor&);
     ~SeqPanel() override;
+
+    void copySelection();              // Ctrl+C: copia lo step selezionato (con velocity, nudge, lock...)
+    void pasteSelection();             // Ctrl+V: lo incolla sullo step selezionato
 
     void refresh();                    // ricostruisce le righe dal pattern attivo (cambio pattern/kit, lane aggiunte/rimosse)
 
@@ -50,6 +55,7 @@ private:
     void clearKnobLock (FxCard&, size_t knob);
     void showAddMenu();
     void addAllLoadedCells();
+    void showLaneMenu (int lane);      // tasto destro sull'intestazione di una riga: copia / incolla / svuota
     void showQuantizeMenu();           // quantizza il pattern o la riga, intensita' della registrazione
     void quantizePattern (bool onlySelectedLane, float strength);
     void captureRecorded();            // scrive negli step le note registrate dal thread audio
@@ -74,6 +80,8 @@ private:
     juce::ComboBox patternBox, barsBox, tailBox, hostModeBox;
     juce::TextButton recButton { "Rec" };
     IconButton quantButton { "Quantize", IconButton::Icon::Grid };
+    std::optional<sl::Step> stepClip;
+    std::optional<sl::Lane> laneClip;
     int recSnap = 100;                 // % di quantizzazione delle note registrate (100 = sulla griglia, 0 = micro-timing libero)
     juce::Rectangle<int> recRect;
     juce::Slider swingSlider;

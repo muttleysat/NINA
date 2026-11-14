@@ -242,6 +242,14 @@ bool SampleLabEditor::keyPressed (const juce::KeyPress& key)
         }
     }
 
+    // Scheda Seq: Ctrl+C / Ctrl+V copiano e incollano lo step selezionato
+    if (currentTab == 1 && key.getModifiers().isCommandDown())
+    {
+        const int k = key.getKeyCode();
+        if (k == 'C' || k == 'c') { seqPanel.copySelection(); return true; }
+        if (k == 'V' || k == 'v') { seqPanel.pasteSelection(); return true; }
+    }
+
     // Scheda Slice: Spazio suona/ferma la zona (non il sequencer), Esc ferma qualsiasi ascolto
     if (currentTab == 4)
     {

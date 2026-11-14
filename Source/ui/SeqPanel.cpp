@@ -457,6 +457,11 @@ public:
     // Un clic sul nome della riga fa suonare la cella (anteprima del campione)
     void mouseDown (const juce::MouseEvent& e) override
     {
+        if (e.mods.isPopupMenu())                          // tasto destro sulla riga: copia, incolla, svuota
+        {
+            owner.showLaneMenu (lane);
+            return;
+        }
         if (! labelRect.contains (e.getPosition()))
             return;
         const auto& l = owner.pat().lanes[(size_t) lane];
@@ -1277,6 +1282,58 @@ void SeqPanel::addAllLoadedCells()
         if (processor.getKit().cells[(size_t) i].hasSample())
             processor.addLaneForCell (i);
     refresh();
+}
+
+void SeqPanel::copySelection()
+{
+    if (auto* st = selectedStep())
+        stepClip = *st;
+}
+
+void SeqPanel::pasteSelection()
+{
+    auto* st = selectedStep();
+    if (st == nullptr || ! stepClip.has_value())
+        return;
+    *st = *stepClip;
+    edited();
+    refreshEditor();
+    lanes->updateAll();
+}
+
+void SeqPanel::showLaneMenu (int lane)
+{
+    if (lane < 0 || lane >= (int) pat().lanes.size())
+        return;
+    juce::PopupMenu m;
+    m.addSectionHeader ("Lane " + sl::cellLabel (pat().lanes[(size_t) lane].cell, processor.getKit().cols));
+    m.addItem (1, "Copy lane (steps, length, resolution)");
+    m.addItem (2, "Paste into this lane", laneClip.has_value());
+    m.addItem (3, "Clear all steps");
+
+    juce::Component::SafePointer<SeqPanel> safe (this);
+    m.showMenuAsync ({}, [safe, lane] (int r)
+    {
+        if (safe == nullptr || r == 0 || lane >= (int) safe->pat().lanes.size())
+            return;
+        auto& l = safe->pat().lanes[(size_t) lane];
+        if (r == 1)
+        {
+            safe->laneClip = l;
+            return;
+        }
+        if (r == 2 && safe->laneClip.has_value())
+        {
+            l.steps = safe->laneClip->steps;
+            l.length = safe->laneClip->length;
+            l.division = safe->laneClip->division;
+        }
+        else if (r == 3)
+            for (auto& st : l.steps)
+                st = sl::Step();
+        safe->edited();
+        safe->refresh();
+    });
 }
 
 void SeqPanel::captureRecorded()
