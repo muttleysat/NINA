@@ -19,6 +19,10 @@ bool save (Kit& kit, const juce::File& slkitFile, juce::String& error);
 // Apre un file .slkit (non carica i campioni audio).
 bool load (const juce::File& slkitFile, Kit& kit, juce::String& error);
 
+// File .slsong: la sola catena di pattern (i pattern restano nel kit; i blocchi li richiamano per indice)
+juce::String songToJson (const Song& song);
+bool songFromJson (const juce::String& text, Song& song, juce::String& error);
+
 // Rende valido il nome come nome file/cartella (caratteri non ammessi sostituiti con '_')
 juce::String sanitiseName (const juce::String& name);
 }

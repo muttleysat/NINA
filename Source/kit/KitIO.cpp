@@ -203,6 +203,44 @@ static juce::var patternsToVar (const Kit& kit)
     return juce::var (list);
 }
 
+static juce::var songToVar (const Song& song)
+{
+    auto* o = new juce::DynamicObject();
+    o->setProperty ("name", song.name);
+    o->setProperty ("loop", song.loop);
+    juce::Array<juce::var> blocks;
+    for (const auto& b : song.blocks)
+    {
+        auto* bo = new juce::DynamicObject();
+        bo->setProperty ("pattern", b.pattern);
+        bo->setProperty ("repeats", b.repeats);
+        blocks.add (juce::var (bo));
+    }
+    o->setProperty ("blocks", blocks);
+    return juce::var (o);
+}
+
+static Song songFromVar (const juce::var& v)
+{
+    Song s;
+    if (! v.isObject())
+        return s;
+    if (v["name"].toString().isNotEmpty())
+        s.name = v["name"].toString();
+    s.loop = getB (v, "loop", false);
+    if (const auto* arr = v["blocks"].getArray())
+        for (const auto& bo : *arr)
+        {
+            if ((int) s.blocks.size() >= Song::kMaxBlocks)
+                break;
+            SongBlock b;
+            b.pattern = juce::jlimit (0, kNumPatterns - 1, getI (bo, "pattern", 0));
+            b.repeats = juce::jlimit (1, Song::kMaxRepeats, getI (bo, "repeats", 1));
+            s.blocks.push_back (b);
+        }
+    return s;
+}
+
 static void patternsFromVar (const juce::var& v, Kit& kit)
 {
     kit.patterns.assign ((size_t) kNumPatterns, Pattern());
@@ -286,6 +324,7 @@ juce::String toJson (const Kit& kit, bool relativePaths)
     root->setProperty ("midiMap", midi);
     root->setProperty ("patterns", patternsToVar (kit));
     root->setProperty ("activePattern", kit.activePattern);
+    root->setProperty ("song", songToVar (kit.song));
 
     juce::Array<juce::var> cells;
     for (const auto& c : kit.cells)
@@ -327,6 +366,7 @@ bool fromJson (const juce::String& text, const juce::File& baseDir, Kit& kit, ju
 
     patternsFromVar (root["patterns"], k);
     k.activePattern = juce::jlimit (0, kNumPatterns - 1, getI (root, "activePattern", 0));
+    k.song = songFromVar (root["song"]);
 
     if (const auto* mm = root["midiMap"].getArray())
         for (const auto& o : *mm)
@@ -477,6 +517,26 @@ bool load (const juce::File& slkitFile, Kit& kit, juce::String& error)
     }
 
     kit = std::move (k);
+    return true;
+}
+
+juce::String songToJson (const Song& song)
+{
+    auto v = songToVar (song);
+    v.getDynamicObject()->setProperty ("type", "slsong");
+    v.getDynamicObject()->setProperty ("schemaVersion", 1);
+    return juce::JSON::toString (v, false);
+}
+
+bool songFromJson (const juce::String& text, Song& song, juce::String& error)
+{
+    const auto v = juce::JSON::parse (text);
+    if (! v.isObject() || v["type"].toString() != "slsong")
+    {
+        error = "File song non valido";
+        return false;
+    }
+    song = songFromVar (v);
     return true;
 }
 }

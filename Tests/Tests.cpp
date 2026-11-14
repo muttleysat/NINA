@@ -742,6 +742,62 @@ public:
             expectWithinAbsoluteError (lane.steps[5].nudge, 0.0f, 1e-6f);
         }
 
+        beginTest ("Song: blocks play in sequence, each pattern restarts its phase, held notes are released at the boundary");
+        {
+            std::vector<Pattern> pats (kNumPatterns);
+            pats[0] = makePattern (4, 4, { 0 });                    // 1/4 x 4 step = 4 quarti, step 0
+            pats[1] = makePattern (4, 4, { 2 });                    // step 2
+            Song song;
+            song.blocks = { { 0, 2 }, { 1, 1 } };                  // 8 quarti + 4 quarti
+            expectWithinAbsoluteError (song.totalBeats (pats), 12.0, 1e-9);
+            expectEquals (song.blockAt (pats, 7.9), 0);
+            expectEquals (song.blockAt (pats, 8.0), 1);
+            expectEquals (song.blockAt (pats, 12.0), -1);
+
+            auto segs = makeSegments (song, pats);
+            expectEquals ((int) segs.size(), 2);
+
+            std::vector<double> onT, offT;
+            Sequencer::generateSegments (segs, 0.0, 0.0, 12.0, [&] (const TimedEvent& e)
+            {
+                if (e.type == SeqEvent::Type::NoteOn) onT.push_back (e.ppq);
+                else offT.push_back (e.ppq);
+            });
+            std::sort (onT.begin(), onT.end());
+            expectEquals ((int) onT.size(), 3);                     // 0 e 4 (pattern 0 due giri), poi 8 + 2 = 10 (pattern 1 riparte da zero)
+            expectWithinAbsoluteError (onT[0], 0.0, 1e-9);
+            expectWithinAbsoluteError (onT[1], 4.0, 1e-9);
+            expectWithinAbsoluteError (onT[2], 10.0, 1e-9);
+            expect (std::find_if (offT.begin(), offT.end(), [] (double t) { return std::abs (t - 8.0) < 1e-9; }) != offT.end());   // NoteOff a fine blocco
+
+            // Loop: con period = 12 la timeline si ripete
+            int n = 0;
+            Sequencer::generateSegments (segs, 12.0, 12.0, 24.0, [&] (const TimedEvent& e) { n += e.type == SeqEvent::Type::NoteOn ? 1 : 0; });
+            expectEquals (n, 3);
+
+            // Un intervallo a cavallo tra due blocchi non perde ne' duplica eventi
+            int split = 0;
+            Sequencer::generateSegments (segs, 0.0, 0.0, 7.9, [&] (const TimedEvent& e) { split += e.type == SeqEvent::Type::NoteOn ? 1 : 0; });
+            Sequencer::generateSegments (segs, 0.0, 7.9, 12.0, [&] (const TimedEvent& e) { split += e.type == SeqEvent::Type::NoteOn ? 1 : 0; });
+            expectEquals (split, 3);
+        }
+
+        beginTest ("Song: saved with the kit and as a .slsong text");
+        {
+            Kit kit = Kit::makeDefault();
+            kit.song.name = "My song";
+            kit.song.loop = true;
+            kit.song.blocks = { { 3, 2 }, { 0, 7 }, { 15, 1 } };
+            Kit loaded; juce::String err;
+            expect (KitIO::fromJson (KitIO::toJson (kit, true), juce::File(), loaded, err), err);
+            expect (loaded.song == kit.song);
+
+            Song s2; juce::String err2;
+            expect (KitIO::songFromJson (KitIO::songToJson (kit.song), s2, err2), err2);
+            expect (s2 == kit.song);
+            expect (! KitIO::songFromJson ("{\"type\":\"other\"}", s2, err2));
+        }
+
         beginTest ("Sequencer: every note-on has a note-off after the gate length");
         {
             auto p = makePattern (4, 4, { 0 });

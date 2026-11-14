@@ -109,6 +109,7 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     // Sequencer: pattern attivo (pubblicato dal thread UI) e trasporto. Nel plugin si segue la DAW (play/stop e posizione),
     // nello standalone il trasporto e' interno.
     const bool newPatternMsg = patternExchange.tryAcquire (audioMsg);
+    songExchange.tryAcquire (songMsg);
 
     const int numSamples = buffer.getNumSamples();
     // Trasporto: se la DAW sta suonando il sequencer la segue; altrimenti (DAW ferma o standalone) parte dal tasto Play
@@ -208,16 +209,32 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
         }
     }
 
-    seqRunner.runBlockSwitch (curPat, switchTo, switchPpq, playing, ppq0, bpm, currentSampleRate, numSamples);
-    if (switchTo != nullptr)
+    const bool useSong = songMode.load (std::memory_order_relaxed) && songMsg != nullptr && ! songMsg->segs.empty();
+    if (useSong)
     {
-        curPat = switchTo;
-        curIndex = nextIndex;
-        nextPat = nullptr;
-        nextIndex = -1;
+        // Song: la catena di pattern. Senza loop, alla fine il trasporto interno si ferma (e riparte dall'inizio al prossimo Play)
+        if (playing && ! songMsg->loop && ppq0 >= songMsg->total)
+        {
+            playing = false;
+            if (! useHostPpq)
+                seqRunning.store (false);
+        }
+        seqRunner.runBlockSong (songMsg->segs, songMsg->loop ? songMsg->total : 0.0, playing, ppq0, bpm, currentSampleRate, numSamples,
+                                songMsg->loop ? std::numeric_limits<double>::infinity() : songMsg->total);
+    }
+    else
+    {
+        seqRunner.runBlockSwitch (curPat, switchTo, switchPpq, playing, ppq0, bpm, currentSampleRate, numSamples);
+        if (switchTo != nullptr)
+        {
+            curPat = switchTo;
+            curIndex = nextIndex;
+            nextPat = nullptr;
+            nextIndex = -1;
+        }
     }
     seqPlaying.store (playing, std::memory_order_relaxed);
-    seqPlayIndex.store (playing ? curIndex : -1, std::memory_order_relaxed);
+    seqPlayIndex.store (playing && ! useSong ? curIndex : -1, std::memory_order_relaxed);
     seqPpq.store (ppq0, std::memory_order_relaxed);
 
     buffer.clear();
@@ -641,6 +658,176 @@ void SampleLabProcessor::publishPattern()
         msg->playIndex = playing;
     }
     patternExchange.publish (std::move (msg));
+    if (songMode.load())
+        publishSong();
+}
+
+void SampleLabProcessor::publishSong()
+{
+    auto msg = std::make_shared<SongMsg>();
+    msg->pats = kit.patterns;
+    msg->segs = sl::makeSegments (kit.song, msg->pats);
+    msg->total = kit.song.totalBeats (msg->pats);
+    msg->loop = kit.song.loop;
+    songExchange.publish (std::move (msg));
+}
+
+void SampleLabProcessor::songEdited()
+{
+    dirty = true;
+    publishSong();
+}
+
+void SampleLabProcessor::setSongMode (bool on)
+{
+    songMode.store (on);
+    if (on)
+        publishSong();
+}
+
+bool SampleLabProcessor::saveSongFile (const juce::File& file, juce::String& error) const
+{
+    if (! file.replaceWithText (sl::KitIO::songToJson (kit.song)))
+    {
+        error = "Impossibile scrivere " + file.getFullPathName();
+        return false;
+    }
+    return true;
+}
+
+bool SampleLabProcessor::loadSongFile (const juce::File& file, juce::String& error)
+{
+    sl::Song s;
+    if (! file.existsAsFile() || ! sl::KitIO::songFromJson (file.loadFileAsString(), s, error))
+    {
+        if (error.isEmpty())
+            error = "Impossibile leggere " + file.getFullPathName();
+        return false;
+    }
+    noteUserInput();
+    kit.song = s;
+    songEdited();
+    return true;
+}
+
+// Piano di esportazione della song: copia dei pattern (con, se richiesto, solo le righe di una cella) e relativi segmenti
+void SampleLabProcessor::songPlan (std::vector<sl::Pattern>& pats, std::vector<sl::Segment>& segs, double& total, int isolateCell) const
+{
+    pats = kit.patterns;
+    if (isolateCell >= 0)
+        for (auto& p : pats)
+            for (auto& l : p.lanes)
+            {
+                l.mute = l.cell != isolateCell;
+                l.solo = false;
+            }
+    segs = sl::makeSegments (kit.song, pats);
+    total = kit.song.totalBeats (pats);
+}
+
+bool SampleLabProcessor::exportSongMidi (const juce::File& file, juce::String& error)
+{
+    std::vector<sl::Pattern> pats;
+    std::vector<sl::Segment> segs;
+    double total = 0.0;
+    songPlan (pats, segs, total, -1);
+    if (segs.empty() || total <= 0.0)
+    {
+        error = "The song is empty.";
+        return false;
+    }
+    auto midi = sl::SequencerExport::toMidiFileSegments (kit.song.name, segs, total, kit, currentBpm.load());
+    if (! sl::SequencerExport::writeMidiFile (midi, file))
+    {
+        error = "Impossibile scrivere " + file.getFullPathName();
+        return false;
+    }
+    return true;
+}
+
+bool SampleLabProcessor::bounceSongWav (const juce::File& file, juce::String& error)
+{
+    std::vector<sl::Pattern> pats;
+    std::vector<sl::Segment> segs;
+    double total = 0.0;
+    songPlan (pats, segs, total, -1);
+    if (segs.empty() || total <= 0.0)
+    {
+        error = "The song is empty.";
+        return false;
+    }
+
+    const double sr = currentSampleRate > 0.0 ? currentSampleRate : 44100.0;
+    const double bpm = currentBpm.load();
+    auto eng = std::make_unique<sl::Engine>();
+    eng->prepare (sr, 512);
+    eng->publish (buildSnapshot());
+    params.fillLive (eng->live);
+    eng->live.bpm = bpm;
+
+    const auto tail = exportTail.load();
+    auto out = sl::SequencerExport::renderBounceSegments (*eng, segs, total, bpm, sr, tail);
+    int numSamples = out.getNumSamples();
+    if (tail == sl::SequencerExport::TailMode::Keep)
+    {
+        int lastAudible = numSamples;
+        while (lastAudible > 0 && out.getMagnitude (0, lastAudible - 1, 1) < 1.0e-5f && out.getMagnitude (1, lastAudible - 1, 1) < 1.0e-5f)
+            --lastAudible;
+        numSamples = juce::jmin (numSamples, lastAudible + (int) (0.05 * sr));
+    }
+    return writeWav24 (file, out, sr, numSamples, error);
+}
+
+// Un WAV per ogni cella suonata dalla song (tutti della stessa lunghezza), con gli effetti della cella ma senza gli effetti master
+int SampleLabProcessor::exportSongStems (const juce::File& folder, juce::String& error)
+{
+    std::set<int> cells;
+    for (const auto& b : kit.song.blocks)
+        if (b.pattern >= 0 && b.pattern < (int) kit.patterns.size())
+            for (const auto& l : kit.patterns[(size_t) b.pattern].lanes)
+                if (l.cell >= 0 && l.cell < kit.numCells())
+                    cells.insert (l.cell);
+
+    if (! folder.createDirectory().wasOk())
+    {
+        error = "Impossibile creare la cartella " + folder.getFullPathName();
+        return -1;
+    }
+
+    const double sr = currentSampleRate > 0.0 ? currentSampleRate : 44100.0;
+    const double bpm = currentBpm.load();
+    int written = 0;
+    std::set<juce::String> used;
+    for (const int cell : cells)
+    {
+        std::vector<sl::Pattern> pats;
+        std::vector<sl::Segment> segs;
+        double total = 0.0;
+        songPlan (pats, segs, total, cell);
+        if (segs.empty() || total <= 0.0)
+            continue;
+
+        auto eng = std::make_unique<sl::Engine>();
+        eng->prepare (sr, 512);
+        eng->publish (buildSnapshot());
+        params.fillLive (eng->live);
+        eng->live.bpm = bpm;
+        eng->live.masterFx = sl::FxParams();
+        eng->live.masterGain = 1.0f;
+
+        auto audio = sl::SequencerExport::renderBounceSegments (*eng, segs, total, bpm, sr, exportTail.load());
+
+        juce::String base = sl::KitIO::sanitiseName (sl::cellLabel (cell, kit.cols) + "_" + (kit.cells[(size_t) cell].name.isEmpty() ? juce::String ("cell") : kit.cells[(size_t) cell].name));
+        juce::String name = base;
+        for (int n = 2; used.count (name) > 0; ++n)
+            name = base + "_" + juce::String (n);
+        used.insert (name);
+
+        if (! writeWav24 (folder.getChildFile (name + ".wav"), audio, sr, audio.getNumSamples(), error))
+            return -1;
+        ++written;
+    }
+    return written;
 }
 
 void SampleLabProcessor::patternEdited()
@@ -1031,6 +1218,10 @@ juce::uint64 SampleLabProcessor::hashUndoState() const
         mixHash (h, bitsOf (p->getValue()));
     for (const auto ph : patternHashes())
         mixHash (h, ph);
+    mixHash (h, kit.song.loop ? 1u : 0u);
+    mixHash (h, (juce::uint64) kit.song.name.hashCode64());
+    for (const auto& b : kit.song.blocks)
+        mixHash (h, (juce::uint64) (b.pattern * 1000 + b.repeats + 7));
     return h;
 }
 
@@ -1042,6 +1233,7 @@ SampleLabProcessor::UndoSnap SampleLabProcessor::captureUndo() const
     s.params.reserve (undoParams().size());
     for (auto* p : undoParams())
         s.params.push_back (p->getValue());
+    s.song = kit.song;
     s.patHashes = patternHashes();
     patCache.resize (kit.patterns.size());
     for (size_t i = 0; i < kit.patterns.size(); ++i)
@@ -1062,6 +1254,9 @@ void SampleLabProcessor::applyUndo (const UndoSnap& s)
 {
     kit.cells = s.cells;
     cellData = s.data;
+    kit.song = s.song;
+    if (songMode.load())
+        publishSong();
 
     // Pattern modificati rispetto a ora: si ripristinano e si mostra quello cambiato (il pattern attivo, se e' tra questi)
     {
@@ -1306,6 +1501,7 @@ void SampleLabProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("uiZoom", uiZoom, nullptr);
     state.setProperty ("internalBpm", internalBpm.load(), nullptr);
     state.setProperty ("hostSeqMode", hostSeqMode.load(), nullptr);
+    state.setProperty ("songMode", songMode.load(), nullptr);
     state.setProperty ("kitJson", sl::KitIO::toJson (kit, false), nullptr);   // percorsi assoluti
     state.setProperty ("kitFile", kit.file.getFullPathName(), nullptr);
     state.setProperty ("dirty", dirty.load(), nullptr);
@@ -1325,6 +1521,7 @@ void SampleLabProcessor::setStateInformation (const void* data, int sizeInBytes)
     uiZoom   = state.getProperty ("uiZoom", uiZoom);
     setInternalBpm (state.getProperty ("internalBpm", 120.0));
     hostSeqMode.store (juce::jlimit (0, 2, (int) state.getProperty ("hostSeqMode", (int) HostSeqMode::MuteOnRecord)));
+    songMode.store ((bool) state.getProperty ("songMode", false));
 
     const juce::String json = state.getProperty ("kitJson", juce::String());
     if (json.isNotEmpty())

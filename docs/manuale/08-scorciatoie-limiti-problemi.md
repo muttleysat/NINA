@@ -21,9 +21,9 @@
 
 ## Annulla e ripeti
 
-**Ctrl+Z** annulla, **Ctrl+Y** (o Ctrl+Maiusc+Z) ripete; le stesse voci sono nel menu **Kit** (in alto). Valgono nelle schede **Main**, **Seq**, **FX** e **Slice**.
+**Ctrl+Z** annulla, **Ctrl+Y** (o Ctrl+Maiusc+Z) ripete; le stesse voci sono nel menu **Kit** (in alto). Valgono nelle schede **Main**, **Seq**, **Song**, **FX** e **Slice**.
 
-- Si annullano: il caricamento e lo svuotamento di celle (anche in blocco), le slice distribuite, il nome, i tasti e il range MIDI, **tutte le manopole e gli interruttori** (inviluppo, pitch, effetti, Sync, Key lock, Loop BPM, uscita...), i marcatori di slice di una cella e, nel sequencer, **step, righe aggiunte o tolte, swing, nome e contenuto dei pattern** (anche gli step registrati con **Rec**, in blocchi di circa un decimo di secondo). Se annulli una modifica fatta su un altro pattern, l'app lo mostra.
+- Si annullano: il caricamento e lo svuotamento di celle (anche in blocco), le slice distribuite, il nome, i tasti e il range MIDI, **tutte le manopole e gli interruttori** (inviluppo, pitch, effetti, Sync, Key lock, Loop BPM, uscita...), i marcatori di slice di una cella e, nel sequencer, **step, righe aggiunte o tolte, swing, nome e contenuto dei pattern**, e nella scheda Song **blocchi, ripetizioni e Loop** (anche gli step registrati con **Rec**, in blocchi di circa un decimo di secondo). Se annulli una modifica fatta su un altro pattern, l'app lo mostra.
 - Una trascinata di manopola o una distribuzione di slice è **un solo passo**. Si tengono gli ultimi 100.
 - Nella scheda Slice con sorgente **File** si annullano anche i marcatori, la zona (le parentesi) e il Source BPM. Annulla toglie sempre l'ultima cosa fatta, che sia nella sorgente File o nelle celle.
 - **Non** si annullano: il MIDI learn, il salvataggio dei kit, il cambio di pattern attivo (è una navigazione). Aprire o creare un kit azzera la cronologia.

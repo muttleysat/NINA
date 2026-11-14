@@ -82,6 +82,7 @@ target_sources(SampleLab PRIVATE
     Source/ui/LookAndFeel.cpp
     Source/ui/SampleBrowser.cpp
     Source/ui/SlicePanel.cpp
+    Source/ui/SongPanel.cpp
 )
 
 target_include_directories(SampleLab PRIVATE Source)

@@ -62,6 +62,19 @@ public:
     bool addLaneForCell (int cell);                         // "Aggiungi al sequencer" (tasto destro sulla cella)
     void removeLaneForCell (int cell);
 
+    // Pattern Sequencer (song): catena di pattern. Con la modalita' song il Play del sequencer suona la catena invece del pattern attivo.
+    sl::Song& song() { return kit.song; }
+    const sl::Song& song() const { return kit.song; }
+    void songEdited();                                      // dopo ogni modifica della song: la pubblica al thread audio
+    void setSongMode (bool on);
+    bool isSongMode() const { return songMode.load(); }
+    double songTotalBeats() const { return kit.song.totalBeats (kit.patterns); }
+    bool saveSongFile (const juce::File& file, juce::String& error) const;
+    bool loadSongFile (const juce::File& file, juce::String& error);
+    bool exportSongMidi (const juce::File& file, juce::String& error);
+    bool bounceSongWav (const juce::File& file, juce::String& error);
+    int exportSongStems (const juce::File& folder, juce::String& error);      // un WAV per cella usata nella song; -1 se errore
+
     // Trasporto: nello standalone e' interno (Play/Stop del plugin), nel plugin segue la DAW
     void setSequencerRunning (bool run);
     bool isSequencerRunning() const { return seqRunning.load(); }
@@ -221,6 +234,18 @@ private:
     const sl::Pattern* nextPat = nullptr;                   // pattern in attesa del prossimo punto di cambio
     int curIndex = -1, nextIndex = -1;
     std::atomic<int> seqPlayIndex { -1 };                   // indice del pattern in riproduzione (-1 = fermo)
+    struct SongMsg
+    {
+        std::vector<sl::Pattern> pats;      // tutti i pattern del kit al momento della pubblicazione
+        std::vector<sl::Segment> segs;      // puntano dentro 'pats'
+        double total = 0.0;
+        bool loop = false;
+    };
+    sl::SharedExchange<SongMsg> songExchange;
+    std::shared_ptr<const SongMsg> songMsg;                 // solo thread audio
+    std::atomic<bool> songMode { false };
+    void publishSong();
+    void songPlan (std::vector<sl::Pattern>& pats, std::vector<sl::Segment>& segs, double& total, int isolateCell) const;
     sl::SequencerRunner seqRunner;
     std::atomic<bool> seqRunning { false }, seqPlaying { false }, hostRolling { false };
     std::atomic<int> hostSeqMode { (int) HostSeqMode::MuteOnRecord };
@@ -272,6 +297,7 @@ private:
         std::vector<sl::CellParams> cells;
         std::vector<sl::SampleDataPtr> data;
         std::vector<float> params;
+        sl::Song song;
         std::vector<std::shared_ptr<const sl::Pattern>> patterns;     // i pattern non modificati sono condivisi tra le voci
         std::vector<juce::uint64> patHashes;
         juce::uint64 hash = 0;

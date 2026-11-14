@@ -17,6 +17,7 @@ NINA è un campionatore a celle (stile drum machine) con sequencer a step, dispo
 | 7 | [Esportare nella DAW](07-esportare-nella-daw.md) | MIDI, audio, righe separate, trascinamento in Cubase |
 | 8 | [Scorciatoie, limiti e problemi](08-scorciatoie-limiti-problemi.md) | Tasti rapidi, cosa non c'è ancora, risoluzione dei problemi |
 | 9 | [Slice](09-slice.md) | Tagliare un loop in slice e distribuirle sulle celle |
+| 10 | [Song](10-song.md) | Concatenare i pattern in un brano, riprodurlo, salvarlo (.slsong) ed esportarlo |
 
 ## Convenzioni
 

@@ -6,6 +6,7 @@
 #include "Theme.h"
 #include "KnobBox.h"
 #include "IconButton.h"
+#include "DragHandle.h"
 
 // Scheda Seq: una riga (lane) per ogni cella aggiunta, con step cliccabili, e sotto l'editor dello step selezionato:
 // comportamento (modalita', reverse, velocity, probabilita', ratchet, nudge, gate, pitch) ed effetti per colpo
@@ -32,7 +33,6 @@ private:
     class StepButton;
     class LaneRow;
     class LaneList;
-    class DragHandle;
     struct FxKnob;
     struct CellKnob;
     struct FxCard;

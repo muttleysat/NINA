@@ -2,6 +2,7 @@
 
 #include "engine/CellParams.h"
 #include "sequencer/Pattern.h"
+#include "sequencer/Song.h"
 #include <vector>
 
 namespace sl
@@ -32,6 +33,7 @@ struct Kit
     std::vector<MidiMapping> midiMap;        // assegnazioni MIDI learn (salvate nel kit)
     std::vector<Pattern> patterns;           // pattern del sequencer (kNumPatterns slot)
     int activePattern = 0;
+    Song song;                               // catena di pattern (Pattern Sequencer)
     std::vector<CellParams> cells;
     juce::File file;                         // file .slkit (vuoto se il kit non e' stato ancora salvato)
 

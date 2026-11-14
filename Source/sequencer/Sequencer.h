@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pattern.h"
+#include "Song.h"
 #include <algorithm>
 #include <cmath>
 #include <functional>
@@ -85,6 +86,41 @@ public:
                     if (off >= ppq0 && off < ppq1)
                         fn (TimedEvent { off, SeqEvent::Type::NoteOff, laneIdx, &st, lane.cell, lane.dry });
                 }
+            }
+        }
+    }
+
+    // Come generate, ma su una timeline di segmenti (song). Ogni segmento suona il suo pattern con la fase che riparte da zero al suo inizio.
+    // period > 0: la timeline si ripete ogni 'period' quarti (song in loop). Alla fine di ogni segmento le note ancora tenute ricevono
+    // un NoteOff (il pattern successivo non deve ereditarle).
+    template <typename Fn>
+    static void generateSegments (const std::vector<Segment>& segs, double period, double ppq0, double ppq1, Fn&& fn)
+    {
+        if (segs.empty() || ppq1 <= ppq0)
+            return;
+        const long long cycle0 = period > 0.0 ? (long long) std::floor (ppq0 / period) : 0;
+        const long long cycle1 = period > 0.0 ? (long long) std::floor ((ppq1 - 1.0e-12) / period) : 0;
+
+        for (long long cy = cycle0; cy <= cycle1; ++cy)
+        {
+            const double shift = period > 0.0 ? (double) cy * period : 0.0;
+            for (const auto& seg : segs)
+            {
+                if (seg.pattern == nullptr)
+                    continue;
+                const double s0 = seg.start + shift, s1 = seg.end + shift;
+                if (s1 <= ppq0 || s0 >= ppq1)
+                    continue;
+                const double a = std::max (ppq0, s0), b = std::min (ppq1, s1);
+                generate (*seg.pattern, a - s0, b - s0, [&] (TimedEvent e)
+                {
+                    e.ppq += s0;
+                    fn (e);
+                });
+                if (s1 >= ppq0 && s1 < ppq1)                    // fine del segmento: si rilasciano le note tenute
+                    for (int i = 0; i < (int) seg.pattern->lanes.size(); ++i)
+                        if (seg.pattern->lanes[(size_t) i].cell >= 0)
+                            fn (TimedEvent { s1, SeqEvent::Type::NoteOff, i, nullptr, seg.pattern->lanes[(size_t) i].cell, false });
             }
         }
     }
@@ -205,6 +241,37 @@ public:
         }
 
         // Ordine: per posizione; a parita' prima i NoteOff, cosi' un nuovo colpo non viene tagliato dallo spegnimento del precedente
+        std::sort (events.begin(), events.end(), [] (const SeqEvent& a, const SeqEvent& b)
+        {
+            if (a.samplePos != b.samplePos) return a.samplePos < b.samplePos;
+            if (a.type != b.type) return (int) a.type < (int) b.type;
+            return a.cell < b.cell;
+        });
+    }
+
+    // Song: timeline di segmenti (vedi Sequencer::generateSegments). Stesse regole di runBlock per play/stop.
+    void runBlockSong (const std::vector<Segment>& segs, double period, bool playing, double ppq0, double bpm, double sampleRate,
+                       int numSamples, double endPpq = std::numeric_limits<double>::infinity()) noexcept
+    {
+        events.clear();
+
+        if (wasPlaying && ! playing)
+            events.push_back (stopEvent());
+        wasPlaying = playing;
+
+        if (! playing || segs.empty() || bpm <= 0.0 || sampleRate <= 0.0)
+            return;
+
+        const double ppq1 = ppq0 + (double) numSamples * bpm / (60.0 * sampleRate);
+        const double samplesPerBeat = 60.0 * sampleRate / bpm;
+        Sequencer::generateSegments (segs, period, ppq0, std::min (ppq1, endPpq), [&] (const TimedEvent& e)
+        {
+            if (events.size() >= events.capacity())
+                return;
+            const int pos = juce::jlimit (0, juce::jmax (0, numSamples - 1), (int) ((e.ppq - ppq0) * samplesPerBeat));
+            events.push_back (Sequencer::toSeqEvent (e, pos));
+        });
+
         std::sort (events.begin(), events.end(), [] (const SeqEvent& a, const SeqEvent& b)
         {
             if (a.samplePos != b.samplePos) return a.samplePos < b.samplePos;

@@ -13,6 +13,10 @@ namespace sl::SequencerExport
 // bars: lunghezza in battute da 4/4; ticksPerQuarter: risoluzione del file.
 juce::MidiFile toMidiFile (const Pattern& pattern, const Kit& kit, int bars, double bpm, int ticksPerQuarter = 960);
 
+// Come toMidiFile, ma per una timeline di segmenti (song): 'totalBeats' e' la durata in quarti
+juce::MidiFile toMidiFileSegments (const juce::String& name, const std::vector<Segment>& segs, double totalBeats, const Kit& kit,
+                                   double bpm, int ticksPerQuarter = 960);
+
 // Scrive il file .mid (ritorna false in caso di errore)
 bool writeMidiFile (const juce::MidiFile& midi, const juce::File& file);
 
@@ -35,4 +39,10 @@ juce::AudioBuffer<float> renderBounce (Engine& engine, const Pattern& pattern, i
 // Piu' veloce del tempo reale, senza passare dalla DAW.
 juce::AudioBuffer<float> renderOffline (Engine& engine, const Pattern& pattern, int bars, double bpm, double sampleRate,
                                         double tailSeconds = 4.0);
+
+// Esportazione audio di una song (segmenti). Stesse regole sulle code di renderBounce; con Loop la song si suona due volte e si tiene la seconda.
+juce::AudioBuffer<float> renderBounceSegments (Engine& engine, const std::vector<Segment>& segs, double totalBeats, double bpm,
+                                               double sampleRate, TailMode tail);
+juce::AudioBuffer<float> renderSegments (Engine& engine, const std::vector<Segment>& segs, double period, double renderBeats, double bpm,
+                                         double sampleRate, double tailSeconds);
 }
