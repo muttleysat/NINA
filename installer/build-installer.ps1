@@ -1,4 +1,4 @@
-# Costruisce l'installer di NINA (installer\Output\NINA-Setup-<versione>.exe).
+# Costruisce l'installer di NINA (installer\Output\NINA-Setup-<versione>-win-x64.exe).
 # Prima compila il progetto in Release (cmake --build build --config Release); serve Inno Setup 6 (winget install JRSoftware.InnoSetup).
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -17,4 +17,4 @@ if (-not $iscc) { throw 'Inno Setup 6 non trovato (winget install JRSoftware.Inn
 
 & $iscc "/DMyAppVersion=$version" (Join-Path $PSScriptRoot 'NINA.iss')
 if ($LASTEXITCODE -ne 0) { throw "ISCC ha restituito $LASTEXITCODE" }
-Write-Host "Installer creato: installer\Output\NINA-Setup-$version.exe"
+Write-Host "Installer creato: installer\Output\NINA-Setup-$version-win-x64.exe"

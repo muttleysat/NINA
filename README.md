@@ -17,7 +17,7 @@ Output in `build/Nina_artefacts/Release/` (cartelle `VST3` e `Standalone`).
 
 ## Installer (Windows)
 
-`installer\build-installer.ps1` costruisce `installer\Output\NINA-Setup-<versione>.exe` con [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`winget install JRSoftware.InnoSetup`). Prima compila il progetto in Release. L'installer contiene lo standalone (con ASIO), il plugin VST3, il manuale e le licenze; il runtime di Visual C++ è collegato staticamente, quindi non servono altre installazioni. La versione si legge da `CMakeLists.txt`. Le immagini della procedura guidata si rigenerano con `python installer/make_wizard_images.py`.
+`installer\build-installer.ps1` costruisce `installer\Output\NINA-Setup-<versione>-win-x64.exe` con [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`winget install JRSoftware.InnoSetup`). Prima compila il progetto in Release. L'installer contiene lo standalone (con ASIO), il plugin VST3, il manuale e le licenze; il runtime di Visual C++ è collegato staticamente, quindi non servono altre installazioni. La versione si legge da `CMakeLists.txt`. Le immagini della procedura guidata si rigenerano con `python installer/make_wizard_images.py`.
 
 ## Licenza
 

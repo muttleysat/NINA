@@ -8,7 +8,7 @@
 
 ## Installazione
 
-Si usa il programma di installazione **`NINA-Setup-<versione>.exe`** (si scarica dalle *Release* di GitHub). Contiene **tutto il necessario**: non devi scaricare nient'altro (nemmeno il «Visual C++ Redistributable»), e il supporto ASIO è già dentro lo standalone.
+Si usa il programma di installazione **`NINA-Setup-<versione>-win-x64.exe`** (si scarica dalle *Release* di GitHub). Contiene **tutto il necessario**: non devi scaricare nient'altro (nemmeno il «Visual C++ Redistributable»), e il supporto ASIO è già dentro lo standalone.
 
 1. Avvia l'installer. Si apre nella lingua di Windows (italiano o inglese; si può cambiare dal menu iniziale).
 2. Scegli i **componenti**: **NINA Standalone**, **NINA VST3** (per Cubase e le altre DAW), **manuale e licenze**. Per impostazione predefinita sono tutti selezionati.
