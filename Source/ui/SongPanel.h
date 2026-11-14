@@ -6,7 +6,7 @@
 #include "DragHandle.h"
 
 // Scheda Song (Pattern Sequencer): i pattern creati nella scheda Seq si concatenano in una catena di blocchi (pattern + ripetizioni).
-// Con "Song mode" acceso il Play del sequencer suona la catena invece del pattern attivo. Qui ci sono anche l'esportazione (MIDI,
+// Nella scheda Song il Play del sequencer suona la catena (nelle altre schede suona il pattern attivo). Qui ci sono anche l'esportazione (MIDI,
 // audio, una traccia per cella) di tutta la song e il salvataggio/apertura della catena in un file .slsong.
 class SongPanel final : public juce::Component, private juce::Timer
 {

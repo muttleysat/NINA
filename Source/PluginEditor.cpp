@@ -240,9 +240,8 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
         songPanel.refresh();
         if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_SONGTEST", {}) == "play")
         {
-            processor.setSongMode (true);
             processor.setSequencerRunning (true);
-            juce::Timer::callAfterDelay (2500, [this] { uiLog ("SONGPLAY t=2.5s running=" + juce::String ((int) processor.isSequencerRunning())
+            juce::Timer::callAfterDelay (2500, [this] { uiLog ("SONGPLAY t=2.5s songMode=" + juce::String ((int) processor.isSongMode()) + " running=" + juce::String ((int) processor.isSequencerRunning())
                                                                 + " playing=" + juce::String ((int) processor.isSequencerPlaying())
                                                                 + " ppq=" + juce::String (processor.getSequencerPpq(), 2)); });
             juce::Timer::callAfterDelay (8000, [this] { uiLog ("SONGPLAY t=8s running=" + juce::String ((int) processor.isSequencerRunning())
