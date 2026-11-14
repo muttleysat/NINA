@@ -221,6 +221,35 @@ public:
             g.drawLine (x, area.getBottom(), x + tick, area.getBottom(), 2.2f);
         }
 
+        // Cursore di posizione: resta dove hai finito lo scrub o hai premuto Stop (tratteggiato, con il tempo)
+        if (owner.playMarker >= 0.0f)
+        {
+            const float x = xOf (owner.playMarker);
+            if (x >= area.getX() && x <= area.getRight())
+            {
+                const auto col = theme::accentSoft.withAlpha (owner.cursorActive() ? 0.45f : 0.95f);
+                g.setColour (col);
+                const float dashes[] = { 5.0f * s, 4.0f * s };
+                g.drawDashedLine (juce::Line<float> (x, area.getY() - 4.0f * s, x, area.getBottom()), dashes, 2, 1.6f);
+                juce::Path tri;
+                tri.addTriangle (x - 5.0f * s, area.getY() - 12.0f * s, x + 5.0f * s, area.getY() - 12.0f * s, x, area.getY() - 3.0f * s);
+                g.fillPath (tri);
+
+                if (d != nullptr)
+                {
+                    const double secs = (double) owner.playMarker * (double) d->numSamples() / d->sampleRate;
+                    const juce::String t = juce::String ((int) secs / 60) + ":" + juce::String (secs - 60.0 * (double) ((int) secs / 60), 3).paddedLeft ('0', 6);
+                    g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.0f * s), juce::Font::bold));
+                    const float tw = (float) juce::GlyphArrangement::getStringWidthInt (g.getCurrentFont(), t) + 8.0f * s;
+                    const float tx = juce::jlimit (area.getX(), area.getRight() - tw, x + 6.0f * s);
+                    g.setColour (theme::background.withAlpha (0.85f));
+                    g.fillRoundedRectangle (tx, area.getY() + 2.0f * s, tw, 16.0f * s, 4.0f * s);
+                    g.setColour (col);
+                    g.drawText (t, juce::Rectangle<float> (tx, area.getY() + 2.0f * s, tw, 16.0f * s), juce::Justification::centred);
+                }
+            }
+        }
+
         // Chop: cursore di lettura
         if (owner.cursorActive())
         {
@@ -235,8 +264,8 @@ public:
         // Suggerimento
         g.setColour (theme::textDim);
         g.setFont (juce::FontOptions (juce::jmax (9.0f, 12.0f * s)));
-        g.drawText (owner.source == Source::File ? "Drag the brackets to choose the zone - click a slice to hear it - double-click adds a marker - right-click removes"
-                                                 : "Click a slice to hear it - drag markers - double-click to add - right-click to remove",
+        g.drawText (owner.source == Source::File ? "Drag the brackets to choose the zone - drag to scrub (the cursor stays where you stop) - [ and ] move the brackets to the cursor - right-click for more"
+                                                 : "Click a slice to hear it - drag to scrub (the cursor stays where you stop) - drag markers - double-click to add - right-click for more",
                     juce::Rectangle<float> (area.getX() + 4.0f * s, area.getBottom() + 6.0f * s, area.getWidth() - 140.0f * s, 18.0f * s),
                     juce::Justification::centredLeft);
         layoutButtons();
@@ -279,7 +308,10 @@ public:
             pressed = true;
             pressX = e.x;
             if (! owner.chopping && ! owner.testPlaying)
+            {
                 owner.startPreview (pos ((float) e.x), owner.regionEnd());
+                owner.playMarker = juce::jlimit (0.0f, 1.0f, pos ((float) e.x));
+            }
             resumeHi = owner.regionEnd();
             return;
         }
@@ -290,13 +322,18 @@ public:
         const int near = markerNear (e.x);
         if (e.mods.isPopupMenu())
         {
-            if (near >= 0 && owner.markers.size() > 1)
+            if (near >= 0)
             {
-                owner.markers.erase (owner.markers.begin() + near);
-                owner.markersChanged();
-                hover = -1;
-                repaint();
+                if (owner.markers.size() > 1)
+                {
+                    owner.markers.erase (owner.markers.begin() + near);
+                    owner.markersChanged();
+                    hover = -1;
+                    repaint();
+                }
+                return;
             }
+            showMenu (e);
             return;
         }
 
@@ -316,6 +353,8 @@ public:
         const int slice = sliceAtX ((float) e.x, (float) e.y);
         pressed = true;                                        // un clic suona la slice; trascinando diventa scrub
         pressX = e.x;
+        if (resumeHi <= 0.0f)
+            owner.playMarker = juce::jlimit (0.0f, 1.0f, pos ((float) e.x));      // il clic posiziona il cursore (resta dopo lo Stop)
         if (resumeHi > 0.0f)
             owner.startPreview (juce::jlimit (owner.regionStart(), resumeHi - 1.0e-4f, pos ((float) e.x)), resumeHi);
         else if (slice >= 0)
@@ -371,7 +410,10 @@ public:
                 if (resumeHi > 0.0f)        // lo scrub durante la riproduzione riprende da dove rilasci
                     owner.startPreview (juce::jlimit (owner.regionStart(), resumeHi - 1.0e-4f, pos ((float) e.x)), resumeHi);
                 else
+                {
                     owner.stopAll();
+                    owner.playMarker = juce::jlimit (0.0f, 1.0f, pos ((float) e.x));   // lo scrub lascia il cursore dove rilasci il mouse
+                }
             }
             repaint();
             return;
@@ -389,6 +431,45 @@ public:
             dragIndex = -1;
             owner.markersChanged();
         }
+    }
+
+    // Tasto destro sulla forma d'onda (non su un marcatore): azioni sul punto cliccato
+    void showMenu (const juce::MouseEvent& e)
+    {
+        if (owner.data() == nullptr)
+            return;
+        const float p = juce::jlimit (0.0f, 1.0f, pos ((float) e.x));
+        const bool file = owner.source == Source::File;
+        juce::PopupMenu m;
+        m.addItem (1, "Place the cursor here");
+        m.addItem (2, "Play from here");
+        m.addSeparator();
+        m.addItem (3, "Zone start here  ( [ )", file);
+        m.addItem (4, "Zone end here  ( ] )", file);
+        m.addItem (5, "Add a slice marker here", p > owner.regionStart() && p < owner.regionEnd());
+        juce::Component::SafePointer<WaveView> safe (this);
+        m.showMenuAsync (juce::PopupMenu::Options(), [safe, p] (int r)
+        {
+            if (safe == nullptr || r == 0)
+                return;
+            auto& o = safe->owner;
+            if (r == 1)
+                o.playMarker = p;
+            else if (r == 2)
+            {
+                o.playMarker = p;
+                o.startPreview (p, o.regionEnd());
+            }
+            else if (r == 3 || r == 4)
+                o.setZoneEdge (r == 3, p);
+            else if (r == 5)
+            {
+                o.markers.push_back (p);
+                std::sort (o.markers.begin(), o.markers.end());
+                o.markersChanged();
+            }
+            safe->repaint();
+        });
     }
 
     void mouseDoubleClick (const juce::MouseEvent& e) override
@@ -870,6 +951,8 @@ std::vector<int> SlicePanel::targetCells() const
 void SlicePanel::setCell (int c)
 {
     stopAll();
+    if (c != cell)
+        playMarker = -1.0f;
     cell = juce::jlimit (0, juce::jmax (0, processor.getKit().numCells() - 1), c);
     targetStart = -1;
     if (source == Source::Cell)
@@ -1052,6 +1135,7 @@ void SlicePanel::loadFile (const juce::File& f)
         return;
     }
     stopAll();
+    playMarker = -1.0f;
     extData = d;
     extFile = f;
     extStart = 0.0f;
@@ -1424,6 +1508,49 @@ void SlicePanel::stopPreview (bool finished)
     wave->repaint();
 }
 
+void SlicePanel::setMarker (float p)
+{
+    playMarker = juce::jlimit (-1.0f, 1.0f, p);
+    if (wave != nullptr)
+        wave->repaint();
+}
+
+void SlicePanel::userStop()
+{
+    if (previewing && ! chopping && ! testPlaying)
+    {
+        const double p = chopPosition (juce::Time::getMillisecondCounterHiRes());
+        playMarker = juce::jlimit (0.0f, 1.0f, (float) p);              // il cursore resta dove si era arrivati
+    }
+    stopAll();
+}
+
+void SlicePanel::setZoneEdge (bool start, float p)
+{
+    if (source != Source::File || data() == nullptr)
+        return;
+    const float minLen = 0.0005f;
+    if (start)
+    {
+        const float old = extStart;
+        extStart = juce::jlimit (0.0f, extEnd - minLen, p);
+        if (! markers.empty() && std::abs (markers.front() - old) < 1.0e-6f)
+            markers.front() = extStart;                                  // il primo marcatore segue l'inizio della zona
+    }
+    else
+        extEnd = juce::jlimit (extStart + minLen, 1.0f, p);
+    regionChanged();
+    localCommit();
+    if (wave != nullptr)
+        wave->repaint();
+}
+
+void SlicePanel::setZoneEdgeAtMarker (bool start)
+{
+    if (playMarker >= 0.0f)
+        setZoneEdge (start, playMarker);
+}
+
 void SlicePanel::stopAll()
 {
     stopChop();
@@ -1434,7 +1561,7 @@ void SlicePanel::stopAll()
 void SlicePanel::togglePlay()
 {
     if (cursorActive())
-        stopAll();
+        userStop();
     else if (hasSource())
         startPreview (regionStart(), regionEnd());
 }

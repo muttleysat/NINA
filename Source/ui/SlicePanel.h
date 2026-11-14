@@ -33,7 +33,11 @@ public:
     bool isChopping() const { return chopping; }
     bool isPlaying() const { return cursorActive(); }         // Chop, prova del tempo, zona o slice in ascolto
     void togglePlay();                     // barra spaziatrice: suona la zona / ferma tutto
-    void stopAll();                        // Esc: ferma qualsiasi riproduzione
+    void stopAll();                        // ferma qualsiasi riproduzione (usato anche internamente)
+    void userStop();                       // Stop / Esc / barra spaziatrice: ferma e lascia il cursore nel punto raggiunto
+    void setZoneEdgeAtMarker (bool start); // tasti [ e ]: porta l'inizio / la fine della zona (sorgente File) sul cursore di posizione
+    bool hasMarker() const { return playMarker >= 0.0f; }
+    void setMarker (float p);              // posiziona il cursore di posizione (0..1 sul campione, -1 = nessuno)
     void chopMark();                       // tasto M
 
     std::function<void()> onKitChanged;    // dopo la distribuzione: l'editor ridisegna griglia e pannelli
@@ -143,6 +147,8 @@ private:
     bool chopping = false, testPlaying = false, previewing = false;
     double chopStartMs = 0.0, chopDurMs = 0.0;
     double lastScrubMs = 0.0;
+    float playMarker = -1.0f;                                   // cursore di posizione (0..1 sul campione): resta dopo lo scrub e lo Stop
+    void setZoneEdge (bool start, float p);
     double cursorLo = 0.0, cursorHi = 1.0;                      // parte del campione che sta suonando (per il cursore)
     uint32_t chopSeen = 0;
     std::vector<double> taps;

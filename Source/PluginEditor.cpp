@@ -138,6 +138,8 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
         showTab (tabEnv.getIntValue());
         if (const auto fileEnv = juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_SLICEFILE", {}); fileEnv.isNotEmpty())
             slicePanel.loadFile (juce::File (fileEnv));
+        if (const auto mk = juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_SLICEMARKER", {}); mk.isNotEmpty())
+            slicePanel.setMarker (mk.getFloatValue());
         if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_DETECTBPM", {}).isNotEmpty())
             slicePanel.runDetectBpm();
         if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_DETECT", {}).isNotEmpty())
@@ -369,7 +371,12 @@ bool SampleLabEditor::keyPressed (const juce::KeyPress& key)
         }
         if (key == juce::KeyPress::escapeKey && slicePanel.isPlaying())
         {
-            slicePanel.stopAll();
+            slicePanel.userStop();
+            return true;
+        }
+        if (key.getTextCharacter() == '[' || key.getTextCharacter() == ']')          // zona: inizio / fine sul cursore di posizione
+        {
+            slicePanel.setZoneEdgeAtMarker (key.getTextCharacter() == '[');
             return true;
         }
     }
