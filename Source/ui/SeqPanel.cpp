@@ -1786,6 +1786,11 @@ void SeqPanel::resized()
     const int sGap = (int) (18 * s);                   // spazio (con separatore al centro) tra gruppi
     separatorsX.clear();
 
+    // Larghezze dei controlli in unita' scalate, ridotte in proporzione se la finestra e' stretta (le due righe sommano circa 1400
+    // unita': sotto quella larghezza i controlli si restringono invece di uscire dal pannello o sovrapporsi)
+    const float fit = juce::jlimit (0.55f, 1.0f, (float) (getWidth() - (int) (20 * s)) / (1400.0f * s));
+    auto W = [s, fit] (float units) { return (int) (units * s * fit); };
+
     row1Rect = area.removeFromTop (rowH1);
     area.removeFromTop (vgap);
     row2Rect = area.removeFromTop (rowH2);
@@ -1795,10 +1800,10 @@ void SeqPanel::resized()
     auto groupEnd = [&] (auto& rowRect) { separatorsX.push_back ({ rowRect.getX() + sGap / 2, 0 }); rowRect.removeFromLeft (sGap); };
 
     // Destra: Reset Seed, poi lo swing (che occupa l'altezza di entrambe le righe)
-    reseedButton.setBounds (r1.removeFromRight ((int) (128 * s)));
+    reseedButton.setBounds (r1.removeFromRight (W(128)));
     r1.removeFromRight (sGap / 2);
     {
-        const int swingW = (int) (170 * s);
+        const int swingW = W(170);
         auto sw = juce::Rectangle<int> (r1.getRight() - swingW, row1Rect.getY(), swingW, rowH1 + vgap + rowH2);
         r1.removeFromRight (swingW + sGap / 2);
         separatorsX.push_back ({ sw.getX() - sGap / 4, 2 });
@@ -1809,45 +1814,40 @@ void SeqPanel::resized()
     }
 
     // Sinistra: pattern
-    prevPattern.setBounds (r1.removeFromLeft ((int) (32 * s)));
+    prevPattern.setBounds (r1.removeFromLeft (W(32)));
     r1.removeFromLeft (gGap / 2);
-    patternBox.setBounds (r1.removeFromLeft ((int) (150 * s)));
+    patternBox.setBounds (r1.removeFromLeft (W(150)));
     r1.removeFromLeft (gGap / 2);
-    nextPattern.setBounds (r1.removeFromLeft ((int) (32 * s)));
+    nextPattern.setBounds (r1.removeFromLeft (W(32)));
     r1.removeFromLeft (gGap);
-    patternMenuButton.setBounds (r1.removeFromLeft ((int) (34 * s)));
+    patternMenuButton.setBounds (r1.removeFromLeft (W(34)));
     groupEnd (r1);
 
     // Celle
-    addButton.setBounds (r1.removeFromLeft ((int) (78 * s)));
+    addButton.setBounds (r1.removeFromLeft (W(78)));
     r1.removeFromLeft (2);
-    addAllButton.setBounds (r1.removeFromLeft ((int) (36 * s)));
+    addAllButton.setBounds (r1.removeFromLeft (W(36)));
     groupEnd (r1);
 
     // Esportazione
-    barsBox.setBounds (r1.removeFromLeft ((int) (136 * s)));
+    barsBox.setBounds (r1.removeFromLeft (W(136)));
     r1.removeFromLeft (gGap);
-    tailBox.setBounds (r1.removeFromLeft ((int) (112 * s)));
+    tailBox.setBounds (r1.removeFromLeft (W(112)));
     groupEnd (r1);
-    midiButton.setBounds (r1.removeFromLeft ((int) (128 * s)));
+    midiButton.setBounds (r1.removeFromLeft (W(128)));
     r1.removeFromLeft (gGap);
-    wavButton.setBounds (r1.removeFromLeft ((int) (128 * s)));
+    wavButton.setBounds (r1.removeFromLeft (W(128)));
     r1.removeFromLeft (gGap);
-    stemsButton.setBounds (r1.removeFromLeft ((int) (128 * s)));
+    stemsButton.setBounds (r1.removeFromLeft (W(128)));
 
     // Riga 2: maniglie per trascinare i file direttamente nella DAW
-    {
-        auto right = row2Rect;
-        right.removeFromRight ((int) (170 * s) + sGap);                       // sotto Swing/Reset: lo spazio e' del blocco swing
-        hostModeBox.setBounds (right.removeFromRight ((int) (232 * s)));
-    }
     dragRow = row2Rect;
     {
         auto d = dragRow;
-        d.removeFromLeft ((int) (112 * s));                                // spazio per l'etichetta "DRAG TO DAW"
+        d.removeFromLeft (W(112));                                // spazio per l'etichetta "DRAG TO DAW"
         separatorsX.push_back ({ d.getX() + gGap / 2, 1 });
         d.removeFromLeft (gGap * 2);
-        const int w = (int) (128 * s);
+        const int w = W(128);
         dragMidi->setBounds (d.removeFromLeft (w));
         d.removeFromLeft (gGap);
         dragAudio->setBounds (d.removeFromLeft (w));
@@ -1856,13 +1856,26 @@ void SeqPanel::resized()
         d.removeFromLeft (gGap);
         separatorsX.push_back ({ d.getX() + gGap / 2, 1 });
         d.removeFromLeft (gGap * 2);
-        clickButton.setBounds (d.removeFromLeft ((int) (60 * s)));
+        clickButton.setBounds (d.removeFromLeft (W(60)));
         d.removeFromLeft (gGap);
-        clickVolume.setBounds (d.removeFromLeft ((int) (64 * s)).reduced (0, (int) (4 * s)));
+        clickVolume.setBounds (d.removeFromLeft (W(64)).reduced (0, (int) (4 * s)));
         d.removeFromLeft (gGap);
-        recButton.setBounds (d.removeFromLeft ((int) (56 * s)));
+        recButton.setBounds (d.removeFromLeft (W(56)));
         d.removeFromLeft (gGap);
-        quantButton.setBounds (d.removeFromLeft ((int) (128 * s)));
+        quantButton.setBounds (d.removeFromLeft (W(128)));
+    }
+
+    // Modo del trasporto della DAW (solo plugin): sta nello spazio libero tra i comandi di sinistra e il blocco dello swing,
+    // senza mai sovrapporsi a nessuno dei due (si restringe se la finestra e' stretta e sparisce se non c'e' posto)
+    {
+        const int leftEnd = quantButton.getRight() + gGap * 2;
+        const int rightEdge = swingRect.getX() - sGap / 2 - gGap;
+        const int avail = rightEdge - leftEnd;
+        const int w = juce::jmin (avail, (int) (232 * s));
+        const bool room = avail >= (int) (96 * s);
+        hostModeBox.setBounds (rightEdge - juce::jmax (0, w), row2Rect.getY(), juce::jmax (0, w), row2Rect.getHeight());
+        hostModeBox.setVisible (room && (processor.wrapperType != juce::AudioProcessor::wrapperType_Standalone
+                                        || juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_SHOWHOST", {}).isNotEmpty()));      // la variabile serve solo alle prove
     }
 
     // Righello dei beat sopra le righe (il testo e' disegnato in paint)
