@@ -844,7 +844,7 @@ bool SampleLabProcessor::bounceSongWav (const juce::File& file, juce::String& er
             --lastAudible;
         numSamples = juce::jmin (numSamples, lastAudible + (int) (0.05 * sr));
     }
-    return writeWav24 (file, out, sr, numSamples, error);
+    return writeWav24 (file, out, sr, numSamples, error, bpm, total);
 }
 
 // Un WAV per ogni cella suonata dalla song (tutti della stessa lunghezza), con gli effetti della cella ma senza gli effetti master
@@ -900,7 +900,7 @@ int SampleLabProcessor::exportSongStems (const juce::File& folder, juce::String&
             name = base + "_" + juce::String (n);
         used.insert (name);
 
-        if (! writeWav24 (folder.getChildFile (name + ".wav"), audio, sr, audio.getNumSamples(), error))
+        if (! writeWav24 (folder.getChildFile (name + ".wav"), audio, sr, audio.getNumSamples(), error, bpm, total))
             return -1;
         ++written;
     }
@@ -1061,10 +1061,11 @@ bool SampleLabProcessor::bouncePatternWav (const juce::File& file, int bars, juc
         numSamples = juce::jmin (numSamples, lastAudible + (int) (0.05 * sr));
     }
 
-    return writeWav24 (file, out, sr, numSamples, error);
+    return writeWav24 (file, out, sr, numSamples, error, bpm, (double) juce::jmax (1, bars) * 4.0);
 }
 
-bool SampleLabProcessor::writeWav24 (const juce::File& file, const juce::AudioBuffer<float>& audio, double sr, int numSamples, juce::String& error)
+bool SampleLabProcessor::writeWav24 (const juce::File& file, const juce::AudioBuffer<float>& audio, double sr, int numSamples, juce::String& error,
+                                    double bpm, double beats)
 {
     file.deleteFile();
     juce::WavAudioFormat wav;
@@ -1074,7 +1075,19 @@ bool SampleLabProcessor::writeWav24 (const juce::File& file, const juce::AudioBu
         error = "Impossibile creare " + file.getFullPathName();
         return false;
     }
-    std::unique_ptr<juce::AudioFormatWriter> writer (wav.createWriterFor (stream.get(), sr, 2, 24, {}, 0));
+    // Metadati "ACID" del WAV (tempo e numero di quarti): Cubase li legge all'importazione e imposta cosi' il tempo originale del file.
+    // Senza, con "segui tempo" (Musical Mode) acceso il tempo viene stimato dalla durata e puo' risultare sbagliato.
+    juce::StringPairArray meta;
+    if (bpm > 0.0 && beats > 0.0)
+    {
+        meta.set (juce::WavAudioFormat::acidOneShot, "0");               // loop
+        meta.set (juce::WavAudioFormat::acidStretch, "1");               // si puo' adattare al tempo del progetto
+        meta.set (juce::WavAudioFormat::acidBeats, juce::String (juce::roundToInt (beats)));
+        meta.set (juce::WavAudioFormat::acidNumerator, "4");
+        meta.set (juce::WavAudioFormat::acidDenominator, "4");
+        meta.set (juce::WavAudioFormat::acidTempo, juce::String (bpm, 3));
+    }
+    std::unique_ptr<juce::AudioFormatWriter> writer (wav.createWriterFor (stream.get(), sr, 2, 24, meta, 0));
     if (writer == nullptr)
     {
         error = "Formato WAV non disponibile";
@@ -1131,7 +1144,7 @@ int SampleLabProcessor::exportPatternStems (const juce::File& folder, int bars, 
             name = base + "_" + juce::String (n);
         used.insert (name);
 
-        if (! writeWav24 (folder.getChildFile (name + ".wav"), audio, sr, audio.getNumSamples(), error))
+        if (! writeWav24 (folder.getChildFile (name + ".wav"), audio, sr, audio.getNumSamples(), error, bpm, (double) juce::jmax (1, bars) * 4.0))
             return -1;
         ++written;
     }

@@ -326,6 +326,10 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
             juce::WavAudioFormat fmt;
             std::unique_ptr<juce::AudioFormatReader> rd (fmt.createReaderFor (wav.createInputStream().release(), true));
             const double secs = rd != nullptr ? (double) rd->lengthInSamples / rd->sampleRate : 0.0;
+            if (rd != nullptr)
+                t << " | acidTempo=" << rd->metadataValues[juce::WavAudioFormat::acidTempo] << " acidBeats=" << rd->metadataValues[juce::WavAudioFormat::acidBeats]
+                  << " acidStretch=" << rd->metadataValues[juce::WavAudioFormat::acidStretch] << " acidOneShot=" << rd->metadataValues[juce::WavAudioFormat::acidOneShot]
+                  << " acidNum=" << rd->metadataValues[juce::WavAudioFormat::acidNumerator] << "/" << rd->metadataValues[juce::WavAudioFormat::acidDenominator];
             t << " | fileRate=" << (rd != nullptr ? rd->sampleRate : 0.0) << " | bounce ok=" << (int) ok << " bpm=" << juce::String (processor.getCurrentBpm(), 2) << " sr=" << processor.getSampleRate()
               << " fileSecs=" << juce::String (secs, 3) << " expectedSecs=" << juce::String (processor.songTotalBeats() * 60.0 / 126.0, 3) << " err=" << err;
             uiLog (t);

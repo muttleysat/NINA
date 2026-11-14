@@ -234,7 +234,8 @@ private:
     static BusesProperties makeBuses();
     void publishKit (bool newGeneration);
     void publishPattern();
-    static bool writeWav24 (const juce::File& file, const juce::AudioBuffer<float>& audio, double sampleRate, int numSamples, juce::String& error);
+    static bool writeWav24 (const juce::File& file, const juce::AudioBuffer<float>& audio, double sampleRate, int numSamples, juce::String& error,
+                            double bpm = 0.0, double beats = 0.0);     // bpm/beats: metadati ACID (tempo del file per Cubase e simili)
     std::shared_ptr<sl::KitSnapshot> buildSnapshot() const;
     void loadKitSamples();
     void ensurePlayData();                                   // allinea i campioni letti dal motore con quelli della cella
