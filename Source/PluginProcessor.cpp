@@ -300,6 +300,7 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
         if (nTrig > 0 || clickLeft > 0)
         {
             const int chans = juce::jmin (2, buffer.getNumChannels());
+            const float clickGain = clickVol.load (std::memory_order_relaxed) * 1.5f;
             int next = 0;
             for (int i = 0; i < numSamples; ++i)
             {
@@ -314,7 +315,7 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
                 if (clickLeft > 0)
                 {
                     const float env = (float) clickLeft / (float) clickTotal;
-                    const float v = std::sin (clickPhase) * clickAmp * env * env;
+                    const float v = std::sin (clickPhase) * clickAmp * env * env * clickGain;
                     clickPhase += juce::MathConstants<float>::twoPi * clickFreq / (float) currentSampleRate;
                     --clickLeft;
                     for (int ch = 0; ch < chans; ++ch)
@@ -1559,6 +1560,7 @@ void SampleLabProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("internalBpm", internalBpm.load(), nullptr);
     state.setProperty ("hostSeqMode", hostSeqMode.load(), nullptr);
     state.setProperty ("metronome", clickOn.load(), nullptr);
+    state.setProperty ("clickVolume", clickVol.load(), nullptr);
     state.setProperty ("countInBars", countInBars.load(), nullptr);
     state.setProperty ("songMode", songMode.load(), nullptr);
     state.setProperty ("kitJson", sl::KitIO::toJson (kit, false), nullptr);   // percorsi assoluti
@@ -1582,6 +1584,7 @@ void SampleLabProcessor::setStateInformation (const void* data, int sizeInBytes)
     hostSeqMode.store (juce::jlimit (0, 2, (int) state.getProperty ("hostSeqMode", (int) HostSeqMode::MuteOnRecord)));
     songMode.store ((bool) state.getProperty ("songMode", false));
     clickOn.store ((bool) state.getProperty ("metronome", false));
+    clickVol.store (juce::jlimit (0.0f, 1.0f, (float) (double) state.getProperty ("clickVolume", 0.67)));
     countInBars.store (juce::jlimit (0, 2, (int) state.getProperty ("countInBars", 1)));
 
     const juce::String json = state.getProperty ("kitJson", juce::String());

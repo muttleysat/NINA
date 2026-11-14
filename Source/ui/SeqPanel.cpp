@@ -695,6 +695,14 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     clickButton.setTooltip ("Metronome: a click on every beat while the sequencer plays (louder on the first beat of the bar).\n"
                             "The count-in before recording always clicks, even with the metronome off.");
     clickButton.onClick = [this] { processor.setMetronome (clickButton.getToggleState()); };
+    clickVolume.setSliderStyle (juce::Slider::LinearHorizontal);
+    clickVolume.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
+    clickVolume.setRange (0.0, 100.0, 1.0);
+    clickVolume.setValue (processor.getClickVolume() * 100.0, juce::dontSendNotification);
+    clickVolume.setDoubleClickReturnValue (true, 67.0);
+    clickVolume.setTooltip ("Metronome and count-in volume (double-click: default)");
+    clickVolume.onValueChange = [this] { processor.setClickVolume ((float) clickVolume.getValue() / 100.0f); };
+    addAndMakeVisible (clickVolume);
     addAndMakeVisible (quantButton);
     recButton.setClickingTogglesState (true);
     recButton.setTooltip ("Record: with Rec on, Play first counts in (see Rec options > Count-in) and then the notes you play on the MIDI keyboard are written into the steps "
@@ -1355,6 +1363,9 @@ void SeqPanel::showQuantizeMenu()
 {
     const bool hasLane = selLane >= 0 && selLane < (int) pat().lanes.size();
     juce::PopupMenu m;
+    m.addSectionHeader ("Click volume");
+    for (int i = 0; i < 4; ++i)
+        m.addItem (41 + i, juce::String (25 * (i + 1)) + "%", true, std::abs (processor.getClickVolume() * 100.0f - (float) (25 * (i + 1))) < 12.0f);
     m.addSectionHeader ("Count-in before Play (when Rec is on)");
     for (int i = 0; i < 3; ++i)
         m.addItem (31 + i, i == 0 ? juce::String ("Off") : (i == 1 ? juce::String ("1 bar") : juce::String ("2 bars")), true, processor.getCountInBars() == i);
@@ -1379,6 +1390,11 @@ void SeqPanel::showQuantizeMenu()
             safe->quantizePattern (true, (100 - 25 * (r - 11)) / 100.0f);
         else if (r >= 21 && r <= 25)
             safe->recSnap = snaps[r - 21];
+        else if (r >= 41 && r <= 44)
+        {
+            safe->processor.setClickVolume ((float) (25 * (r - 40)) / 100.0f);
+            safe->clickVolume.setValue (25.0 * (r - 40), juce::dontSendNotification);
+        }
         else if (r >= 31 && r <= 33)
             safe->processor.setCountInBars (r - 31);
     });
@@ -1812,6 +1828,8 @@ void SeqPanel::resized()
         separatorsX.push_back ({ d.getX() + gGap / 2, 1 });
         d.removeFromLeft (gGap * 2);
         clickButton.setBounds (d.removeFromLeft ((int) (60 * s)));
+        d.removeFromLeft (gGap);
+        clickVolume.setBounds (d.removeFromLeft ((int) (64 * s)).reduced (0, (int) (4 * s)));
         d.removeFromLeft (gGap);
         recButton.setBounds (d.removeFromLeft ((int) (56 * s)));
         d.removeFromLeft (gGap);

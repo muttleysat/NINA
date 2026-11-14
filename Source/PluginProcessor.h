@@ -185,6 +185,8 @@ public:
     // a metronomo spento).
     void setMetronome (bool on) { clickOn.store (on); }
     bool isMetronomeOn() const { return clickOn.load(); }
+    void setClickVolume (float v) { clickVol.store (juce::jlimit (0.0f, 1.0f, v)); }
+    float getClickVolume() const { return clickVol.load(); }
     void setCountInBars (int bars) { countInBars.store (juce::jlimit (0, 2, bars)); }
     int getCountInBars() const { return countInBars.load(); }
     int drainRecorded (RecNote* out, int maxCount);
@@ -327,6 +329,7 @@ private:
 
     std::atomic<bool> seqRecord { false };
     std::atomic<bool> clickOn { false };
+    std::atomic<float> clickVol { 0.67f };                  // volume del click (0..1; 0.67 = livello di base)
     std::atomic<int> countInBars { 1 };
     // Sintesi del click (solo thread audio)
     int clickLeft = 0, clickTotal = 0;

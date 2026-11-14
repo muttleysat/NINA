@@ -266,6 +266,17 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
         juce::Timer::callAfterDelay (2500, [this] { uiLog ("COUNTIN t=2.5s ppq=" + juce::String (processor.getSequencerPpq(), 2)); });
     }
 
+    // Solo per prove: SAMPLELAB_CLICKOFF riporta metronomo e conteggio ai valori predefiniti (le prove li lasciano nelle impostazioni salvate)
+    if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_CLICKOFF", {}).isNotEmpty())
+    {
+        juce::Timer::callAfterDelay (1500, [this]
+        {
+            processor.setMetronome (false);
+            processor.setCountInBars (1);
+            processor.setClickVolume (0.67f);
+        });
+    }
+
     // Solo per prove: SAMPLELAB_ABOUT apre la finestra Info all'avvio
     if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_ABOUT", {}).isNotEmpty())
     {

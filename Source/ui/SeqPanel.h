@@ -79,6 +79,7 @@ private:
                stemsButton { "Export Lanes", IconButton::Icon::Layers }, reseedButton { "Reset Seed", IconButton::Icon::Reset };
     juce::ComboBox patternBox, barsBox, tailBox, hostModeBox;
     juce::TextButton recButton { "Rec" }, clickButton { "Click" };
+    juce::Slider clickVolume;
     IconButton quantButton { "Rec options", IconButton::Icon::Grid };
     std::optional<sl::Step> stepClip;
     std::optional<sl::Lane> laneClip;
