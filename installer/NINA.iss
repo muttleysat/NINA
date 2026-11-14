@@ -85,6 +85,10 @@ Name: "docs"; Description: "{cm:CompDocs}"; Types: full custom
 [Tasks]
 Name: "desktopicon"; Description: "{cm:TaskDesktop}"; Components: standalone; Flags: unchecked
 
+[InstallDelete]
+; Una copia "a file singolo" di NINA.vst3 (es. lasciata da una compilazione) impedirebbe di creare la cartella del plugin
+Type: files; Name: "{autocf}\VST3\NINA.vst3"; Components: vst3
+
 [Files]
 Source: "{#BuildDir}\Standalone\NINA.exe"; DestDir: "{app}"; Components: standalone; Flags: ignoreversion
 Source: "{#BuildDir}\VST3\NINA.vst3\*"; DestDir: "{autocf}\VST3\NINA.vst3"; Components: vst3; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -110,6 +114,9 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
 begin
+  // Prima di copiare i file l'attributo va tolto, altrimenti una reinstallazione/aggiornamento da' errore 183
+  if (CurStep = ssInstall) and WizardIsComponentSelected('vst3') then
+    Exec(ExpandConstant('{cmd}'), ExpandConstant('/C attrib -s "{autocf}\VST3\NINA.vst3"'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   if (CurStep = ssPostInstall) and WizardIsComponentSelected('vst3') then
     Exec(ExpandConstant('{cmd}'), ExpandConstant('/C attrib +s "{autocf}\VST3\NINA.vst3"'), '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;

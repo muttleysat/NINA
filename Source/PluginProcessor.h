@@ -252,6 +252,7 @@ private:
     void tempoTick();                                        // timer: controlla il BPM e aggiorna i loop sincronizzati
     void addRecentKit (const juce::File& file);
     juce::PropertiesFile& getSettings() const;
+    bool startupStateSkipped = false;
 
     // Segna il kit come modificato quando cambia un parametro (da qualsiasi thread: UI, automazione, MIDI)
     struct DirtyListener final : juce::AudioProcessorParameter::Listener

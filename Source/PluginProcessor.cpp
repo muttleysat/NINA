@@ -1715,6 +1715,15 @@ void NinaProcessor::setStateInformation (const void* data, int sizeInBytes)
     uiWidth  = state.getProperty ("uiWidth", uiWidth);
     uiHeight = state.getProperty ("uiHeight", uiHeight);
     uiZoom   = state.getProperty ("uiZoom", uiZoom);
+
+    // Lo standalone parte sempre vuoto: il ripristino automatico all'avvio (kit, sequenze, song dell'ultima sessione)
+    // viene ignorato; resta solo la dimensione della finestra. Nel plugin il progetto della DAW ripristina tutto.
+    if (wrapperType == juce::AudioProcessor::wrapperType_Standalone && ! startupStateSkipped)
+    {
+        startupStateSkipped = true;
+        return;
+    }
+
     setInternalBpm (state.getProperty ("internalBpm", 120.0));
     bpmEdited.store ((bool) state.getProperty ("bpmEdited", false));
     setExportBpmOverride ((double) state.getProperty ("exportBpm", 0.0));
