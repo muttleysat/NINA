@@ -77,7 +77,7 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        const float s = theme::scaleFor (*this);
+        const float s = juce::jmax (0.5f, (float) getHeight() / 160.0f);       // la scheda si scala con la sua altezza (le schede si rimpiccioliscono se sono tante)
         const auto b = getLocalBounds().toFloat().reduced (1.0f);
         const auto& blk = owner.song().blocks[(size_t) index];
         const auto col = SongPanel::patternColour (blk.pattern);
@@ -107,7 +107,7 @@ public:
 
     void resized() override
     {
-        const float s = theme::scaleFor (*this);
+        const float s = juce::jmax (0.5f, (float) getHeight() / 160.0f);       // la scheda si scala con la sua altezza (le schede si rimpiccioliscono se sono tante)
         auto r = getLocalBounds().reduced ((int) (9 * s), (int) (10 * s));
         const int gap = (int) (6 * s);
         titleRect = r.removeFromTop ((int) (20 * s));
@@ -160,24 +160,42 @@ public:
             addAndMakeVisible (*c);
             cards.push_back (std::move (c));
         }
-        layoutCards();
         refreshSelection();
     }
 
     int numCards() const { return (int) cards.size(); }
 
-    void layoutCards()
+    // Le schede vanno a capo: quante ne stanno per riga dipende dalla larghezza. Se le righe non stanno nell'altezza disponibile le schede
+    // si rimpiccioliscono (fino a un minimo leggibile); oltre, il contenitore scorre in verticale. Ritorna l'altezza necessaria.
+    int arrange (int width, int availHeight, float s)
     {
-        const float s = theme::scaleFor (*this);
-        const int cw = (int) (176 * s), gap = (int) (10 * s);
-        for (int i = 0; i < (int) cards.size(); ++i)
-            cards[(size_t) i]->setBounds (i * (cw + gap), 0, cw, getHeight());
-    }
-
-    int desiredWidth() const
-    {
-        const float s = theme::scaleFor (*this);
-        return juce::jmax (1, (int) cards.size()) * (int) (186 * s);
+        const int n = (int) cards.size();
+        const float kMin = 0.72f;
+        int cols = 1, rows = 1, cw = 0, ch = 0, gap = 0, need = 0;
+        int w = width;
+        float k = 1.0f;
+        for (; k >= kMin - 1.0e-4f; k -= 0.04f)
+        {
+            cw = (int) (176 * s * k);
+            ch = (int) (160 * s * k);
+            gap = juce::jmax (4, (int) (10 * s * k));
+            cols = juce::jmax (1, (w + gap) / (cw + gap));
+            rows = juce::jmax (1, (n + cols - 1) / cols);
+            need = rows * (ch + gap) - gap;
+            if (need <= availHeight)
+                break;
+        }
+        if (need > availHeight)                          // neanche alla dimensione minima: scorrimento verticale (si lascia posto alla barra)
+        {
+            w = juce::jmax (1, width - (int) (14 * s));
+            cols = juce::jmax (1, (w + gap) / (cw + gap));
+            rows = juce::jmax (1, (n + cols - 1) / cols);
+            need = rows * (ch + gap) - gap;
+        }
+        for (int i = 0; i < n; ++i)
+            cards[(size_t) i]->setBounds ((i % cols) * (cw + gap), (i / cols) * (ch + gap), cw, ch);
+        setSize (w, juce::jmax (1, need));
+        return need;
     }
 
     void refreshSelection()
@@ -192,7 +210,6 @@ public:
             c->setPlaying (c->getIndex() == block, c->getIndex() == block ? fraction : 0.0);
     }
 
-    void resized() override { layoutCards(); }
 
 private:
     SongPanel& owner;
@@ -211,7 +228,7 @@ SongPanel::SongPanel (SampleLabProcessor& p) : processor (p)
 {
     strip = std::make_unique<Strip> (*this);
     viewport.setViewedComponent (strip.get(), false);
-    viewport.setScrollBarsShown (false, true);
+    viewport.setScrollBarsShown (true, false);            // solo scorrimento verticale: i blocchi vanno a capo
     addAndMakeVisible (viewport);
 
     for (juce::Button* b : std::initializer_list<juce::Button*> { &songModeButton, &loopButton, &addButton, &moreButton, &openButton,
@@ -311,9 +328,15 @@ void SongPanel::refresh()
     if (! nameBox.hasKeyboardFocus (true))
         nameBox.setText (song().name, juce::dontSendNotification);
     tailBox.setSelectedId (juce::jlimit (0, 2, (int) processor.getExportTail()) + 1, juce::dontSendNotification);
-    strip->setSize (strip->desiredWidth(), juce::jmax (1, viewport.getMaximumVisibleHeight()));
     strip->rebuild();
+    relayoutStrip();
     repaint();
+}
+
+void SongPanel::relayoutStrip()
+{
+    const float s = theme::scaleFor (*this);
+    strip->arrange (viewport.getWidth(), viewport.getHeight(), s);
 }
 
 void SongPanel::edited()
@@ -379,7 +402,7 @@ void SongPanel::addBlock (int pattern)
     selected = (int) song().blocks.size() - 1;
     edited();
     refresh();
-    viewport.setViewPosition (juce::jmax (0, strip->getWidth() - viewport.getMaximumVisibleWidth()), 0);
+    viewport.setViewPosition (0, strip->getHeight());         // porta in vista l'ultimo blocco aggiunto (in fondo)
 }
 
 void SongPanel::showAddMenu()
@@ -740,12 +763,11 @@ void SongPanel::resized()
         saveButton.setBounds (d.removeFromLeft ((int) (120 * s)));
     }
 
-    // Blocchi in alto, sotto la mappa proporzionale della song
-    stripRect = area;
-    const int cardH = juce::jmin (area.getHeight(), (int) (160 * s));
-    viewport.setBounds (area.removeFromTop (cardH + (int) (14 * s)));          // + barra di scorrimento
-    strip->setSize (juce::jmax (strip->desiredWidth(), viewport.getMaximumVisibleWidth()), cardH);
-    area.removeFromTop (vgap * 2);
-    mapRect = area.removeFromTop ((int) (84 * s));
+    // Mappa proporzionale della song in basso; i blocchi occupano lo spazio sopra e vanno a capo (rimpiccioliti se sono tanti)
+    mapRect = area.removeFromBottom ((int) (84 * s));
     infoRect = mapRect.withHeight ((int) (18 * s)).withTrimmedLeft ((int) (310 * s));
+    area.removeFromBottom (vgap * 2);
+    stripRect = area;
+    viewport.setBounds (area);
+    relayoutStrip();
 }

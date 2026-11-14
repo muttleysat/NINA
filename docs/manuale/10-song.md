@@ -14,6 +14,7 @@ I **pattern restano nel kit** e si modificano nella scheda Seq: se cambi un patt
    - **<** e **>** per spostare il blocco prima o dopo;
    - **Dup** per duplicarlo (il duplicato va subito dopo);
    - **x** per toglierlo.
+   I blocchi **vanno a capo** su più righe quando non stanno in una sola: quanti ne entrano per riga dipende dalla larghezza della finestra. Se le righe diventano troppe per l'altezza disponibile, le schede si **rimpiccioliscono da sole** (fino a una dimensione ancora leggibile); con un numero ancora più alto compare una **barra di scorrimento verticale**. Aggiungendo un blocco la vista scorre fino all'ultimo.
 4. Sotto i blocchi, la **mappa della song** mostra tutta la catena in scala: ogni blocco è colorato come il suo pattern, con numero del pattern e ripetizioni, e c'è la **lunghezza totale** (battute, minuti:secondi al BPM corrente).
 5. Il pulsante **⋯** accanto a **+ Block** offre **Add every pattern that has notes** (un blocco per ogni pattern con righe, in ordine) e **Clear the song**.
 

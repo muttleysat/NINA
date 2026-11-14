@@ -207,6 +207,9 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
             kit.patterns[(size_t) pi].lanes.push_back (l);
         }
         kit.song.blocks = { { 0, 2 }, { 1, 1 } };               // 2 giri + 1 giro = 12 quarti (3 battute)
+        if (const auto mode = juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_SONGTEST", {}); mode.startsWith ("many"))
+            for (int i = 0; i < (mode == "many60" ? 58 : 22); ++i)
+                kit.song.blocks.push_back ({ i % 2, 1 + i % 3 });
         processor.songEdited();
         juce::String err;
         const auto mid = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("songtest.mid");
