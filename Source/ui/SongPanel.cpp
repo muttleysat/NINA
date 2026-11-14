@@ -264,6 +264,19 @@ SongPanel::SongPanel (SampleLabProcessor& p) : processor (p)
     tailBox.onChange = [this] { processor.setExportTail ((SampleLabProcessor::ExportTail) (tailBox.getSelectedId() - 1)); };
     addAndMakeVisible (tailBox);
 
+    rateBox.addItem ("Rate: auto", 1);
+    rateBox.addItem ("44.1 kHz", 2);
+    rateBox.addItem ("48 kHz", 3);
+    rateBox.addItem ("88.2 kHz", 4);
+    rateBox.addItem ("96 kHz", 5);
+    rateBox.setTooltip ("Sample rate of the exported audio files (same setting as in the Seq tab). Auto = the project's (the DAW's) rate.");
+    rateBox.onChange = [this]
+    {
+        static const int rates[] = { 0, 44100, 48000, 88200, 96000 };
+        processor.setExportRateSetting (rates[juce::jlimit (0, 4, rateBox.getSelectedId() - 1)]);
+    };
+    addAndMakeVisible (rateBox);
+
     midiButton.setTooltip ("The whole song as one MIDI clip (effects and reverse are not part of MIDI: use Bounce WAV or Export lanes)");
     midiButton.onClick = [this] { exportMidi(); };
     wavButton.setTooltip ("The whole song as ONE audio file: cell effects, step locks, tempo-synced delay and master effects included");
@@ -331,6 +344,10 @@ void SongPanel::refresh()
     if (! nameBox.hasKeyboardFocus (true))
         nameBox.setText (song().name, juce::dontSendNotification);
     tailBox.setSelectedId (juce::jlimit (0, 2, (int) processor.getExportTail()) + 1, juce::dontSendNotification);
+    {
+        const int hz = processor.getExportRateSetting();
+        rateBox.setSelectedId (hz == 44100 ? 2 : hz == 48000 ? 3 : hz == 88200 ? 4 : hz == 96000 ? 5 : 1, juce::dontSendNotification);
+    }
     strip->rebuild();
     relayoutStrip();
     repaint();
@@ -747,6 +764,8 @@ void SongPanel::resized()
     moreButton.setBounds (r1.removeFromLeft ((int) (34 * s)));
     groupEnd (r1);
     tailBox.setBounds (r1.removeFromLeft ((int) (112 * s)));
+    r1.removeFromLeft (gGap);
+    rateBox.setBounds (r1.removeFromLeft ((int) (104 * s)));
     r1.removeFromLeft (gGap);
     midiButton.setBounds (r1.removeFromLeft ((int) (128 * s)));
     r1.removeFromLeft (gGap);

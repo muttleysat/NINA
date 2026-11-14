@@ -77,7 +77,7 @@ private:
     IconButton addButton { "+ Cell" }, addAllButton { {}, IconButton::Icon::Grid }, patternMenuButton { {}, IconButton::Icon::More },
                midiButton { "Export MIDI", IconButton::Icon::Midi }, wavButton { "Bounce WAV", IconButton::Icon::Wave },
                stemsButton { "Export Lanes", IconButton::Icon::Layers }, reseedButton { "Reset Seed", IconButton::Icon::Reset };
-    juce::ComboBox patternBox, barsBox, tailBox, hostModeBox;
+    juce::ComboBox patternBox, barsBox, tailBox, rateBox, hostModeBox;
     juce::TextButton recButton { "Rec" }, clickButton { "Click" };
     juce::Slider clickVolume;
     IconButton quantButton { "Rec options", IconButton::Icon::Grid };

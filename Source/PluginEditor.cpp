@@ -318,6 +318,7 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
                 if (k.cells[(size_t) i].hasSample() && k.cells[(size_t) i].tempoSync)
                     t << " " << i << "(loopBpm " << juce::String (k.cells[(size_t) i].loopBpm, 1) << ")";
             processor.setInternalBpmByUser (126.0);
+            processor.setExportRateSetting (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_BOUNCEDIAG", {}).getIntValue());
             juce::Timer::callAfterDelay (600, [this, t] () mutable {
             juce::String err;
             const auto wav = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("bouncediag.wav");
@@ -325,7 +326,7 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
             juce::WavAudioFormat fmt;
             std::unique_ptr<juce::AudioFormatReader> rd (fmt.createReaderFor (wav.createInputStream().release(), true));
             const double secs = rd != nullptr ? (double) rd->lengthInSamples / rd->sampleRate : 0.0;
-            t << " | bounce ok=" << (int) ok << " bpm=" << juce::String (processor.getCurrentBpm(), 2) << " sr=" << processor.getSampleRate()
+            t << " | fileRate=" << (rd != nullptr ? rd->sampleRate : 0.0) << " | bounce ok=" << (int) ok << " bpm=" << juce::String (processor.getCurrentBpm(), 2) << " sr=" << processor.getSampleRate()
               << " fileSecs=" << juce::String (secs, 3) << " expectedSecs=" << juce::String (processor.songTotalBeats() * 60.0 / 126.0, 3) << " err=" << err;
             uiLog (t);
             });

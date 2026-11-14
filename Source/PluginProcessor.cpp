@@ -825,7 +825,7 @@ bool SampleLabProcessor::bounceSongWav (const juce::File& file, juce::String& er
         return false;
     }
 
-    const double sr = currentSampleRate > 0.0 ? currentSampleRate : 44100.0;
+    const double sr = getExportSampleRate();
     const double bpm = getExportBpm();
     logExport ("bounce");
     auto eng = std::make_unique<sl::Engine>();
@@ -868,7 +868,7 @@ int SampleLabProcessor::exportSongStems (const juce::File& folder, juce::String&
         return -1;
     }
 
-    const double sr = currentSampleRate > 0.0 ? currentSampleRate : 44100.0;
+    const double sr = getExportSampleRate();
     const double bpm = getExportBpm();
     logExport ("stems");
     int written = 0;
@@ -916,7 +916,7 @@ void SampleLabProcessor::logExport (const juce::String& what) const
     f.appendText (juce::Time::getCurrentTime().toString (true, true, true, true) + "  EXPORT " + what + ": tempo used " + juce::String (getExportBpm(), 3)
                   + " BPM (current " + juce::String (currentBpm.load(), 3) + ", host " + juce::String (hostTempo.load() ? "yes" : "no") + ", last host "
                   + juce::String (lastHostBpm.load(), 3) + ", override " + juce::String (exportBpmOverride.load(), 3) + "), sample rate "
-                  + juce::String (currentSampleRate, 0) + ", wrapper " + juce::String ((int) wrapperType) + "\n");
+                  + juce::String (getExportSampleRate(), 0) + " (project " + juce::String (currentSampleRate, 0) + "), wrapper " + juce::String ((int) wrapperType) + "\n");
 }
 
 void SampleLabProcessor::patternEdited()
@@ -1037,7 +1037,7 @@ bool SampleLabProcessor::bouncePatternWav (const juce::File& file, int bars, juc
         error = tempoUnknownMessage();
         return false;
     }
-    const double sr = currentSampleRate > 0.0 ? currentSampleRate : 44100.0;
+    const double sr = getExportSampleRate();
     const double bpm = getExportBpm();
     logExport ("bounce");
     constexpr int block = 512;
@@ -1094,7 +1094,7 @@ int SampleLabProcessor::exportPatternStems (const juce::File& folder, int bars, 
         error = tempoUnknownMessage();
         return -1;
     }
-    const double sr = currentSampleRate > 0.0 ? currentSampleRate : 44100.0;
+    const double sr = getExportSampleRate();
     const double bpm = getExportBpm();
     logExport ("stems");
     const auto& pattern = activePattern();
@@ -1605,6 +1605,7 @@ void SampleLabProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("internalBpm", internalBpm.load(), nullptr);
     state.setProperty ("bpmEdited", bpmEdited.load(), nullptr);
     state.setProperty ("exportBpm", exportBpmOverride.load(), nullptr);
+    state.setProperty ("exportRate", exportRateHz.load(), nullptr);
     state.setProperty ("hostSeqMode", hostSeqMode.load(), nullptr);
     state.setProperty ("metronome", clickOn.load(), nullptr);
     state.setProperty ("clickVolume", clickVol.load(), nullptr);
@@ -1630,6 +1631,7 @@ void SampleLabProcessor::setStateInformation (const void* data, int sizeInBytes)
     setInternalBpm (state.getProperty ("internalBpm", 120.0));
     bpmEdited.store ((bool) state.getProperty ("bpmEdited", false));
     setExportBpmOverride ((double) state.getProperty ("exportBpm", 0.0));
+    setExportRateSetting ((int) state.getProperty ("exportRate", 0));
     hostSeqMode.store (juce::jlimit (0, 2, (int) state.getProperty ("hostSeqMode", (int) HostSeqMode::MuteOnRecord)));
     songMode.store ((bool) state.getProperty ("songMode", false));
     clickOn.store ((bool) state.getProperty ("metronome", false));

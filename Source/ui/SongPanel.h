@@ -55,7 +55,7 @@ private:
                midiButton { "Export MIDI", IconButton::Icon::Midi }, wavButton { "Bounce WAV", IconButton::Icon::Wave },
                stemsButton { "Export Lanes", IconButton::Icon::Layers };
     juce::TextEditor nameBox;
-    juce::ComboBox tailBox;
+    juce::ComboBox tailBox, rateBox;
     std::unique_ptr<DragHandle> dragMidi, dragAudio, dragLanes;
 
     std::unique_ptr<Strip> strip;

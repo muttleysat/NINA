@@ -176,6 +176,11 @@ public:
     // (DAW o interno). Nel plugin serve se la DAW manda un tempo diverso da quello del brano.
     double getExportBpm() const { const double o = exportBpmOverride.load(); return o > 0.0 ? o : currentBpm.load(); }
     double getExportBpmOverride() const { return exportBpmOverride.load(); }
+    // Frequenza di campionamento dei file audio esportati: 0 = automatica (quella del progetto/della DAW), oppure 44100, 48000, 88200, 96000.
+    // L'audio si renderizza direttamente a quella frequenza (nessuna conversione dopo).
+    int getExportRateSetting() const { return exportRateHz.load(); }
+    void setExportRateSetting (int hz) { exportRateHz.store (hz >= 8000 ? juce::jmin (192000, hz) : 0); }
+    double getExportSampleRate() const { const int r = exportRateHz.load(); return r > 0 ? (double) r : (currentSampleRate > 0.0 ? currentSampleRate : 44100.0); }
     void setExportBpmOverride (double bpm) { exportBpmOverride.store (bpm >= 20.0 ? juce::jmin (400.0, bpm) : 0.0); }
     void logExport (const juce::String& what) const;           // riga nel diario dell'interfaccia: tempo e frequenza usati
     static juce::String tempoUnknownMessage()
@@ -319,6 +324,7 @@ private:
     std::atomic<double> lastHostBpm { 0.0 };                 // ultimo tempo ricevuto dalla DAW (0 = mai)
     std::atomic<bool> bpmEdited { false };
     std::atomic<double> exportBpmOverride { 0.0 };
+    std::atomic<int> exportRateHz { 0 };
     int generation = 0;
 
     mutable std::unique_ptr<juce::ApplicationProperties> appProps;

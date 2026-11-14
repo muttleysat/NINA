@@ -810,6 +810,20 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     tailBox.onChange = [this] { processor.setExportTail ((SampleLabProcessor::ExportTail) (tailBox.getSelectedId() - 1)); };
     addAndMakeVisible (tailBox);
 
+    rateBox.addItem ("Rate: auto", 1);
+    rateBox.addItem ("44.1 kHz", 2);
+    rateBox.addItem ("48 kHz", 3);
+    rateBox.addItem ("88.2 kHz", 4);
+    rateBox.addItem ("96 kHz", 5);
+    rateBox.setTooltip ("Sample rate of the exported audio files (Bounce WAV, Export lanes, Drag audio/lanes). Auto = the project's (the DAW's) rate.\n"
+                        "Pick the rate of your Cubase project if an imported file plays at the wrong speed. The audio is rendered directly at that rate.");
+    rateBox.onChange = [this]
+    {
+        static const int rates[] = { 0, 44100, 48000, 88200, 96000 };
+        processor.setExportRateSetting (rates[juce::jlimit (0, 4, rateBox.getSelectedId() - 1)]);
+    };
+    addAndMakeVisible (rateBox);
+
     for (const char* t : { "Export 1 bar", "Export 2 bars", "Export 4 bars", "Export 8 bars" })
         barsBox.addItem (t, barsBox.getNumItems() + 1);
     barsBox.setSelectedId (2, juce::dontSendNotification);
@@ -1074,6 +1088,10 @@ void SeqPanel::refresh()
     patternBox.setSelectedId (processor.getActivePatternIndex() + 1, juce::dontSendNotification);
     swingSlider.setValue (pat().swing * 100.0, juce::dontSendNotification);
     tailBox.setSelectedId (juce::jlimit (0, 2, (int) processor.getExportTail()) + 1, juce::dontSendNotification);
+    {
+        const int hz = processor.getExportRateSetting();
+        rateBox.setSelectedId (hz == 44100 ? 2 : hz == 48000 ? 3 : hz == 88200 ? 4 : hz == 96000 ? 5 : 1, juce::dontSendNotification);
+    }
 
     if (selLane >= (int) pat().lanes.size())
         selLane = selStep = -1;
@@ -1797,7 +1815,7 @@ void SeqPanel::resized()
 
     // Larghezze dei controlli in unita' scalate, ridotte in proporzione se la finestra e' stretta (le due righe sommano circa 1400
     // unita': sotto quella larghezza i controlli si restringono invece di uscire dal pannello o sovrapporsi)
-    const float fit = juce::jlimit (0.55f, 1.0f, (float) (getWidth() - (int) (20 * s)) / (1400.0f * s));
+    const float fit = juce::jlimit (0.55f, 1.0f, (float) (getWidth() - (int) (20 * s)) / (1510.0f * s));
     auto W = [s, fit] (float units) { return (int) (units * s * fit); };
 
     row1Rect = area.removeFromTop (rowH1);
@@ -1842,6 +1860,8 @@ void SeqPanel::resized()
     barsBox.setBounds (r1.removeFromLeft (W(136)));
     r1.removeFromLeft (gGap);
     tailBox.setBounds (r1.removeFromLeft (W(112)));
+    r1.removeFromLeft (gGap);
+    rateBox.setBounds (r1.removeFromLeft (W(104)));
     groupEnd (r1);
     midiButton.setBounds (r1.removeFromLeft (W(128)));
     r1.removeFromLeft (gGap);
