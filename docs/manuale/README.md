@@ -19,6 +19,7 @@ NINA è un campionatore a celle (stile drum machine) con sequencer a step, dispo
 | 9 | [Slice](09-slice.md) | Tagliare un loop in slice e distribuirle sulle celle |
 | 10 | [Song](10-song.md) | Concatenare i pattern in un brano, riprodurlo, salvarlo (.slsong) ed esportarlo |
 | 11 | [Mixer](11-mixer.md) | La console: un canale per cella con fader, meter, Mute/Solo, pan, mandate, uscite |
+| 12 | [Licenza e crediti](12-licenza-e-crediti.md) | La licenza (AGPL-3.0), le librerie usate, i marchi e le donazioni |
 
 ## Convenzioni
 

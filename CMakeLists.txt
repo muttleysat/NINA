@@ -92,7 +92,7 @@ target_sources(Nina PRIVATE
 target_include_directories(Nina PRIVATE Source)
 
 # Risorse incorporate (logo)
-juce_add_binary_data(NinaAssets SOURCES Source/assets/nina_logo.png Source/assets/asio_logo.jpg)
+juce_add_binary_data(NinaAssets SOURCES Source/assets/nina_logo.png Source/assets/asio_logo.jpg Source/assets/paypal_logo.png LICENSE THIRD_PARTY_NOTICES.md)
 target_link_libraries(Nina PRIVATE NinaAssets)
 target_link_libraries(Nina PRIVATE rubberband_single)
 

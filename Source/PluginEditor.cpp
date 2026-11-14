@@ -372,6 +372,12 @@ NinaEditor::NinaEditor (NinaProcessor& p)
         f.deleteFile();
         if (auto out = f.createOutputStream())
             png.writeImageToStream (img, *out);
+        LicensesPanel probe2 (1.0f);
+        const auto img2 = probe2.createComponentSnapshot (probe2.getLocalBounds());
+        const auto f2 = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("licenses_probe.png");
+        f2.deleteFile();
+        if (auto out2 = f2.createOutputStream())
+            png.writeImageToStream (img2, *out2);
         juce::MessageManager::callAsync ([this] { AboutPanel::show (theme::scaleFor (*this)); });
     }
 
