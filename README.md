@@ -6,6 +6,22 @@ Sampler/drum machine VST3 + standalone (Windows e macOS), ispirato a Native Inst
 - Requisiti: [docs/REQUISITI.md](docs/REQUISITI.md)
 - Architettura: [docs/ARCHITETTURA.md](docs/ARCHITETTURA.md)
 
+## Schermate
+
+![Main: griglia di celle, forma d'onda, parametri](docs/img/screenshot-main.png)
+![Sequencer a step con parameter lock](docs/img/screenshot-sequencer.png)
+
+| Mixer | Song |
+|---|---|
+| ![Mixer](docs/img/screenshot-mixer.png) | ![Song](docs/img/screenshot-song.png) |
+| ![FX](docs/img/screenshot-fx.png) | ![Slice](docs/img/screenshot-slice.png) |
+
+*Kit di esempio con suoni sintetici, generato dall'app stessa.*
+
+## Download
+
+Dall'ultima [Release](https://github.com/muttleysat/NINA/releases/latest): `NINA-Setup-<versione>-win-x64.exe` (Standalone con ASIO, VST3, manuale).
+
 ## Build (Windows)
 
 ```powershell

@@ -20,6 +20,7 @@ public:
 
     float getPreviewGainDb() const { return (float) previewVolume.getValue(); }
     void replayPreview() { selectionChanged(); }
+    void showFolder (const juce::File& f) { setRoot (f); }      // solo per le foto di prova (NINA_SHOTS)
 
     void paint (juce::Graphics&) override;
     void resized() override;

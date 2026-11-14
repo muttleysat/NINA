@@ -110,6 +110,7 @@ public:
     sl::Kit& getKit() { return kit; }
     const sl::Kit& getKit() const { return kit; }
     bool isDirty() const { return dirty.load(); }
+    void clearDirtyForShots() { dirty = false; }              // solo per le foto di prova (NINA_SHOTS)
 
     bool loadSampleIntoCell (int cell, const juce::File& file, juce::String& error);
     void clearCell (int cell);                     // toglie il campione e riporta la cella al suo tasto di partenza

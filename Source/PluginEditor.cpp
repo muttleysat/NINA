@@ -415,6 +415,110 @@ NinaEditor::NinaEditor (NinaProcessor& p)
             processor.getKeyboardState().noteOn (1, processor.getKit().cells[(size_t) (i < 5 ? i : 12 + i)].lowNote, 0.9f);
     }
 
+    // Solo per prove: NINA_SHOTS=<cartella> carica un kit di esempio sintetico, suona, fotografa ogni scheda in PNG e chiude l'app
+    if (const auto shotsDir = juce::SystemStats::getEnvironmentVariable ("NINA_SHOTS", {}); shotsDir.isNotEmpty())
+    {
+        const juce::File out (shotsDir);
+        out.createDirectory();
+        const auto tmp = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("nina_shots_samples");
+        tmp.createDirectory();
+        juce::WavAudioFormat wav;
+        juce::Random rnd (7);
+        auto makeSample = [&] (const juce::String& name, float seconds, std::function<float (float t, float n)> fn)
+        {
+            const int len = (int) (44100.0f * seconds);
+            juce::AudioBuffer<float> b (2, len);
+            for (int i = 0; i < len; ++i)
+            {
+                const float v = juce::jlimit (-1.0f, 1.0f, fn ((float) i / 44100.0f, rnd.nextFloat() * 2.0f - 1.0f));
+                b.setSample (0, i, v);
+                b.setSample (1, i, v);
+            }
+            const auto f = tmp.getChildFile (name + ".wav");
+            f.deleteFile();
+            if (std::unique_ptr<juce::FileOutputStream> os { f.createOutputStream() })
+                if (std::unique_ptr<juce::AudioFormatWriter> w { wav.createWriterFor (os.get(), 44100.0, 2, 24, {}, 0) })
+                {
+                    os.release();
+                    w->writeFromAudioSampleBuffer (b, 0, len);
+                }
+            return f;
+        };
+        const float tp = juce::MathConstants<float>::twoPi;
+        const juce::File files[] = {
+            makeSample ("Kick", 0.5f, [tp] (float t, float) { return std::sin (tp * (45.0f * t + 105.0f * (1.0f - std::exp (-18.0f * t)) / 18.0f)) * std::exp (-6.0f * t) * 0.95f; }),
+            makeSample ("Snare", 0.3f, [tp] (float t, float n) { return (n * 0.6f + std::sin (tp * 190.0f * t) * 0.5f) * std::exp (-16.0f * t); }),
+            makeSample ("Clap", 0.25f, [] (float t, float n) { return n * std::exp (-22.0f * t) * (0.6f + 0.4f * std::sin (190.0f * t)); }),
+            makeSample ("Hat Closed", 0.1f, [] (float t, float n) { return n * std::exp (-60.0f * t) * 0.5f; }),
+            makeSample ("Hat Open", 0.4f, [] (float t, float n) { return n * std::exp (-9.0f * t) * 0.4f; }),
+            makeSample ("Bass", 0.6f, [tp] (float t, float) { const float p = std::fmod (55.0f * t, 1.0f); return (2.0f * p - 1.0f) * 0.4f * std::exp (-3.5f * t) + std::sin (tp * 55.0f * t) * 0.4f * std::exp (-3.0f * t); }),
+            makeSample ("Tom", 0.4f, [tp] (float t, float) { return std::sin (tp * (90.0f * t + 40.0f * (1.0f - std::exp (-12.0f * t)) / 12.0f)) * std::exp (-7.0f * t) * 0.8f; }),
+            makeSample ("Perc", 0.2f, [tp] (float t, float) { return std::sin (tp * 880.0f * t) * std::exp (-30.0f * t) * 0.6f; })
+        };
+        const char* names[] = { "Kick", "Snare", "Clap", "Hat Closed", "Hat Open", "Bass", "Tom", "Perc" };
+        for (int i = 0; i < 8; ++i)
+        {
+            juce::String err;
+            processor.loadSampleIntoCell (i, files[i], err);
+            processor.getKit().cells[(size_t) i].name = names[i];
+        }
+        processor.getKit().name = "Demo Kit";
+
+        auto fill = [&] (int pat, int cell, std::initializer_list<int> steps, int vel)
+        {
+            processor.getKit().activePattern = pat;
+            processor.addLaneForCell (cell);
+            auto* lane = processor.activePattern().findLane (cell);
+            for (int s : steps)
+            {
+                lane->steps[(size_t) s].on = true;
+                lane->steps[(size_t) s].velocity = (std::uint8_t) (vel - (s % 4 == 0 ? 0 : 18));
+            }
+        };
+        fill (0, 0, { 0, 4, 8, 12 }, 120);
+        fill (0, 1, { 4, 12 }, 112);
+        fill (0, 2, { 12 }, 96);
+        fill (0, 3, { 0, 2, 4, 6, 8, 10, 12, 14 }, 100);
+        fill (0, 4, { 6, 14 }, 90);
+        fill (0, 5, { 0, 3, 6, 10 }, 110);
+        fill (1, 0, { 0, 4, 8, 10, 12 }, 120);
+        fill (1, 1, { 4, 12, 15 }, 112);
+        fill (1, 3, { 0, 1, 2, 4, 6, 8, 9, 10, 12, 14 }, 100);
+        fill (1, 6, { 13, 14, 15 }, 100);
+        fill (1, 7, { 3, 7, 11 }, 100);
+        processor.getKit().activePattern = 0;
+        processor.getKit().patterns[0].name = "Groove";
+        processor.getKit().patterns[1].name = "Fill";
+        processor.patternEdited();
+        auto& blocks = processor.getKit().song.blocks;
+        blocks.clear();
+        for (auto b : { sl::SongBlock { 0, 2 }, sl::SongBlock { 1, 1 }, sl::SongBlock { 0, 3 }, sl::SongBlock { 1, 1 } })
+            blocks.push_back (b);
+        processor.songEdited();
+        processor.clearDirtyForShots();
+        browser.showFolder (tmp);
+        refreshAll();
+        processor.setSequencerRunning (true);
+
+        const juce::String tabNames[] = { "main", "sequencer", "mixer", "fx", "slice", "song" };
+        const int order[] = { 0, 1, 2, 3, 5, 4 };
+        for (int i = 0; i < 6; ++i)
+            juce::Timer::callAfterDelay (2500 + 1800 * i, [this, out, tabNames, order, i]
+            {
+                showTab (order[i]);
+                juce::Timer::callAfterDelay (900, [this, out, tabNames, order, i]
+                {
+                    const auto img = createComponentSnapshot (getLocalBounds(), true, 1.0f);
+                    juce::PNGImageFormat png;
+                    const auto f = out.getChildFile (tabNames[order[i]] + ".png");
+                    f.deleteFile();
+                    if (auto os = f.createOutputStream())
+                        png.writeImageToStream (img, *os);
+                });
+            });
+        juce::Timer::callAfterDelay (2500 + 1800 * 6 + 1500, [] { juce::JUCEApplicationBase::quit(); });
+    }
+
     juce::Desktop::getInstance().addGlobalMouseListener (&inputWatcher);
     setWantsKeyboardFocus (true);
     theme::noButtonFocus (*this);
