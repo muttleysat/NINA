@@ -14,14 +14,15 @@ Ogni effetto è una **scheda** con un interruttore in alto a destra (acceso/spen
 | **Saturation** | Drive (0–36 dB), Mix | Distorsione dolce (saturazione) |
 | **LoFi** | Bits (1–16), Rate (1–40×), Mix | Riduce i bit e la frequenza di campionamento: suono "sporco" digitale |
 | **Filter** | Tipo (Lowpass/Highpass/Bandpass), Cutoff (20 Hz–20 kHz), Reso | Filtro risonante |
-| **EQ** | Low (±15 dB), Mid Hz (100 Hz–8 kHz), Mid dB (±15 dB), Mid Q (0.3–8), High (±15 dB) | Equalizzatore a tre bande: **Low** è uno *shelf* (alza o abbassa tutto sotto i 120 Hz), **Mid** è una *campana* (scegli la frequenza, di quanto alzarla o abbassarla e quanto è stretta con **Q**), **High** è uno *shelf* sopra i 6 kHz |
+| **EQ** | Low (±15 dB), Mid Hz (100 Hz–8 kHz), Mid dB (±15 dB), Mid Q (0.3–8), High (±15 dB) | Equalizzatore a tre bande, con la **curva di risposta** disegnata sopra le manopole (20 Hz–20 kHz, ±18 dB; si aggiorna mentre giri le manopole, anche con l'automazione): **Low** è uno *shelf* (alza o abbassa tutto sotto i 120 Hz), **Mid** è una *campana* (scegli la frequenza, di quanto alzarla o abbassarla e quanto è stretta con **Q**), **High** è uno *shelf* sopra i 6 kHz |
 | **Compressor** | Thresh, Ratio, Attack, Release, Makeup | Compressore |
+| **Stutter** | Divisione (1/1…1/64), Decay, Mix | *Beat repeat*: da quando lo accendi **ripete a ciclo l'ultima porzione di suono** della cella, lunga quanto la divisione scelta (1/16 a 120 BPM = 125 ms) e **sincronizzata al tempo**. **Decay** abbassa ogni ripetizione rispetto alla precedente (0 = tutte uguali), **Mix** dosa ripetizione e suono normale (1 = solo la ripetizione). Spegnendolo il suono torna normale. Con un loop o un break dà il classico effetto «inceppato». Sul **Master** ripete tutto il kit |
 | **Delay** | Sync, valore musicale, Time, Feedback, Mix | Eco |
 | **Reverb** | Size, Damp, Mix | Riverbero |
 
 ## Come lavorano gli effetti di una cella
 
-Ordine della catena: Saturation > LoFi > Filter > **EQ** > Compressor > Delay > Reverb.
+Ordine della catena: Saturation > LoFi > Filter > **EQ** > Compressor > Delay > Reverb > **Stutter** (lo Stutter è l'ultimo: ripete ciò che senti dalla cella, code incluse). Lo Stutter ricorda al massimo 0,75 secondi: con tempi molto lenti le divisioni più lunghe vengono accorciate.
 
 Capire questo evita sorprese, soprattutto nel sequencer.
 

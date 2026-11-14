@@ -1,4 +1,5 @@
 #include "FxChain.h"
+#include <complex>
 
 namespace sl
 {
@@ -95,6 +96,12 @@ void FxChain::prepare (double sampleRate, int maxBlockSize)
     delayL.assign ((size_t) delaySize, 0.0f);
     delayR.assign ((size_t) delaySize, 0.0f);
 
+    stCap = (int) (sampleRate * 0.75) + 8;                      // lo stutter ripete al massimo 0.75 s
+    stRingL.assign ((size_t) stCap, 0.0f);
+    stRingR.assign ((size_t) stCap, 0.0f);
+    stFrozenL.assign ((size_t) stCap, 0.0f);
+    stFrozenR.assign ((size_t) stCap, 0.0f);
+
     reset();
 }
 
@@ -104,6 +111,10 @@ void FxChain::reset()
         b.z1[0] = b.z1[1] = b.z2[0] = b.z2[1] = 0.0;
     eqValid = false;
     eqWasOn = false;
+    stActive = false;
+    stPos = stLen = 0;
+    std::fill (stRingL.begin(), stRingL.end(), 0.0f);
+    std::fill (stRingR.begin(), stRingR.end(), 0.0f);
     compressor.reset();
     compValid = false;
     resetDelay();
@@ -167,6 +178,91 @@ Coef peak (double sr, double f, double dB, double q)
     const double c = std::cos (w0), alpha = std::sin (w0) / (2.0 * q);
     return normalise (1 + alpha * A, -2 * c, 1 - alpha * A, 1 + alpha / A, -2 * c, 1 - alpha / A);
 }
+}
+
+float FxChain::eqResponseDb (const FxParams& p, double freq, double sr) noexcept
+{
+    const double nyq = sr * 0.45;
+    const double w = 2.0 * juce::MathConstants<double>::pi * juce::jlimit (1.0, nyq, freq) / sr;
+    const std::complex<double> z1 = std::polar (1.0, -w), z2 = std::polar (1.0, -2.0 * w);
+    double db = 0.0;
+    auto add = [&] (const Coef& c)
+    {
+        const auto num = c.b0 + c.b1 * z1 + c.b2 * z2;
+        const auto den = 1.0 + c.a1 * z1 + c.a2 * z2;
+        db += 20.0 * std::log10 (std::max (1.0e-9, std::abs (num / den)));
+    };
+    if (std::abs (p.eqLow) > 0.05f) add (lowShelf (sr, std::min (120.0, nyq), juce::jlimit (-15.0f, 15.0f, p.eqLow)));
+    if (std::abs (p.eqMidGain) > 0.05f)
+        add (peak (sr, juce::jlimit (100.0, nyq, (double) p.eqMidFreq), juce::jlimit (-15.0f, 15.0f, p.eqMidGain), juce::jlimit (0.3, 8.0, (double) p.eqMidQ)));
+    if (std::abs (p.eqHigh) > 0.05f) add (highShelf (sr, std::min (6000.0, nyq), juce::jlimit (-15.0f, 15.0f, p.eqHigh)));
+    return (float) db;
+}
+
+void FxChain::stutter (float* l, float* r, int n, const FxParams& p, double bpm) noexcept
+{
+    if (stCap <= 0 || n <= 0)
+        return;
+
+    const int cap = stCap;
+    const int desired = juce::jlimit (64, cap - 8, (int) std::lround (kDivisionBeats[juce::jlimit (0, kNumDivisions - 1, p.stutterDivision)]
+                                                                       * 60.0 / juce::jmax (20.0, bpm) * sr));
+    const float mix = juce::jlimit (0.0f, 1.0f, p.stutterMix);
+    const float keep = 1.0f - juce::jlimit (0.0f, 0.95f, p.stutterDecay);
+    const int fade = juce::jmax (8, (int) (0.002 * sr));                 // 2 ms di dissolvenza ai bordi: niente scatti
+
+    // Congela le ultime 'len' campioni dell'anello (compreso l'ultimo scritto)
+    auto capture = [&] (int len)
+    {
+        int src = stW - len + 1;
+        if (src < 0)
+            src += cap;
+        for (int k = 0; k < len; ++k)
+        {
+            stFrozenL[(size_t) k] = stRingL[(size_t) src];
+            stFrozenR[(size_t) k] = stRingR[(size_t) src];
+            if (++src == cap)
+                src = 0;
+        }
+        stLen = len;
+        stPos = 0;
+    };
+
+    for (int i = 0; i < n; ++i)
+    {
+        const float dl = l[i], dr = r[i];
+        stRingL[(size_t) stW] = dl;
+        stRingR[(size_t) stW] = dr;
+
+        if (p.stutterOn)
+        {
+            if (! stActive)
+            {
+                capture (desired);
+                stGain = 1.0f;
+                stActive = true;
+            }
+
+            const float e = juce::jmin (1.0f, (float) juce::jmin (stPos, stLen - 1 - stPos) / (float) fade);
+            const float g = stGain * e;
+            l[i] = dl * (1.0f - mix) + stFrozenL[(size_t) stPos] * g * mix;
+            r[i] = dr * (1.0f - mix) + stFrozenR[(size_t) stPos] * g * mix;
+
+            if (++stPos >= stLen)
+            {
+                stGain *= keep;
+                if (desired != stLen)                                    // cambio di divisione o di tempo: si ricatta al prossimo giro
+                    capture (desired);
+                else
+                    stPos = 0;
+            }
+        }
+        else
+            stActive = false;
+
+        if (++stW == cap)
+            stW = 0;
+    }
 }
 
 void FxChain::eq (float* l, float* r, int n, const FxParams& p) noexcept

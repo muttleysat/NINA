@@ -59,6 +59,10 @@ static juce::var fxToVar (const FxParams& f)
     o->setProperty ("eqMidGain", f.eqMidGain);
     o->setProperty ("eqMidQ", f.eqMidQ);
     o->setProperty ("eqHigh", f.eqHigh);
+    o->setProperty ("stutterOn", f.stutterOn);
+    o->setProperty ("stutterDivision", f.stutterDivision);
+    o->setProperty ("stutterDecay", f.stutterDecay);
+    o->setProperty ("stutterMix", f.stutterMix);
     return juce::var (o);
 }
 
@@ -101,6 +105,10 @@ static FxParams fxFromVar (const juce::var& o)
     f.eqMidGain = getF (o, "eqMidGain", f.eqMidGain);
     f.eqMidQ = getF (o, "eqMidQ", f.eqMidQ);
     f.eqHigh = getF (o, "eqHigh", f.eqHigh);
+    f.stutterOn = getB (o, "stutterOn", f.stutterOn);
+    f.stutterDivision = juce::jlimit (0, kNumDivisions - 1, getI (o, "stutterDivision", f.stutterDivision));
+    f.stutterDecay = getF (o, "stutterDecay", f.stutterDecay);
+    f.stutterMix = getF (o, "stutterMix", f.stutterMix);
     return f;
 }
 

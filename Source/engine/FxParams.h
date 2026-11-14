@@ -16,10 +16,11 @@ inline constexpr double kDivisionBeats[kNumDivisions] = {
 enum class FxF { Drive, SatMix, Bits, Downsample, LofiMix, Cutoff, Resonance,
                  CompThreshold, CompRatio, CompAttack, CompRelease, CompMakeup,
                  DelayTime, DelayFeedback, DelayMix, ReverbSize, ReverbDamp, ReverbMix,
-                 EqLow, EqMidFreq, EqMidGain, EqMidQ, EqHigh,          // EQ: in coda, cosi' gli indici dei parametri esistenti non cambiano
+                 EqLow, EqMidFreq, EqMidGain, EqMidQ, EqHigh,          // EQ e Stutter: in coda, cosi' gli indici dei parametri esistenti non cambiano
+                 StutterDecay, StutterMix,
                  Count };
 // Interruttori on/off degli effetti
-enum class FxB { Sat, Lofi, Filter, Comp, Delay, Reverb, Eq, Count };
+enum class FxB { Sat, Lofi, Filter, Comp, Delay, Reverb, Eq, Stutter, Count };
 
 // Parametri degli effetti di una cella o del kit (master). Struttura semplice (nessuna stringa),
 // copiabile nel thread audio. Ordine della catena: Saturation > LoFi > Filter > Compressor > Delay > Reverb.
@@ -72,7 +73,13 @@ struct FxParams
     float eqMidQ = 1.0f;           // 0.3..8
     float eqHigh = 0.0f;           // dB
 
-    bool anyOn() const noexcept { return satOn || lofiOn || filterOn || compOn || delayOn || reverbOn || eqOn; }
+    // Stutter (beat repeat): da quando si accende ripete a ciclo l'ultima porzione di suono, lunga quanto la divisione musicale scelta
+    bool stutterOn = false;
+    int stutterDivision = 10;      // indice in kDivisionNames (default 1/16)
+    float stutterDecay = 0.0f;     // 0..0.9: quanto si abbassa ogni ripetizione rispetto alla precedente
+    float stutterMix = 1.0f;       // 0..1: 1 = solo la ripetizione
+
+    bool anyOn() const noexcept { return satOn || lofiOn || filterOn || compOn || delayOn || reverbOn || eqOn || stutterOn; }
     bool hasTail() const noexcept { return delayOn || reverbOn; }
 
     bool operator== (const FxParams&) const = default;
@@ -106,6 +113,8 @@ inline void setFxFloat (FxParams& p, FxF f, float v) noexcept
         case FxF::EqMidGain: p.eqMidGain = v; break;
         case FxF::EqMidQ: p.eqMidQ = v; break;
         case FxF::EqHigh: p.eqHigh = v; break;
+        case FxF::StutterDecay: p.stutterDecay = v; break;
+        case FxF::StutterMix: p.stutterMix = v; break;
         case FxF::Count: break;
     }
 }
@@ -121,6 +130,7 @@ inline void setFxBool (FxParams& p, FxB b, bool v) noexcept
         case FxB::Delay: p.delayOn = v; break;
         case FxB::Reverb: p.reverbOn = v; break;
         case FxB::Eq: p.eqOn = v; break;
+        case FxB::Stutter: p.stutterOn = v; break;
         case FxB::Count: break;
     }
 }
@@ -137,6 +147,7 @@ inline constexpr FxB fxOwner (FxF f) noexcept
         case FxF::DelayTime: case FxF::DelayFeedback: case FxF::DelayMix: return FxB::Delay;
         case FxF::ReverbSize: case FxF::ReverbDamp: case FxF::ReverbMix: return FxB::Reverb;
         case FxF::EqLow: case FxF::EqMidFreq: case FxF::EqMidGain: case FxF::EqMidQ: case FxF::EqHigh: return FxB::Eq;
+        case FxF::StutterDecay: case FxF::StutterMix: return FxB::Stutter;
         case FxF::Count: break;
     }
     return FxB::Sat;
@@ -190,6 +201,8 @@ inline float getFxFloat (const FxParams& p, FxF f) noexcept
         case FxF::EqMidGain: return p.eqMidGain;
         case FxF::EqMidQ: return p.eqMidQ;
         case FxF::EqHigh: return p.eqHigh;
+        case FxF::StutterDecay: return p.stutterDecay;
+        case FxF::StutterMix: return p.stutterMix;
         case FxF::Count: break;
     }
     return 0.0f;

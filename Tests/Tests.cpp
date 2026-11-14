@@ -604,6 +604,73 @@ public:
             expectWithinAbsoluteError (gainAt (1000.0, flat), 1.0f, 0.001f);
         }
 
+        beginTest ("FX: EQ response curve matches the measured filter");
+        {
+            FxParams fx; fx.eqOn = true; fx.eqLow = 12.0f; fx.eqMidFreq = 2000.0f; fx.eqMidGain = -9.0f; fx.eqMidQ = 2.0f; fx.eqHigh = 6.0f;
+            expectWithinAbsoluteError (FxChain::eqResponseDb (fx, 20.0), 12.0f, 1.0f);       // shelf basso in pieno
+            expectWithinAbsoluteError (FxChain::eqResponseDb (fx, 2000.0), -9.0f + 12.0f * 0.0f, 3.5f);   // al centro della campana (con le code degli shelf)
+            expectWithinAbsoluteError (FxChain::eqResponseDb (fx, 20000.0), 6.0f, 1.0f);
+            FxParams flat; flat.eqOn = true;
+            expectWithinAbsoluteError (FxChain::eqResponseDb (flat, 1000.0), 0.0f, 0.001f);
+        }
+
+        beginTest ("FX: stutter freezes the last slice and repeats it in time with the tempo, with decay");
+        {
+            FxChain chain;
+            chain.prepare (kSR, 512);
+            FxParams fx;
+            fx.stutterOn = false;
+            fx.stutterDivision = 10;                                   // 1/16 a 120 BPM = 0.125 s
+            const int L = (int) std::lround (0.125 * kSR);
+            const int total = L * 6;
+            std::vector<float> l ((size_t) total), r ((size_t) total);
+            for (int i = 0; i < total; ++i)                            // rampa unica per ogni campione: si riconosce cosa viene ripetuto
+                l[(size_t) i] = r[(size_t) i] = (float) ((i % 20000) + 1) / 20000.0f;
+            const int onAt = L * 2;
+            for (int pos = 0; pos < total; pos += 512)
+            {
+                const int n = juce::jmin (512, total - pos);
+                fx.stutterOn = pos >= onAt;
+                std::vector<float> blkL (l.begin() + pos, l.begin() + pos + n), blkR (blkL);
+                if (pos >= onAt + L)                                   // dopo un giro l'ingresso e' silenzio: lo stutter continua
+                    std::fill (blkL.begin(), blkL.end(), 0.0f);
+                chain.stutter (blkL.data(), blkR.data(), n, fx, 120.0);
+                std::copy (blkL.begin(), blkL.end(), l.begin() + pos);
+            }
+            // Dopo l'accensione l'uscita e' periodica con periodo L (stessa forma, anche se l'ingresso e' silenzio)
+            const int t0 = onAt + 3 * L / 2;
+            for (int k : { 100, 900, 2000 })
+                expectWithinAbsoluteError (l[(size_t) (t0 + k)], l[(size_t) (t0 + k + L)], 1.0e-4f);
+            expect (l[(size_t) (t0 + 100)] > 0.05f);                   // non e' silenzio: sta ripetendo
+            expect (peak (juce::AudioBuffer<float> (std::array<float*, 1> { l.data() }.data(), 1, total), onAt + 10 * 512, total) > 0.1f);
+        }
+
+        beginTest ("FX: stutter decay lowers every repeat; off leaves the signal untouched");
+        {
+            FxChain chain;
+            chain.prepare (kSR, 512);
+            FxParams fx; fx.stutterOn = false; fx.stutterDivision = 7; fx.stutterDecay = 0.5f;     // 1/8 a 120 BPM = 0.25 s
+            const int L = (int) std::lround (0.25 * kSR);
+            std::vector<float> l ((size_t) L * 5, 0.8f), r (l);
+            for (int pos = 0; pos < (int) l.size(); pos += 512)
+            {
+                const int n = juce::jmin (512, (int) l.size() - pos);
+                fx.stutterOn = pos >= L;                                   // il primo giro serve a riempire la storia
+                chain.stutter (l.data() + pos, r.data() + pos, n, fx, 120.0);
+            }
+            const float g1 = l[(size_t) (L + L / 2)], g2 = l[(size_t) (2 * L + L / 2)], g3 = l[(size_t) (3 * L + L / 2)];
+            expectWithinAbsoluteError (g1, 0.8f, 0.01f);
+            expectWithinAbsoluteError (g2, 0.4f, 0.01f);
+            expectWithinAbsoluteError (g3, 0.2f, 0.01f);
+
+            FxChain off;
+            off.prepare (kSR, 512);
+            FxParams nofx;                                              // spento: identico
+            std::vector<float> a ((size_t) 2048, 0.37f), b (a);
+            off.stutter (a.data(), b.data(), 512, nofx, 120.0);
+            expectWithinAbsoluteError (a[100], 0.37f, 1.0e-6f);
+        }
+
         beginTest ("Mixer: Mute and Solo are saved with the kit");
         {
             Kit kit = Kit::makeDefault();
@@ -620,7 +687,7 @@ public:
         {
             ParamRig pr;
             auto all = pr.root.getParameters (true);
-            expectEquals ((int) all.size(), 48 * 48 + 34);     // 48 celle x 48 (compresi Mute/Solo del mixer e i 6 dell'EQ) + master 34
+            expectEquals ((int) all.size(), 48 * 52 + 38);     // 48 celle x 52 (compresi Mute/Solo del mixer, EQ e Stutter) + master 38
 
             std::set<juce::String> ids;
             for (auto* p : all)

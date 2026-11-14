@@ -215,7 +215,7 @@ void Engine::renderChunk (int start, int n) noexcept
     for (int c = 0; c < numCells; ++c)
     {
         const bool voiceOn = hasVoice[(size_t) c];
-        if (! voiceOn && delayTail[(size_t) c] <= 0 && reverbTail[(size_t) c] <= 0)
+        if (! voiceOn && delayTail[(size_t) c] <= 0 && reverbTail[(size_t) c] <= 0 && ! effFx[(size_t) c].stutterOn)
             continue;
 
         const auto& fx = effFx[(size_t) c];
@@ -277,6 +277,8 @@ void Engine::renderChunk (int start, int n) noexcept
             if (! reverbSent && (reverbTail[(size_t) c] -= n) <= 0)
                 chain.resetReverb();
         }
+
+        chain.stutter (busL.data(), busR.data(), n, fx, live.bpm);        // ultimo effetto della cella: ripete cio' che si sente
 
         // Mixer: una cella in mute (o esclusa da un solo) continua a girare (voci, code) ma non arriva alle uscite
         if (live.mute[(size_t) c] || (anySolo && ! live.solo[(size_t) c]))
@@ -340,6 +342,8 @@ void Engine::renderMaster (float* l, float* r, int n) noexcept
         masterFx.reverbFx (sendRL.data(), sendRR.data(), l, r, n, fx);
     }
     masterReverbWasOn = fx.reverbOn;
+
+    masterFx.stutter (l, r, n, fx, live.bpm);
 }
 
 void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi,

@@ -23,6 +23,7 @@ struct FxRefs
     juce::AudioParameterChoice* filterType = nullptr;
     juce::AudioParameterBool* delaySync = nullptr;         // delay: tempo libero (ms) o sincronizzato al BPM
     juce::AudioParameterChoice* delayDivision = nullptr;   // valore musicale quando il sync e' acceso
+    juce::AudioParameterChoice* stutterGrid = nullptr;     // stutter: lunghezza della porzione ripetuta (valore musicale)
 
     juce::AudioParameterFloat* at (FxF p) const { return f[(size_t) p]; }
     juce::AudioParameterBool* power (FxB p) const { return on[(size_t) p]; }

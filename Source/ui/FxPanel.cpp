@@ -15,11 +15,11 @@ FxPanel::FxPanel (SampleLabProcessor& p) : processor (p)
     using F = sl::FxF;
     using B = sl::FxB;
 
-    auto& sat = addCard ("Saturation", 2.9f, B::Sat);
+    auto& sat = addCard ("Saturation", 2.8f, B::Sat);
     addKnob (sat, "Drive", F::Drive);
     addKnob (sat, "Mix", F::SatMix);
 
-    auto& lofi = addCard ("LoFi", 3.0f, B::Lofi);
+    auto& lofi = addCard ("LoFi", 2.9f, B::Lofi);
     addKnob (lofi, "Bits", F::Bits);
     addKnob (lofi, "Rate", F::Downsample);
     addKnob (lofi, "Mix", F::LofiMix);
@@ -32,21 +32,21 @@ FxPanel::FxPanel (SampleLabProcessor& p) : processor (p)
     addKnob (filter, "Cutoff", F::Cutoff);
     addKnob (filter, "Reso", F::Resonance);
 
-    auto& eq = addCard ("EQ", 5.7f, B::Eq);
+    auto& eq = addCard ("EQ", 5.5f, B::Eq);
     addKnob (eq, "Low", F::EqLow);
     addKnob (eq, "Mid Hz", F::EqMidFreq);
     addKnob (eq, "Mid dB", F::EqMidGain);
     addKnob (eq, "Mid Q", F::EqMidQ);
     addKnob (eq, "High", F::EqHigh);
 
-    auto& comp = addCard ("Compressor", 5.6f, B::Comp);
+    auto& comp = addCard ("Compressor", 5.4f, B::Comp);
     addKnob (comp, "Thresh", F::CompThreshold);
     addKnob (comp, "Ratio", F::CompRatio);
     addKnob (comp, "Attack", F::CompAttack);
     addKnob (comp, "Release", F::CompRelease);
     addKnob (comp, "Makeup", F::CompMakeup);
 
-    auto& delay = addCard ("Delay", 3.3f, B::Delay);
+    auto& delay = addCard ("Delay", 3.6f, B::Delay);
     delay.syncButton = std::make_unique<juce::TextButton> ("Sync");
     delay.syncButton->setTooltip ("Lock the delay time to the project tempo");
     delay.divisionCombo = std::make_unique<juce::ComboBox>();
@@ -60,10 +60,19 @@ FxPanel::FxPanel (SampleLabProcessor& p) : processor (p)
     addKnob (delay, "Feedback", F::DelayFeedback);
     addKnob (delay, "Mix", F::DelayMix);
 
-    auto& reverb = addCard ("Reverb", 3.0f, B::Reverb);
+    auto& reverb = addCard ("Reverb", 2.9f, B::Reverb);
     addKnob (reverb, "Size", F::ReverbSize);
     addKnob (reverb, "Damp", F::ReverbDamp);
     addKnob (reverb, "Mix", F::ReverbMix);
+
+    auto& stut = addCard ("Stutter", 2.8f, B::Stutter);
+    stut.gridCombo = std::make_unique<juce::ComboBox>();
+    stut.gridCombo->setTooltip ("Length of the repeated slice (musical value, follows the tempo)");
+    addAndMakeVisible (*stut.gridCombo);
+    learnMenus.push_back (std::make_unique<LearnMenu> (processor, *stut.gridCombo,
+        [this] { return (juce::RangedAudioParameter*) refs().stutterGrid; }));
+    addKnob (stut, "Decay", F::StutterDecay);
+    addKnob (stut, "Mix", F::StutterMix);
 
     setCell (0);
     startTimerHz (10);
@@ -85,6 +94,20 @@ void FxPanel::timerCallback()
     {
         lastPowerMask = mask;
         repaint();
+    }
+
+    // La curva dell'EQ segue i valori (anche se cambiano dall'automazione)
+    {
+        using F = sl::FxF;
+        const float key = r.at (F::EqLow)->get() * 1.0f + r.at (F::EqMidFreq)->get() * 0.013f + r.at (F::EqMidGain)->get() * 3.1f
+                          + r.at (F::EqMidQ)->get() * 7.7f + r.at (F::EqHigh)->get() * 11.3f;
+        if (key != lastEqKey)
+        {
+            lastEqKey = key;
+            for (auto& c : cards)
+                if (c->effect == sl::FxB::Eq)
+                    repaint (c->curve);
+        }
     }
 }
 
@@ -166,6 +189,14 @@ void FxPanel::refresh()
             k.attachment = std::make_unique<juce::SliderParameterAttachment> (*r.at (k.which), k.box->slider);
         }
 
+        if (c->gridCombo != nullptr)
+        {
+            c->gridAttachment.reset();
+            c->gridCombo->clear (juce::dontSendNotification);
+            c->gridCombo->addItemList (r.stutterGrid->choices, 1);
+            c->gridAttachment = std::make_unique<juce::ComboBoxParameterAttachment> (*r.stutterGrid, *c->gridCombo);
+        }
+
         if (c->syncButton != nullptr)
         {
             c->syncAttachment.reset();
@@ -208,6 +239,62 @@ void FxPanel::paint (juce::Graphics& g)
             g.setColour (theme::accent);
             g.drawRoundedRectangle (c->bounds.toFloat().reduced (0.5f), 10.0f * s, 1.2f);
         }
+
+        if (c->effect == sl::FxB::Eq && ! c->curve.isEmpty())
+        {
+            // Curva di risposta in frequenza (20 Hz - 20 kHz, scala logaritmica) e guadagno (+-18 dB)
+            const auto cr = c->curve.toFloat();
+            const bool on = r.power (sl::FxB::Eq)->get();
+            g.setColour (theme::background);
+            g.fillRoundedRectangle (cr, 5.0f * s);
+            g.setColour (theme::border);
+            g.drawRoundedRectangle (cr, 5.0f * s, 1.0f);
+
+            auto xOf = [&] (double f) { return cr.getX() + cr.getWidth() * (float) (std::log (f / 20.0) / std::log (1000.0)); };
+            auto yOf = [&] (float db) { return cr.getCentreY() - juce::jlimit (-18.0f, 18.0f, db) / 18.0f * cr.getHeight() * 0.5f; };
+            g.setFont (juce::FontOptions (juce::jmax (8.0f, 9.0f * s)));
+            for (const double f : { 100.0, 1000.0, 10000.0 })
+            {
+                g.setColour (theme::border.withAlpha (0.8f));
+                g.drawVerticalLine ((int) xOf (f), cr.getY() + 1.0f, cr.getBottom() - 1.0f);
+                g.setColour (theme::textDim);
+                g.drawText (f >= 1000.0 ? juce::String ((int) (f / 1000.0)) + "k" : juce::String ((int) f),
+                            juce::Rectangle<float> (xOf (f) + 2.0f, cr.getBottom() - 12.0f * s, 28.0f * s, 11.0f * s), juce::Justification::centredLeft);
+            }
+            for (const float db : { -12.0f, 12.0f })
+            {
+                g.setColour (theme::border.withAlpha (0.5f));
+                g.drawHorizontalLine ((int) yOf (db), cr.getX() + 1.0f, cr.getRight() - 1.0f);
+            }
+            g.setColour (theme::textDim.withAlpha (0.8f));
+            g.drawHorizontalLine ((int) yOf (0.0f), cr.getX() + 1.0f, cr.getRight() - 1.0f);
+
+            sl::FxParams fx;
+            fx.eqOn = true;
+            fx.eqLow = r.at (sl::FxF::EqLow)->get();
+            fx.eqMidFreq = r.at (sl::FxF::EqMidFreq)->get();
+            fx.eqMidGain = r.at (sl::FxF::EqMidGain)->get();
+            fx.eqMidQ = r.at (sl::FxF::EqMidQ)->get();
+            fx.eqHigh = r.at (sl::FxF::EqHigh)->get();
+
+            juce::Path line, fill;
+            const int steps = juce::jmax (16, (int) cr.getWidth() / 2);
+            for (int i = 0; i <= steps; ++i)
+            {
+                const double f = 20.0 * std::pow (1000.0, (double) i / (double) steps);
+                const float x = cr.getX() + cr.getWidth() * (float) i / (float) steps;
+                const float y = yOf (sl::FxChain::eqResponseDb (fx, f));
+                if (i == 0) { line.startNewSubPath (x, y); fill.startNewSubPath (x, yOf (0.0f)); fill.lineTo (x, y); }
+                else { line.lineTo (x, y); fill.lineTo (x, y); }
+            }
+            fill.lineTo (cr.getRight(), yOf (0.0f));
+            fill.closeSubPath();
+            const auto col = on ? theme::accent : theme::textDim;
+            g.setColour (col.withAlpha (0.18f));
+            g.fillPath (fill);
+            g.setColour (col);
+            g.strokePath (line, juce::PathStrokeType (1.8f * s));
+        }
     }
 
     g.setColour (theme::textDim);
@@ -247,6 +334,10 @@ void FxPanel::resized()
 
         if (c.combo != nullptr)
             c.combo->setBounds (inner.removeFromTop ((int) (24 * s)).reduced ((int) (4 * s), 0));
+        if (c.gridCombo != nullptr)
+            c.gridCombo->setBounds (inner.removeFromTop ((int) (24 * s)).reduced ((int) (4 * s), 0));
+        if (c.effect == sl::FxB::Eq)
+            c.curve = inner.removeFromTop (inner.getHeight() * 40 / 100).reduced ((int) (4 * s), (int) (2 * s));
 
         if (c.syncButton != nullptr)
         {

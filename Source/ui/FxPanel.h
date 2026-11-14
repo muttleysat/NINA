@@ -6,7 +6,7 @@
 #include "LearnMenu.h"
 #include "Widgets.h"
 
-// Scheda FX: catena di effetti (Saturation > LoFi > Filter > EQ > Compressor > Delay > Reverb) della cella
+// Scheda FX: catena di effetti (Saturation > LoFi > Filter > EQ > Compressor > Delay > Reverb > Stutter) della cella
 // selezionata oppure globale del kit (Master). Tutti i controlli sono parametri automatizzabili.
 class FxPanel final : public juce::Component, private juce::Timer
 {
@@ -41,8 +41,10 @@ private:
         std::unique_ptr<juce::ButtonParameterAttachment> syncAttachment;
         std::unique_ptr<juce::ComboBox> divisionCombo;
         std::unique_ptr<juce::ComboBoxParameterAttachment> divisionAttachment;
+        std::unique_ptr<juce::ComboBox> gridCombo;             // solo per lo stutter (divisione musicale)
+        std::unique_ptr<juce::ComboBoxParameterAttachment> gridAttachment;
         std::vector<Knob> knobs;
-        juce::Rectangle<int> bounds;
+        juce::Rectangle<int> bounds, curve;                    // curve: solo per l'EQ (curva di risposta)
     };
 
     Card& addCard (const juce::String& title, float units, sl::FxB effect);
@@ -56,6 +58,7 @@ private:
     int cell = 0;
     bool masterTarget = false;
     unsigned lastPowerMask = 0;
+    float lastEqKey = 0.0f;
 
     juce::TextButton cellButton, masterButton { "Master" };
     std::vector<std::unique_ptr<Card>> cards;

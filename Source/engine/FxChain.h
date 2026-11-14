@@ -65,6 +65,13 @@ public:
     // EQ a tre bande in place sul bus (se eqOn): shelf basso 120 Hz, campana centrale, shelf alto 6 kHz. Nessuna allocazione.
     void eq (float* l, float* r, int n, const FxParams& p) noexcept;
 
+    // Risposta in dB dell'EQ alla frequenza 'freq' (per disegnare la curva)
+    static float eqResponseDb (const FxParams& p, double freq, double sampleRate = 44100.0) noexcept;
+
+    // Stutter (beat repeat) in place, da chiamare alla fine della catena: registra sempre il segnale in un anello; quando e' acceso
+    // ripete a ciclo l'ultima porzione (lunga quanto la divisione musicale, con il BPM dato). Nessuna allocazione.
+    void stutter (float* l, float* r, int n, const FxParams& p, double bpm) noexcept;
+
     // Compressore in place sul bus (se compOn). n <= maxBlockSize.
     void compress (float* l, float* r, int n, const FxParams& p) noexcept;
 
@@ -91,6 +98,12 @@ private:
     bool eqBandOn[3] { false, false, false };
     FxParams appliedEq;
     bool eqValid = false, eqWasOn = false;
+
+    // Stutter: anello della storia recente e porzione "congelata" che si ripete
+    std::vector<float> stRingL, stRingR, stFrozenL, stFrozenR;
+    int stCap = 0, stW = 0, stLen = 0, stPos = 0;
+    bool stActive = false;
+    float stGain = 1.0f;
 
     juce::dsp::Compressor<float> compressor;
     FxParams appliedComp;

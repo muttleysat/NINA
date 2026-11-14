@@ -60,6 +60,8 @@ const FDesc kFxF[(size_t) FxF::Count] = {
     { "midgain",   "Mid Gain", "dB", -15.0f, 15.0f,  0.1f,  0.0f,    0.0f,   1 },
     { "midq",      "Mid Q",    "",   0.3f,   8.0f,   0.01f, 1.0f,    1.0f,   2 },
     { "high",      "High",     "dB", -15.0f, 15.0f,  0.1f,  0.0f,    0.0f,   1 },
+    { "decay",     "Decay",    "",   0.0f,   0.9f,   0.01f, 0.0f,    0.0f,   2 },
+    { "mix",       "Mix",      "",   0.0f,   1.0f,   0.01f, 1.0f,    0.0f,   2 },
 };
 float FxParams::* const kFxFM[(size_t) FxF::Count] = {
     &FxParams::drive, &FxParams::satMix, &FxParams::bits, &FxParams::downsample, &FxParams::lofiMix,
@@ -67,6 +69,7 @@ float FxParams::* const kFxFM[(size_t) FxF::Count] = {
     &FxParams::compRelease, &FxParams::compMakeup, &FxParams::delayTime, &FxParams::delayFeedback, &FxParams::delayMix,
     &FxParams::reverbSize, &FxParams::reverbDamp, &FxParams::reverbMix,
     &FxParams::eqLow, &FxParams::eqMidFreq, &FxParams::eqMidGain, &FxParams::eqMidQ, &FxParams::eqHigh,
+    &FxParams::stutterDecay, &FxParams::stutterMix,
 };
 // Effetto a cui appartiene ogni parametro float
 const FxB kFxFOwner[(size_t) FxF::Count] = {
@@ -74,16 +77,18 @@ const FxB kFxFOwner[(size_t) FxF::Count] = {
     FxB::Comp, FxB::Comp, FxB::Comp, FxB::Comp, FxB::Comp, FxB::Delay, FxB::Delay, FxB::Delay,
     FxB::Reverb, FxB::Reverb, FxB::Reverb,
     FxB::Eq, FxB::Eq, FxB::Eq, FxB::Eq, FxB::Eq,
+    FxB::Stutter, FxB::Stutter,
 };
 
 struct FxName { const char* id; const char* name; };
 const FxName kFxNames[(size_t) FxB::Count] = {
     { "sat", "Saturation" }, { "lofi", "LoFi" }, { "filter", "Filter" },
     { "comp", "Compressor" }, { "delay", "Delay" }, { "reverb", "Reverb" }, { "eq", "EQ" },
+    { "stutter", "Stutter" },
 };
 bool FxParams::* const kFxBM[(size_t) FxB::Count] = {
     &FxParams::satOn, &FxParams::lofiOn, &FxParams::filterOn, &FxParams::compOn, &FxParams::delayOn, &FxParams::reverbOn,
-    &FxParams::eqOn,
+    &FxParams::eqOn, &FxParams::stutterOn,
 };
 
 juce::NormalisableRange<float> makeRange (const FDesc& d)
@@ -149,6 +154,17 @@ ParamSet::ParamSet()
                 refs.filterType = type.get();
                 allParams.push_back (type.get());
                 sub[b]->addChild (std::move (type));
+            }
+
+            if (b == (size_t) FxB::Stutter)
+            {
+                juce::StringArray divisions;
+                for (const char* name : kDivisionNames)
+                    divisions.add (name);
+                auto grid = makeChoice (idPrefix + ".stutter.grid", namePrefix + "Stutter Grid", divisions, 10);
+                refs.stutterGrid = grid.get();
+                allParams.push_back (grid.get());
+                sub[b]->addChild (std::move (grid));
             }
 
             if (b == (size_t) FxB::Delay)
@@ -265,6 +281,7 @@ void fillFx (const FxRefs& r, FxParams& out) noexcept
     out.filterType = r.filterType->getIndex();
     out.delaySync = r.delaySync->get();
     out.delayDivision = r.delayDivision->getIndex();
+    out.stutterDivision = r.stutterGrid->getIndex();
 }
 }
 
@@ -310,6 +327,7 @@ void applyFx (const FxRefs& r, const FxParams& fx)
     setValue (r.filterType, (float) fx.filterType);
     setValue (r.delaySync, fx.delaySync ? 1.0f : 0.0f);
     setValue (r.delayDivision, (float) fx.delayDivision);
+    setValue (r.stutterGrid, (float) fx.stutterDivision);
 }
 
 void applyCell (const CellRefs& r, const CellParams& c)
@@ -361,6 +379,7 @@ void ParamSet::writeToKit (Kit& kit) const
         out.fx.filterType = r.fx.filterType->getIndex();
         out.fx.delaySync = r.fx.delaySync->get();
         out.fx.delayDivision = r.fx.delayDivision->getIndex();
+        out.fx.stutterDivision = r.fx.stutterGrid->getIndex();
     }
 
     kit.masterDb = masterLevelParam->get();
@@ -371,5 +390,6 @@ void ParamSet::writeToKit (Kit& kit) const
     kit.masterFx.filterType = masterFxRefs.filterType->getIndex();
     kit.masterFx.delaySync = masterFxRefs.delaySync->get();
     kit.masterFx.delayDivision = masterFxRefs.delayDivision->getIndex();
+    kit.masterFx.stutterDivision = masterFxRefs.stutterGrid->getIndex();
 }
 }
