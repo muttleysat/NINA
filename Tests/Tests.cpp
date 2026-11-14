@@ -6,6 +6,7 @@
 #include "params/MidiLearn.h"
 #include "sequencer/Sequencer.h"
 #include "sequencer/SequencerExport.h"
+#include "Version.h"
 #include <set>
 
 namespace
@@ -799,6 +800,19 @@ public:
             FxParams fb; fb.flangerOn = true; fb.flangerFeedback = 0.9f; fb.flangerMix = 1.0f;
             const float fg = run (fb, flang, 300.0, 88200, 0.25f);
             expect (fg > 0.05f && fg < 12.0f);                                                                         // con il feedback massimo risuona ma non esplode
+        }
+
+        beginTest ("Version: update check compares MAJOR.MINOR.PATCH");
+        {
+            expect (sl::isNewerVersion ("1.0.1", "1.0.0"));
+            expect (sl::isNewerVersion ("v1.1.0", "1.0.9"));
+            expect (sl::isNewerVersion ("2.0.0", "1.99.99"));
+            expect (sl::isNewerVersion ("v1.0.10", "1.0.9"));                       // confronto numerico, non alfabetico
+            expect (! sl::isNewerVersion ("1.0.0", "1.0.0"));
+            expect (! sl::isNewerVersion ("v1.0.0", "1.0.1"));
+            expect (! sl::isNewerVersion ("1.0", "1.0.0"));
+            expect (sl::isNewerVersion ("1.2", "1.1.9"));
+            expect (! sl::isNewerVersion ("", "1.0.0"));
         }
 
         beginTest ("Mixer: Mute and Solo are saved with the kit");

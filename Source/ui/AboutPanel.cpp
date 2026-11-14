@@ -1,5 +1,6 @@
 #include "AboutPanel.h"
 #include <BinaryData.h>
+#include "../Version.h"
 
 // Pulsante di donazione: pillola gialla in stile PayPal con il logo PayPal e la scritta "Support my work"
 class AboutPanel::SupportButton final : public juce::Button
@@ -46,7 +47,7 @@ AboutPanel::AboutPanel (float scale) : s (juce::jmin (scale, 1.1f))
     supportButton = std::make_unique<SupportButton> (juce::ImageCache::getFromMemory (BinaryData::paypal_logo_png, BinaryData::paypal_logo_pngSize));
     supportButton->onClick = [] { juce::URL (AboutPanel::donateUrl()).launchInDefaultBrowser(); };
 
-    for (juce::Component* c : std::initializer_list<juce::Component*> { &closeButton, &sourceButton, &licenseButton, supportButton.get() })
+    for (juce::Component* c : std::initializer_list<juce::Component*> { &closeButton, &sourceButton, &licenseButton, &updateButton, supportButton.get() })
         addAndMakeVisible (*c);
 
     closeButton.onClick = [this]
@@ -58,8 +59,16 @@ AboutPanel::AboutPanel (float scale) : s (juce::jmin (scale, 1.1f))
     sourceButton.onClick = [] { juce::URL (AboutPanel::sourceUrl()).launchInDefaultBrowser(); };
     licenseButton.setTooltip ("The licence of NINA and the notices of the libraries it is built with");
     licenseButton.onClick = [this] { LicensesPanel::show (s); };
+    updateButton.setTooltip ("Asks GitHub for the latest published version of NINA. Only when you press this button: NINA never connects by itself.");
+    updateButton.onClick = [this]
+    {
+        if (updateUrl.isNotEmpty())
+            juce::URL (updateUrl).launchInDefaultBrowser();                    // c'e' una versione nuova: apre la pagina di download
+        else
+            checkForUpdates();
+    };
 
-    setSize ((int) (480 * s), (int) (690 * s));
+    setSize ((int) (480 * s), (int) (762 * s));
 }
 
 AboutPanel::~AboutPanel() = default;
@@ -85,6 +94,13 @@ void AboutPanel::paint (juce::Graphics& g)
     g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.5f * s)));
     g.drawFittedText ("Free software under the GNU Affero General Public License v3.\nThe source code is available to everyone who gets NINA.",
                       licenseTextRect, juce::Justification::centred, 2);
+
+    if (updateMessage.isNotEmpty())
+    {
+        g.setColour (updateUrl.isNotEmpty() ? theme::accent : theme::textDim);
+        g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.5f * s), updateUrl.isNotEmpty() ? juce::Font::bold : juce::Font::plain));
+        g.drawFittedText (updateMessage, updateTextRect, juce::Justification::centred, 2);
+    }
 
     g.setColour (theme::border);
     g.drawHorizontalLine (asioRect.getY() - (int) (10 * s), (float) getWidth() * 0.15f, (float) getWidth() * 0.85f);
@@ -120,7 +136,11 @@ void AboutPanel::resized()
         row.removeFromLeft ((int) (10 * s));
         licenseButton.setBounds (row);
     }
-    r.removeFromTop ((int) (22 * s));
+    r.removeFromTop ((int) (8 * s));
+    updateButton.setBounds (r.removeFromTop ((int) (30 * s)).withSizeKeepingCentre ((int) (200 * s), (int) (30 * s)));
+    r.removeFromTop ((int) (4 * s));
+    updateTextRect = r.removeFromTop ((int) (32 * s));
+    r.removeFromTop ((int) (10 * s));
     asioRect = r.removeFromTop ((int) (104 * s));
     r.removeFromTop ((int) (8 * s));
     creditsRect = r.removeFromTop ((int) (50 * s));
@@ -129,6 +149,58 @@ void AboutPanel::resized()
     r.removeFromTop ((int) (8 * s));
     supportButton->setBounds (r.removeFromTop ((int) (42 * s)).withSizeKeepingCentre ((int) (250 * s), (int) (42 * s)));
     closeButton.setBounds (r.removeFromBottom ((int) (32 * s)).withSizeKeepingCentre ((int) (110 * s), (int) (32 * s)));
+}
+
+void AboutPanel::checkForUpdates()
+{
+    if (checking)
+        return;
+    checking = true;
+    updateMessage = "Checking...";
+    updateButton.setEnabled (false);
+    repaint();
+
+    juce::Component::SafePointer<AboutPanel> safe (this);
+    juce::Thread::launch ([safe]
+    {
+        juce::String message, url;
+        int status = 0;
+        auto stream = juce::URL (AboutPanel::latestReleaseApiUrl())
+                          .createInputStream (juce::URL::InputStreamOptions (juce::URL::ParameterHandling::inAddress)
+                                                  .withConnectionTimeoutMs (8000)
+                                                  .withStatusCode (&status)
+                                                  .withExtraHeaders ("User-Agent: NINA-update-check\r\nAccept: application/vnd.github+json\r\n"));
+        if (status == 404)
+            message = "No published version found yet.";
+        else if (stream == nullptr)
+            message = "Could not reach GitHub. Check your internet connection and try again.";
+        else
+        {
+            const auto json = juce::JSON::parse (stream->readEntireStreamAsString());
+            const auto tag = json["tag_name"].toString();
+            if (tag.isEmpty())
+                message = "No published version found yet.";
+            else if (sl::isNewerVersion (tag, JucePlugin_VersionString))
+            {
+                message = "Version " + tag.trimCharactersAtStart ("vV") + " is available. Click here to download it.";
+                url = json["html_url"].toString().isNotEmpty() ? json["html_url"].toString() : AboutPanel::releasesUrl();
+            }
+            else
+                message = "You have the latest version (" + juce::String (JucePlugin_VersionString) + ").";
+        }
+
+        juce::MessageManager::callAsync ([safe, message, url]
+        {
+            if (safe == nullptr)
+                return;
+            safe->checking = false;
+            safe->updateMessage = message;
+            safe->updateUrl = url;
+            safe->updateButton.setEnabled (true);
+            safe->updateButton.setButtonText (url.isNotEmpty() ? "Download the new version" : "Check for updates");
+            safe->repaint();
+        });
+    });
 }
 
 void AboutPanel::show (float scale)

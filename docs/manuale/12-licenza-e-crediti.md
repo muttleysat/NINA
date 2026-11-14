@@ -31,6 +31,10 @@ NINA è costruito con componenti di terzi, ognuno con la sua licenza (elenco com
 
 - Il logo **PayPal** è un marchio di PayPal, Inc. e compare solo sul pulsante della donazione volontaria.
 
+## Versioni e aggiornamenti
+
+Il numero di versione (per esempio **1.0.0**) è nella finestra **Info**. Le nuove versioni si pubblicano nelle **Release** di GitHub (`github.com/muttleysat/NINA/releases`): per aggiornare si scarica il nuovo installer e lo si esegue; **sostituisce** la versione precedente mantenendo le impostazioni. Il pulsante **Check for updates** nella finestra Info controlla se esiste una versione più recente. Il programma **non si collega mai da solo**: la richiesta parte solo quando premi il pulsante.
+
 ## Donazioni
 
 NINA è gratuito e **uguale per tutti**. Se ti piace, nella finestra **Info** il pulsante **Support my work** (con il logo PayPal) apre la pagina per una **donazione libera e volontaria**: nessun obbligo, e non cambia nulla nel programma.

@@ -22,13 +22,20 @@ public:
     // Codice sorgente (la licenza AGPL richiede di metterlo a disposizione di chi riceve il programma)
     static juce::String sourceUrl() { return "https://github.com/muttleysat/NINA"; }
 
+    // Pagina delle versioni pubblicate (Releases) e il suo indirizzo per il controllo degli aggiornamenti
+    static juce::String releasesUrl() { return sourceUrl() + "/releases"; }
+    static juce::String latestReleaseApiUrl() { return "https://api.github.com/repos/muttleysat/NINA/releases/latest"; }
+
 private:
     class SupportButton;
+    void checkForUpdates();                                    // solo quando l'utente preme il pulsante: nessuna connessione automatica
 
-    juce::TextButton closeButton { "Close" }, sourceButton { "Source code" }, licenseButton { "Licenses" };
+    juce::TextButton closeButton { "Close" }, sourceButton { "Source code" }, licenseButton { "Licenses" }, updateButton { "Check for updates" };
     std::unique_ptr<SupportButton> supportButton;
     juce::Image logo, asio;
-    juce::Rectangle<int> logoRect, versionRect, copyrightRect, licenseTextRect, asioRect, creditsRect, supportTextRect;
+    juce::Rectangle<int> logoRect, versionRect, copyrightRect, licenseTextRect, asioRect, creditsRect, supportTextRect, updateTextRect;
+    juce::String updateMessage, updateUrl;                     // risultato dell'ultimo controllo (updateUrl: pagina da aprire se c'e' una versione nuova)
+    bool checking = false;
     float s = 1.0f;
 };
 
