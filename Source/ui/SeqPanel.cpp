@@ -697,10 +697,10 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     clickButton.onClick = [this] { processor.setMetronome (clickButton.getToggleState()); };
     addAndMakeVisible (quantButton);
     recButton.setClickingTogglesState (true);
-    recButton.setTooltip ("Record: with Rec on, Play first counts in (see Quantize > Count-in) and then the notes you play on the MIDI keyboard are written into the steps "
+    recButton.setTooltip ("Record: with Rec on, Play first counts in (see Rec options > Count-in) and then the notes you play on the MIDI keyboard are written into the steps "
                           "(the lane is added if the cell has none). Notes that fall between two steps go to the nearest one.");
     recButton.onClick = [this] { processor.setSeqRecord (recButton.getToggleState()); };
-    quantButton.setTooltip ("Quantize the steps' micro-timing (nudge) to the grid, and choose how strictly recorded notes snap to it");
+    quantButton.setTooltip ("Recording options: count-in before Play, how strictly recorded notes snap to the grid, and quantize of existing steps (nudge)");
     quantButton.onClick = [this] { showQuantizeMenu(); };
     addAllButton.setTooltip ("Add every cell that has a sample to the sequencer");
     addAllButton.onClick = [this] { addAllLoadedCells(); };
@@ -1355,19 +1355,18 @@ void SeqPanel::showQuantizeMenu()
 {
     const bool hasLane = selLane >= 0 && selLane < (int) pat().lanes.size();
     juce::PopupMenu m;
-    m.addSectionHeader ("Quantize all lanes (clears nudge)");
-    for (int i = 0; i < 4; ++i)
-        m.addItem (1 + i, juce::String (100 - 25 * i) + "%");
-    m.addSectionHeader ("Quantize the selected lane");
-    for (int i = 0; i < 4; ++i)
-        m.addItem (11 + i, juce::String (100 - 25 * i) + "%", hasLane);
-    m.addSectionHeader ("Recording: count-in before Play");
+    m.addSectionHeader ("Count-in before Play (when Rec is on)");
     for (int i = 0; i < 3; ++i)
         m.addItem (31 + i, i == 0 ? juce::String ("Off") : (i == 1 ? juce::String ("1 bar") : juce::String ("2 bars")), true, processor.getCountInBars() == i);
-    m.addSectionHeader ("Recording: snap to the grid");
+    m.addSectionHeader ("Recorded notes: snap to the grid");
     const int snaps[] = { 100, 75, 50, 25, 0 };
     for (int i = 0; i < 5; ++i)
         m.addItem (21 + i, snaps[i] == 0 ? juce::String ("Free (keeps the micro-timing)") : juce::String (snaps[i]) + "%", true, recSnap == snaps[i]);
+    m.addSectionHeader ("Quantize existing steps (clears nudge)");
+    for (int i = 0; i < 4; ++i)
+        m.addItem (1 + i, "All lanes  " + juce::String (100 - 25 * i) + "%");
+    for (int i = 0; i < 4; ++i)
+        m.addItem (11 + i, "Selected lane  " + juce::String (100 - 25 * i) + "%", hasLane);
 
     juce::Component::SafePointer<SeqPanel> safe (this);
     m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (quantButton), [safe, snaps] (int r)

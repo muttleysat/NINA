@@ -137,9 +137,9 @@ Per copiare in un pattern preciso: **Copy** sul pattern sorgente, passa a quello
 
 ## Registrare da tastiera e quantizzare
 
-Nella seconda riga della scheda, accanto alle maniglie per la DAW, ci sono **Rec** e **Quantize**.
+Nella seconda riga della scheda, accanto alle maniglie per la DAW, ci sono **Click**, **Rec** e **Rec options**.
 
-**Click** (metronomo) e conteggio iniziale. Il pulsante **Click** accende un **metronomo**: un click a ogni quarto mentre il sequencer gira, più alto sul primo quarto di ogni battuta (4/4). Va al Main e non passa dagli effetti. Per registrare in tempo c'è anche il **conteggio iniziale** (precount): con **Rec** acceso e il trasporto interno (standalone, o plugin con la DAW ferma), il **Play** non parte subito dal pattern ma conta prima **1 battuta** (4 click, anche a metronomo spento) e il pulsante Rec mostra il numero che manca (4, 3, 2, 1). Poi parte il pattern e si registra. La durata si sceglie in **Quantize → Recording: count-in before Play** (**Off**, **1 bar**, **2 bars**). Nel plugin, con la DAW in marcia, il conteggio è quello della DAW. Le note suonate durante il conteggio non si registrano (tranne un anticipo di mezzo quarto sul primo quarto).
+**Click** (metronomo) e conteggio iniziale. Il pulsante **Click** accende un **metronomo**: un click a ogni quarto mentre il sequencer gira, più alto sul primo quarto di ogni battuta (4/4). Va al Main e non passa dagli effetti. Per registrare in tempo c'è anche il **conteggio iniziale** (precount): con **Rec** acceso e il trasporto interno (standalone, o plugin con la DAW ferma), il **Play** non parte subito dal pattern ma conta prima **1 battuta** (4 click, anche a metronomo spento) e il pulsante Rec mostra il numero che manca (4, 3, 2, 1). Poi parte il pattern e si registra. La durata si sceglie in **Rec options → Count-in before Play** (**Off**, **1 bar**, **2 bars**). Nel plugin, con la DAW in marcia, il conteggio è quello della DAW. Le note suonate durante il conteggio non si registrano (tranne un anticipo di mezzo quarto sul primo quarto).
 
 **Rec** (registrazione).
 1. Accendi **Rec** e fai partire il sequencer (**Play**): dopo il conteggio iniziale, se è attivo.
@@ -148,10 +148,10 @@ Nella seconda riga della scheda, accanto alle maniglie per la DAW, ci sono **Rec
 4. La registrazione **sovrascrive** velocity, intonazione e posizione dello step su cui cade; gli altri parametri dello step (probabilità, ratchet, lock...) restano.
 5. Le note che suoni continuano a suonare normalmente mentre registri. Rec non registra mentre suona la scheda **Song**. Con la DAW in registrazione (plugin) e la modalità "silent while recording" il sequencer sta zitto e Rec non scrive nulla.
 
-Una nota che cade tra due step va a quello più vicino. Quanto del tuo "feeling" resta lo decide **Quantize → Recording: snap to the grid**: **100%** (predefinito) mette la nota esattamente sulla griglia, **75 / 50 / 25%** ne conservano una parte come **Nudge**, **Free** conserva tutto il micro-timing. La registrazione non compensa la latenza della scheda audio.
+Una nota che cade tra due step va a quello più vicino. Quanto del tuo "feeling" resta lo decide **Rec options → Recorded notes: snap to the grid**: **100%** (predefinito) mette la nota esattamente sulla griglia, **75 / 50 / 25%** ne conservano una parte come **Nudge**, **Free** conserva tutto il micro-timing. La registrazione non compensa la latenza della scheda audio.
 
-**Quantize** (menu).
-- **Quantize all lanes** o **Quantize the selected lane** con intensità 100 / 75 / 50 / 25%: riporta verso la griglia gli step che hanno un **Nudge** (per esempio quelli registrati con snap parziale). 100% azzera il Nudge.
+**Rec options** (menu, con le impostazioni della registrazione e la quantizzazione degli step già scritti).
+- **Quantize existing steps → All lanes** o **Selected lane** con intensità 100 / 75 / 50 / 25%: riporta verso la griglia gli step che hanno un **Nudge** (per esempio quelli registrati con snap parziale). 100% azzera il Nudge.
 - Lo **swing** del pattern non viene toccato: resta com'è.
 - Lo spostamento tra risoluzioni diverse non è una quantizzazione: per cambiare la divisione di una riga si usa la sua risoluzione (vedi sopra).
 
