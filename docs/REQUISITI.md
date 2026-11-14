@@ -5,7 +5,7 @@ Stato: documento vivo, da estendere iterativamente.
 
 ## 1. Visione
 
-**NINA** (Drum Sampler) è un plugin **VST3** di tipo drum sampler/sample player, ispirato a Native Instruments Battery. Permette di caricare singoli campioni o loop su una griglia di celle, mapparli su una tastiera MIDI, modificarli in modo non distruttivo (forma d'onda, dinamica, tune, time-stretch) e processarli con effetti per cella e globali. I kit si salvano come file `.slkit` collegato a una cartella con i sample, che restano file audio normali recuperabili direttamente.
+**NINA** (Drumbox Sequencer Powerhouse) è un plugin **VST3** di tipo drum sampler/sample player, ispirato a Native Instruments Battery. Permette di caricare singoli campioni o loop su una griglia di celle, mapparli su una tastiera MIDI, modificarli in modo non distruttivo (forma d'onda, dinamica, tune, time-stretch) e processarli con effetti per cella e globali. I kit si salvano come file `.slkit` collegato a una cartella con i sample, che restano file audio normali recuperabili direttamente.
 
 ## 2. Ambito della v1
 
