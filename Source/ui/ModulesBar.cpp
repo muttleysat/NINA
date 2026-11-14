@@ -1,6 +1,6 @@
 #include "ModulesBar.h"
 
-ModulesBar::ModulesBar (SampleLabProcessor& p)
+ModulesBar::ModulesBar (NinaProcessor& p)
     : processor (p), meter ([this] { return processor.getMasterLevels(); })
 {
     using C = sl::CellF;

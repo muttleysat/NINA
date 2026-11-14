@@ -13,7 +13,7 @@ class PadGrid final : public juce::Component,
                       private juce::Timer
 {
 public:
-    explicit PadGrid (SampleLabProcessor&);
+    explicit PadGrid (NinaProcessor&);
     ~PadGrid() override;
 
     int getSelected() const { return selected; }
@@ -74,7 +74,7 @@ private:
     RangeInfo rangeInfo (int cell) const;
     static juce::String rangeText (const sl::CellParams&);
 
-    SampleLabProcessor& processor;
+    NinaProcessor& processor;
     int selected = 0;
     std::set<int> multi;               // celle selezionate in piu' rispetto a quella corrente (vuoto = selezione singola)
     int anchor = 0;                    // da dove parte la selezione a intervallo

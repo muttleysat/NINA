@@ -41,7 +41,7 @@ struct CellRefs
     juce::AudioParameterFloat* at (CellF p) const { return f[(size_t) p]; }
 };
 
-// Tutti i parametri automatizzabili di Sample Lab. Sono la fonte di verita' dei valori: l'interfaccia, la DAW
+// Tutti i parametri automatizzabili di NINA. Sono la fonte di verita' dei valori: l'interfaccia, la DAW
 // (automazione), il MIDI learn e il sequencer scrivono su di essi; il motore li legge nel thread audio.
 // Il Kit conserva i valori solo per salvarli/caricarli (writeToKit / readFromKit).
 class ParamSet

@@ -474,7 +474,7 @@ public:
 
 // ------------------------------------------------------------------------ Scheda
 
-MixerPanel::MixerPanel (SampleLabProcessor& p) : processor (p)
+MixerPanel::MixerPanel (NinaProcessor& p) : processor (p)
 {
     holder = std::make_unique<Holder>();
     viewport.setViewedComponent (holder.get(), false);

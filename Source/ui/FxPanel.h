@@ -11,7 +11,7 @@
 class FxPanel final : public juce::Component, private juce::Timer
 {
 public:
-    explicit FxPanel (SampleLabProcessor&);
+    explicit FxPanel (NinaProcessor&);
 
     void setCell (int cell);
     void refresh();
@@ -54,7 +54,7 @@ private:
     void updateSyncState();
     void timerCallback() override;      // ridisegna il bordo degli effetti accesi/spenti dall'automazione
 
-    SampleLabProcessor& processor;
+    NinaProcessor& processor;
     int cell = 0;
     bool masterTarget = false;
     unsigned lastPowerMask = 0;

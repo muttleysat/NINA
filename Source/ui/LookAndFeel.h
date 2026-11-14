@@ -3,10 +3,10 @@
 #include "Theme.h"
 
 // Stile grafico: manopole ad arco arancione, pulsanti arrotondati, interruttori a pillola.
-class SampleLabLookAndFeel final : public juce::LookAndFeel_V4
+class NinaLookAndFeel final : public juce::LookAndFeel_V4
 {
 public:
-    SampleLabLookAndFeel();
+    NinaLookAndFeel();
 
     void drawRotarySlider (juce::Graphics&, int x, int y, int width, int height, float sliderPos,
                            float rotaryStartAngle, float rotaryEndAngle, juce::Slider&) override;

@@ -13,11 +13,11 @@
 #include "params/ParamSet.h"
 #include "params/MidiLearn.h"
 
-class SampleLabProcessor final : public juce::AudioProcessor
+class NinaProcessor final : public juce::AudioProcessor
 {
 public:
-    SampleLabProcessor();
-    ~SampleLabProcessor() override;
+    NinaProcessor();
+    ~NinaProcessor() override;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
@@ -387,5 +387,5 @@ private:
     juce::ThreadPool auditionPool { 1 };
     juce::ThreadPool stretchPool { 1 };    // ultimo membro: viene distrutto (e atteso) per primo
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SampleLabProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NinaProcessor)
 };

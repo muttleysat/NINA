@@ -140,10 +140,10 @@ int zeroCrossings (const juce::AudioBuffer<float>& b, int from, int to)
 }
 }
 
-class SampleLabTests final : public juce::UnitTest
+class NinaTests final : public juce::UnitTest
 {
 public:
-    SampleLabTests() : juce::UnitTest ("SampleLab", "SampleLab") {}
+    NinaTests() : juce::UnitTest ("NINA", "NINA") {}
 
     void runTest() override
     {
@@ -515,7 +515,7 @@ public:
 
         beginTest ("FX: parameters round-trip through the kit file");
         {
-            auto tmp = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("samplelab_fx_" + juce::String (juce::Random::getSystemRandom().nextInt (1000000)));
+            auto tmp = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("nina_fx_" + juce::String (juce::Random::getSystemRandom().nextInt (1000000)));
             tmp.createDirectory();
             auto kit = Kit::makeDefault();
             kit.cells[2].fx.filterOn = true;
@@ -1623,7 +1623,7 @@ public:
             p.lanes = { kick, snare };
 
             auto midi = SequencerExport::toMidiFile (p, kit, 2, 100.0);              // 2 battute = 8 beat
-            auto tmp = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("samplelab_exp_" + juce::String (juce::Random::getSystemRandom().nextInt (1000000)) + ".mid");
+            auto tmp = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("nina_exp_" + juce::String (juce::Random::getSystemRandom().nextInt (1000000)) + ".mid");
             expect (SequencerExport::writeMidiFile (midi, tmp));
 
             juce::MidiFile back;
@@ -1876,7 +1876,7 @@ public:
             kit.midiMap = ml.mappings();
             expectEquals ((int) kit.midiMap.size(), 2);
 
-            auto tmp = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("samplelab_ml_" + juce::String (juce::Random::getSystemRandom().nextInt (1000000)));
+            auto tmp = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("nina_ml_" + juce::String (juce::Random::getSystemRandom().nextInt (1000000)));
             tmp.createDirectory();
             juce::String err;
             auto f = tmp.getChildFile ("Learn.slkit");
@@ -1909,7 +1909,7 @@ public:
 
         beginTest ("Kit save/load round trip with same-name folder and sample copy");
         {
-            auto tmp = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("samplelab_test_" + juce::String (juce::Random::getSystemRandom().nextInt (1000000)));
+            auto tmp = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("nina_test_" + juce::String (juce::Random::getSystemRandom().nextInt (1000000)));
             tmp.createDirectory();
 
             // Crea un WAV sorgente fuori dalla cartella del kit
@@ -2295,7 +2295,7 @@ int main()
     juce::ScopedJuceInitialiser_GUI init;
     juce::UnitTestRunner runner;
     runner.setAssertOnFailure (false);
-    static SampleLabTests tests;
+    static NinaTests tests;
     runner.runAllTests();
 
     int failures = 0;

@@ -1,6 +1,6 @@
 #include "LookAndFeel.h"
 
-SampleLabLookAndFeel::SampleLabLookAndFeel()
+NinaLookAndFeel::NinaLookAndFeel()
 {
     using namespace theme;
     setColour (juce::ResizableWindow::backgroundColourId, background);
@@ -30,7 +30,7 @@ SampleLabLookAndFeel::SampleLabLookAndFeel()
     setColour (juce::TextEditor::focusedOutlineColourId, accent);
 }
 
-juce::Label* SampleLabLookAndFeel::createSliderTextBox (juce::Slider& s)
+juce::Label* NinaLookAndFeel::createSliderTextBox (juce::Slider& s)
 {
     auto* l = LookAndFeel_V4::createSliderTextBox (s);
     l->setMinimumHorizontalScale (0.55f);     // i valori lunghi si stringono invece di essere troncati
@@ -38,7 +38,7 @@ juce::Label* SampleLabLookAndFeel::createSliderTextBox (juce::Slider& s)
     return l;
 }
 
-void SampleLabLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height, float sliderPos,
+void NinaLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height, float sliderPos,
                                              float startAngle, float endAngle, juce::Slider& slider)
 {
     using namespace theme;
@@ -86,7 +86,7 @@ void SampleLabLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, in
                 centre.x + s * bodyR * 0.88f, centre.y + c * bodyR * 0.88f, juce::jmax (1.8f, radius * 0.07f));
 }
 
-void SampleLabLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& b, const juce::Colour&, bool highlighted, bool down)
+void NinaLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& b, const juce::Colour&, bool highlighted, bool down)
 {
     using namespace theme;
     const auto r = b.getLocalBounds().toFloat().reduced (0.5f);
@@ -102,7 +102,7 @@ void SampleLabLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button
 }
 
 // Testo centrato con margini minimi: i pulsanti piccoli (M, S, FX, +, -) mostrano la lettera invece di "..."
-void SampleLabLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& b, bool, bool)
+void NinaLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& b, bool, bool)
 {
     const float fontH = juce::jlimit (9.0f, 15.0f, (float) b.getHeight() * 0.5f);
     g.setFont (juce::FontOptions (fontH, juce::Font::bold));
@@ -111,7 +111,7 @@ void SampleLabLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& 
     g.drawText (b.getButtonText(), b.getLocalBounds().reduced (1, 0), juce::Justification::centred, false);
 }
 
-void SampleLabLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bool highlighted, bool)
+void NinaLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b, bool highlighted, bool)
 {
     using namespace theme;
     const float h = juce::jmin (18.0f, (float) b.getHeight() - 4.0f);
@@ -133,7 +133,7 @@ void SampleLabLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButt
 }
 
 // Fader verticale del mixer (senza casella di testo): lascia sopra e sotto lo spazio per meta' del cursore, cosi' non viene tagliato
-juce::Slider::SliderLayout SampleLabLookAndFeel::getSliderLayout (juce::Slider& sl)
+juce::Slider::SliderLayout NinaLookAndFeel::getSliderLayout (juce::Slider& sl)
 {
     if (sl.getSliderStyle() == juce::Slider::LinearVertical && sl.getTextBoxPosition() == juce::Slider::NoTextBox)
     {
@@ -145,7 +145,7 @@ juce::Slider::SliderLayout SampleLabLookAndFeel::getSliderLayout (juce::Slider& 
     return LookAndFeel_V4::getSliderLayout (sl);
 }
 
-void SampleLabLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int width, int height, float sliderPos,
+void NinaLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int width, int height, float sliderPos,
                                              float, float, juce::Slider::SliderStyle style, juce::Slider& s)
 {
     using namespace theme;

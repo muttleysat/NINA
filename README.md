@@ -13,7 +13,7 @@ cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release
 ```
 
-Output in `build/SampleLab_artefacts/Release/` (cartelle `VST3` e `Standalone`).
+Output in `build/Nina_artefacts/Release/` (cartelle `VST3` e `Standalone`).
 
 ## ASIO (solo standalone su Windows)
 
@@ -28,8 +28,8 @@ Senza SDK lo standalone usa solo WASAPI/DirectSound. Nel VST3 la scheda audio è
 ## Test
 
 ```powershell
-cmake --build build --config Release --target SampleLabTests
-build\SampleLabTests_artefacts\Release\SampleLabTests.exe
+cmake --build build --config Release --target NinaTests
+build\NinaTests_artefacts\Release\NinaTests.exe
 ```
 
 Coprono motore di riproduzione (mapping, velocity, level, start/end, pitch, reverse, one-shot/gate/loop, layer, voice stealing) e formato kit (salvataggio con cartella omonima, ricarica, sample mancanti, versione schema).

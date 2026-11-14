@@ -15,7 +15,7 @@
 class SeqPanel final : public juce::Component, private juce::Timer
 {
 public:
-    explicit SeqPanel (SampleLabProcessor&);
+    explicit SeqPanel (NinaProcessor&);
     ~SeqPanel() override;
 
     void copySelection();              // Ctrl+C: copia lo step selezionato (con velocity, nudge, lock...)
@@ -71,7 +71,7 @@ private:
     int bars() const { return 1 << juce::jmax (0, barsBox.getSelectedId() - 1); }   // 1, 2, 4, 8
     void showMessage (const juce::String& text);
 
-    SampleLabProcessor& processor;
+    NinaProcessor& processor;
 
     // Trasporto e pattern
     juce::TextButton playButton { "Play" }, prevPattern { "<" }, nextPattern { ">" };

@@ -774,7 +774,7 @@ private:
 
 // =============================================================== SlicePanel
 
-SlicePanel::SlicePanel (SampleLabProcessor& p) : processor (p)
+SlicePanel::SlicePanel (NinaProcessor& p) : processor (p)
 {
     wave = std::make_unique<WaveView> (*this);
     cellsStrip = std::make_unique<CellsStrip> (*this);

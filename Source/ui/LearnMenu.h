@@ -10,7 +10,7 @@ class LearnMenu final : public juce::MouseListener
 public:
     using ParamGetter = std::function<juce::RangedAudioParameter*()>;
 
-    LearnMenu (SampleLabProcessor& p, juce::Component& comp, ParamGetter g)
+    LearnMenu (NinaProcessor& p, juce::Component& comp, ParamGetter g)
         : processor (p), target (&comp), getParam (std::move (g))
     {
         comp.addMouseListener (this, true);
@@ -63,7 +63,7 @@ public:
     }
 
 private:
-    SampleLabProcessor& processor;
+    NinaProcessor& processor;
     juce::Component::SafePointer<juce::Component> target;
     ParamGetter getParam;
 };

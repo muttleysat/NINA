@@ -9,7 +9,7 @@
 class WaveStrip final : public juce::Component, private juce::Timer
 {
 public:
-    explicit WaveStrip (SampleLabProcessor&);
+    explicit WaveStrip (NinaProcessor&);
 
     void setCell (int cell);
     void refresh();
@@ -23,7 +23,7 @@ private:
     juce::AudioParameterFloat* startParam() const;
     juce::AudioParameterFloat* endParam() const;
 
-    SampleLabProcessor& processor;
+    NinaProcessor& processor;
     int cell = 0;
     float shownStart = -1.0f, shownEnd = -1.0f;
     WaveformView waveform;

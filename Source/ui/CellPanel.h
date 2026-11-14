@@ -8,7 +8,7 @@
 class CellPanel final : public juce::Component
 {
 public:
-    explicit CellPanel (SampleLabProcessor&);
+    explicit CellPanel (NinaProcessor&);
 
     void setCell (int cell);
     void refresh();
@@ -31,7 +31,7 @@ private:
         if (onEdited) onEdited();
     }
 
-    SampleLabProcessor& processor;
+    NinaProcessor& processor;
     int cell = 0;
     bool updating = false;
 

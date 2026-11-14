@@ -1,6 +1,6 @@
 #include "WaveStrip.h"
 
-WaveStrip::WaveStrip (SampleLabProcessor& p) : processor (p)
+WaveStrip::WaveStrip (NinaProcessor& p) : processor (p)
 {
     addAndMakeVisible (waveform);
 

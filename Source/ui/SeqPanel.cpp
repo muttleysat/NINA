@@ -53,7 +53,7 @@ void drawPeaks (juce::Graphics& g, const std::vector<float>& peaks, juce::Rectan
 class CellMenuItem final : public juce::PopupMenu::CustomComponent, private juce::Timer
 {
 public:
-    CellMenuItem (SampleLabProcessor& p, int c) : CustomComponent (true), processor (p), cell (c)
+    CellMenuItem (NinaProcessor& p, int c) : CustomComponent (true), processor (p), cell (c)
     {
         peaks = computePeaks (processor.getCellData (cell).get(), 120);
         startTimerHz (25);
@@ -126,7 +126,7 @@ private:
         playing = false;
     }
 
-    SampleLabProcessor& processor;
+    NinaProcessor& processor;
     int cell;
     int note = 0;
     bool playing = false;
@@ -629,7 +629,7 @@ private:
 // cartella temporanea e avvia il trascinamento di file del sistema, come fa EZdrummer. Si lascia su una traccia di Cubase.
 juce::File SeqPanel::dragFolder() const
 {
-    return juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("SampleLab_drag");
+    return juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("NINA_drag");
 }
 
 juce::String SeqPanel::dragBaseName() const
@@ -677,7 +677,7 @@ struct SeqPanel::FxCard
 
 // ------------------------------------------------------------------- SeqPanel
 
-SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
+SeqPanel::SeqPanel (NinaProcessor& p) : processor (p)
 {
     lanes = std::make_unique<LaneList> (*this);
     viewport.setViewedComponent (lanes.get(), false);
@@ -796,7 +796,7 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
                             "Follow: it plays whenever the DAW plays.\n"
                             "Silent while recording: it plays with the DAW, but stays quiet while the DAW is recording, so it does not mix with what you play by hand.\n"
                             "Ignore: it only plays with the Play button of the plugin.");
-    hostModeBox.onChange = [this] { processor.setHostSeqMode ((SampleLabProcessor::HostSeqMode) (hostModeBox.getSelectedId() - 1)); };
+    hostModeBox.onChange = [this] { processor.setHostSeqMode ((NinaProcessor::HostSeqMode) (hostModeBox.getSelectedId() - 1)); };
     hostModeBox.setVisible (processor.wrapperType != juce::AudioProcessor::wrapperType_Standalone);
     addChildComponent (hostModeBox);
 
@@ -808,7 +808,7 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
                         "Cut: the file is exactly the chosen number of bars, so it snaps to the grid in your DAW; tails past the end are cut.\n"
                         "Loop: exactly the chosen bars too, but the tail of the end wraps around to the start, so a looped clip sounds seamless.\n"
                         "Keep: the full tail after the end (the file is longer than the bars).");
-    tailBox.onChange = [this] { processor.setExportTail ((SampleLabProcessor::ExportTail) (tailBox.getSelectedId() - 1)); };
+    tailBox.onChange = [this] { processor.setExportTail ((NinaProcessor::ExportTail) (tailBox.getSelectedId() - 1)); };
     addAndMakeVisible (tailBox);
 
     addAndMakeVisible (saveSeqButton);
@@ -1336,7 +1336,7 @@ void SeqPanel::captureRecorded()
     if (! processor.isSeqRecording())
         processor.setSeqRecord (true);
 
-    SampleLabProcessor::RecNote notes[64];
+    NinaProcessor::RecNote notes[64];
     const int n = processor.drainRecorded (notes, 64);
     if (n == 0)
         return;
@@ -1702,7 +1702,7 @@ void SeqPanel::timerCallback()
 {
     if (tick % 30 == 0)
     {
-        const auto autoText = "Auto " + SampleLabProcessor::rateText (processor.getHostSampleRate());
+        const auto autoText = "Auto " + NinaProcessor::rateText (processor.getHostSampleRate());
         if (rateBox.getItemText (0) != autoText)                                               // la frequenza della DAW e' cambiata: si rifa l'elenco
         {
             const int sel = juce::jmax (1, rateBox.getSelectedId());
@@ -1953,7 +1953,7 @@ void SeqPanel::resized()
         const bool room = avail >= (int) (96 * s);
         hostModeBox.setBounds (rightEdge - juce::jmax (0, w), row2Rect.getY(), juce::jmax (0, w), row2Rect.getHeight());
         hostModeBox.setVisible (room && (processor.wrapperType != juce::AudioProcessor::wrapperType_Standalone
-                                        || juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_SHOWHOST", {}).isNotEmpty()));      // la variabile serve solo alle prove
+                                        || juce::SystemStats::getEnvironmentVariable ("NINA_SHOWHOST", {}).isNotEmpty()));      // la variabile serve solo alle prove
     }
 
     // Righello dei beat sopra le righe (il testo e' disegnato in paint)

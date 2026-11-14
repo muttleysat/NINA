@@ -1,6 +1,6 @@
 #include "FxPanel.h"
 
-FxPanel::FxPanel (SampleLabProcessor& p) : processor (p)
+FxPanel::FxPanel (NinaProcessor& p) : processor (p)
 {
     for (auto* b : { &cellButton, &masterButton })
     {

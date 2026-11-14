@@ -1,6 +1,6 @@
 #include "PadGrid.h"
 
-PadGrid::PadGrid (SampleLabProcessor& p) : processor (p)
+PadGrid::PadGrid (NinaProcessor& p) : processor (p)
 {
     startTimerHz (30);
 }

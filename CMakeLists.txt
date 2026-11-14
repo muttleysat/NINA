@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(SampleLab VERSION 0.1.0 LANGUAGES C CXX)
+project(NINA VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -37,12 +37,12 @@ target_include_directories(rubberband_single PUBLIC ${rubberband_SOURCE_DIR})
 set_target_properties(rubberband_single PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_compile_definitions(rubberband_single PRIVATE NOMINMAX _USE_MATH_DEFINES)
 
-juce_add_plugin(SampleLab
+juce_add_plugin(Nina
     PRODUCT_NAME "NINA"
     ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Source/assets/nina_icon_512.png"
     ICON_SMALL "${CMAKE_CURRENT_SOURCE_DIR}/Source/assets/nina_icon_256.png"
-    COMPANY_NAME "SampleLab"
-    BUNDLE_ID "com.samplelab.samplelab"
+    COMPANY_NAME "Vinz Trombetta"
+    BUNDLE_ID "com.vinztrombetta.nina"
     PLUGIN_MANUFACTURER_CODE SmpL
     PLUGIN_CODE SLab
     FORMATS VST3 Standalone
@@ -55,7 +55,7 @@ juce_add_plugin(SampleLab
 )
 
 # Codice del motore e del kit, condiviso tra plugin e test (compilato in entrambi i target)
-set(SAMPLELAB_CORE_SOURCES
+set(NINA_CORE_SOURCES
     Source/engine/SampleData.cpp
     Source/engine/LoopStretch.cpp
     Source/engine/SliceDetect.cpp
@@ -68,8 +68,8 @@ set(SAMPLELAB_CORE_SOURCES
     Source/kit/KitIO.cpp
 )
 
-target_sources(SampleLab PRIVATE
-    ${SAMPLELAB_CORE_SOURCES}
+target_sources(Nina PRIVATE
+    ${NINA_CORE_SOURCES}
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
     Source/ui/PadGrid.cpp
@@ -89,24 +89,24 @@ target_sources(SampleLab PRIVATE
     Source/ui/AboutPanel.cpp
 )
 
-target_include_directories(SampleLab PRIVATE Source)
+target_include_directories(Nina PRIVATE Source)
 
 # Risorse incorporate (logo)
-juce_add_binary_data(SampleLabAssets SOURCES Source/assets/nina_logo.png Source/assets/asio_logo.jpg)
-target_link_libraries(SampleLab PRIVATE SampleLabAssets)
-target_link_libraries(SampleLab PRIVATE rubberband_single)
+juce_add_binary_data(NinaAssets SOURCES Source/assets/nina_logo.png Source/assets/asio_logo.jpg)
+target_link_libraries(Nina PRIVATE NinaAssets)
+target_link_libraries(Nina PRIVATE rubberband_single)
 
 # Test automatici (motore + formato kit)
-juce_add_console_app(SampleLabTests PRODUCT_NAME "SampleLabTests")
-target_sources(SampleLabTests PRIVATE ${SAMPLELAB_CORE_SOURCES} Tests/Tests.cpp)
-target_include_directories(SampleLabTests PRIVATE Source)
-target_link_libraries(SampleLabTests PRIVATE rubberband_single)
+juce_add_console_app(NinaTests PRODUCT_NAME "NinaTests")
+target_sources(NinaTests PRIVATE ${NINA_CORE_SOURCES} Tests/Tests.cpp)
+target_include_directories(NinaTests PRIVATE Source)
+target_link_libraries(NinaTests PRIVATE rubberband_single)
 if(MSVC)
     # Un solo grande runTest con molti oggetti Engine locali: serve piu' dello stack predefinito (1 MB)
-    target_link_options(SampleLabTests PRIVATE /STACK:33554432)
+    target_link_options(NinaTests PRIVATE /STACK:33554432)
 endif()
-target_compile_definitions(SampleLabTests PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
-target_link_libraries(SampleLabTests
+target_compile_definitions(NinaTests PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+target_link_libraries(NinaTests
     PRIVATE juce::juce_audio_utils juce::juce_dsp
     PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
 
@@ -115,14 +115,14 @@ target_link_libraries(SampleLabTests
 if(WIN32)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/asiosdk/common/iasiodrv.h")
         message(STATUS "ASIO SDK trovato: driver ASIO abilitati")
-        target_compile_definitions(SampleLab PUBLIC JUCE_ASIO=1)
-        target_include_directories(SampleLab PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/third_party/asiosdk/common")
+        target_compile_definitions(Nina PUBLIC JUCE_ASIO=1)
+        target_include_directories(Nina PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/third_party/asiosdk/common")
     else()
         message(WARNING "ASIO SDK non trovato in third_party/asiosdk: lo standalone usera' solo WASAPI/DirectSound")
     endif()
 endif()
 
-target_compile_definitions(SampleLab PUBLIC
+target_compile_definitions(Nina PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
@@ -130,7 +130,7 @@ target_compile_definitions(SampleLab PUBLIC
     JUCE_REPORT_APP_USAGE=0
 )
 
-target_link_libraries(SampleLab
+target_link_libraries(Nina
     PRIVATE
         juce::juce_audio_utils
         juce::juce_dsp

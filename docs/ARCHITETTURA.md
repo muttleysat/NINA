@@ -21,7 +21,7 @@ Le librerie si aggiungono per fase (vedi sez. 8), non tutte subito.
 ## 2. Struttura del repository
 
 ```
-SampleLab/
+NINA/
 ├── CMakeLists.txt
 ├── docs/                  REQUISITI.md, ARCHITETTURA.md
 ├── Source/
@@ -158,7 +158,7 @@ Il target standalone esiste dalla fase 0 e serve come banco di prova rapido.
 # Windows (Visual Studio 2022 Build Tools)
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release
-# Output: build/SampleLab_artefacts/Release/{VST3,Standalone}
+# Output: build/Nina_artefacts/Release/{VST3,Standalone}
 ```
 
 ```bash

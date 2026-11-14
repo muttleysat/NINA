@@ -13,7 +13,7 @@ class SlicePanel final : public juce::Component,
                          private juce::Timer
 {
 public:
-    explicit SlicePanel (SampleLabProcessor&);
+    explicit SlicePanel (NinaProcessor&);
     ~SlicePanel() override;
 
     void setCell (int cell);               // cella (e quindi campione) su cui si lavora in modalita' Cell
@@ -126,7 +126,7 @@ private:
     void showStatus (const juce::String& text);
     void timerCallback() override;
 
-    SampleLabProcessor& processor;
+    NinaProcessor& processor;
     int cell = 0;
     Source source = Source::Cell;
     std::vector<float> markers;                                // inizio di ogni slice, ordinati (0..1 sul campione)

@@ -4,7 +4,7 @@
 #include <set>
 
 // Main + 15 uscite stereo aggiuntive (spente di default: le attiva la DAW). Le celle si assegnano alle uscite dal pannello della cella.
-juce::AudioProcessor::BusesProperties SampleLabProcessor::makeBuses()
+juce::AudioProcessor::BusesProperties NinaProcessor::makeBuses()
 {
     auto buses = BusesProperties().withOutput ("Main", juce::AudioChannelSet::stereo(), true);
     for (int i = 2; i <= sl::Engine::kMaxOutputs; ++i)
@@ -12,7 +12,7 @@ juce::AudioProcessor::BusesProperties SampleLabProcessor::makeBuses()
     return buses;
 }
 
-SampleLabProcessor::SampleLabProcessor()
+NinaProcessor::NinaProcessor()
     : AudioProcessor (makeBuses())
 {
     // Parametri esposti alla DAW (automazione): gruppi per cella ed effetto, nomi leggibili, ID stabili
@@ -31,7 +31,7 @@ SampleLabProcessor::SampleLabProcessor()
     dirty = false;
 }
 
-SampleLabProcessor::~SampleLabProcessor()
+NinaProcessor::~NinaProcessor()
 {
     alive->store (false);
     tempoTimer.stopTimer();
@@ -40,7 +40,7 @@ SampleLabProcessor::~SampleLabProcessor()
         p->removeListener (&dirtyListener);
 }
 
-void SampleLabProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+void NinaProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     currentSampleRate = sampleRate;
     seqRunner.reset();
@@ -48,7 +48,7 @@ void SampleLabProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     keyboardState.reset();
 }
 
-bool SampleLabProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
+bool NinaProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
     if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
         return false;
@@ -58,7 +58,7 @@ bool SampleLabProcessor::isBusesLayoutSupported (const BusesLayout& layouts) con
     return true;
 }
 
-void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
+void NinaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
 
@@ -335,7 +335,7 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     }
 }
 
-int SampleLabProcessor::drainRecorded (RecNote* out, int maxCount)
+int NinaProcessor::drainRecorded (RecNote* out, int maxCount)
 {
     const auto head = recHead.load (std::memory_order_acquire);
     if (head - recTail > (uint32_t) recRing.size())
@@ -346,14 +346,14 @@ int SampleLabProcessor::drainRecorded (RecNote* out, int maxCount)
     return n;
 }
 
-juce::AudioProcessorEditor* SampleLabProcessor::createEditor()
+juce::AudioProcessorEditor* NinaProcessor::createEditor()
 {
-    return new SampleLabEditor (*this);
+    return new NinaEditor (*this);
 }
 
 // ------------------------------------------------------------- Anteprima
 
-void SampleLabProcessor::auditionFile (const juce::File& file, float gainDb)
+void NinaProcessor::auditionFile (const juce::File& file, float gainDb)
 {
     const int token = ++auditionToken;
 
@@ -376,19 +376,19 @@ void SampleLabProcessor::auditionFile (const juce::File& file, float gainDb)
     });
 }
 
-void SampleLabProcessor::auditionCellRegion (int cell, float start, float end, float gainDb)
+void NinaProcessor::auditionCellRegion (int cell, float start, float end, float gainDb)
 {
     if (cell < 0 || cell >= (int) cellData.size() || cellData[(size_t) cell] == nullptr)
         return;
     auditionData (cellData[(size_t) cell], start, end, gainDb);
 }
 
-sl::SampleDataPtr SampleLabProcessor::loadAudioFile (const juce::File& file)
+sl::SampleDataPtr NinaProcessor::loadAudioFile (const juce::File& file)
 {
     return file.existsAsFile() ? sl::loadSampleFile (formats, file) : nullptr;
 }
 
-void SampleLabProcessor::auditionData (sl::SampleDataPtr data, float start, float end, float gainDb)
+void NinaProcessor::auditionData (sl::SampleDataPtr data, float start, float end, float gainDb)
 {
     if (data == nullptr)
         return;
@@ -402,7 +402,7 @@ void SampleLabProcessor::auditionData (sl::SampleDataPtr data, float start, floa
     engine.playPreview (data.get(), sl::dbToGain (gainDb), start, end);
 }
 
-int SampleLabProcessor::distributeSliceData (sl::SampleDataPtr data, const juce::String& baseName, const std::vector<float>& bounds,
+int NinaProcessor::distributeSliceData (sl::SampleDataPtr data, const juce::String& baseName, const std::vector<float>& bounds,
                                               int firstTarget, float bpm, bool sync, const juce::File& dir)
 {
     if (data == nullptr || bounds.size() < 2 || firstTarget < 0 || data->numSamples() <= 0)
@@ -457,7 +457,7 @@ int SampleLabProcessor::distributeSliceData (sl::SampleDataPtr data, const juce:
     return filled;
 }
 
-int SampleLabProcessor::distributeSlices (int sourceCell, const std::vector<float>& bounds, int firstTarget)
+int NinaProcessor::distributeSlices (int sourceCell, const std::vector<float>& bounds, int firstTarget)
 {
     if (sourceCell < 0 || sourceCell >= kit.numCells() || bounds.size() < 2 || firstTarget < 0 || ! kit.cells[(size_t) sourceCell].hasSample())
         return 0;
@@ -505,7 +505,7 @@ int SampleLabProcessor::distributeSlices (int sourceCell, const std::vector<floa
     return filled;
 }
 
-void SampleLabProcessor::stopAudition()
+void NinaProcessor::stopAudition()
 {
     ++auditionToken;
     engine.stopPreview();
@@ -513,7 +513,7 @@ void SampleLabProcessor::stopAudition()
 
 // ---------------------------------------------------------------- Kit
 
-std::shared_ptr<sl::KitSnapshot> SampleLabProcessor::buildSnapshot() const
+std::shared_ptr<sl::KitSnapshot> NinaProcessor::buildSnapshot() const
 {
     auto snap = std::make_shared<sl::KitSnapshot>();
     snap->generation = generation;
@@ -534,7 +534,7 @@ std::shared_ptr<sl::KitSnapshot> SampleLabProcessor::buildSnapshot() const
     return snap;
 }
 
-void SampleLabProcessor::publishKit (bool newGeneration)
+void NinaProcessor::publishKit (bool newGeneration)
 {
     if (newGeneration)
         ++generation;
@@ -547,7 +547,7 @@ void SampleLabProcessor::publishKit (bool newGeneration)
 
 // ------------------------------------------------------------- Loop e stretch
 
-void SampleLabProcessor::ensurePlayData()
+void NinaProcessor::ensurePlayData()
 {
     playData.resize (cellData.size());
     stretch.resize (cellData.size());
@@ -567,7 +567,7 @@ void SampleLabProcessor::ensurePlayData()
     }
 }
 
-void SampleLabProcessor::refreshStretch (int cell)
+void NinaProcessor::refreshStretch (int cell)
 {
     if (cell < 0 || cell >= (int) stretch.size() || cell >= kit.numCells())
         return;
@@ -680,19 +680,19 @@ void SampleLabProcessor::refreshStretch (int cell)
     });
 }
 
-bool SampleLabProcessor::isStretching (int cell) const
+bool NinaProcessor::isStretching (int cell) const
 {
     return cell >= 0 && cell < (int) stretch.size() && stretch[(size_t) cell].pendingBpm > 0.0;
 }
 
-void SampleLabProcessor::tempoTick()
+void NinaProcessor::tempoTick()
 {
     for (int i = 0; i < (int) stretch.size(); ++i)
         if (i < kit.numCells() && kit.cells[(size_t) i].tempoSync)
             refreshStretch (i);
 }
 
-void SampleLabProcessor::detectLoopBpm (int cell)
+void NinaProcessor::detectLoopBpm (int cell)
 {
     if (cell < 0 || cell >= kit.numCells() || cellData[(size_t) cell] == nullptr)
         return;
@@ -706,7 +706,7 @@ void SampleLabProcessor::detectLoopBpm (int cell)
 
 // ------------------------------------------------------------- Sequencer
 
-void SampleLabProcessor::publishPattern()
+void NinaProcessor::publishPattern()
 {
     auto msg = std::make_shared<PatternMsg>();
     msg->shown = activePattern();
@@ -725,7 +725,7 @@ void SampleLabProcessor::publishPattern()
         publishSong();
 }
 
-void SampleLabProcessor::publishSong()
+void NinaProcessor::publishSong()
 {
     auto msg = std::make_shared<SongMsg>();
     msg->pats = kit.patterns;
@@ -735,20 +735,20 @@ void SampleLabProcessor::publishSong()
     songExchange.publish (std::move (msg));
 }
 
-void SampleLabProcessor::songEdited()
+void NinaProcessor::songEdited()
 {
     songDirty = true;
     publishSong();
 }
 
-void SampleLabProcessor::setSongMode (bool on)
+void NinaProcessor::setSongMode (bool on)
 {
     songMode.store (on);
     if (on)
         publishSong();
 }
 
-bool SampleLabProcessor::saveSongFile (const juce::File& file, juce::String& error) const
+bool NinaProcessor::saveSongFile (const juce::File& file, juce::String& error) const
 {
     if (! file.replaceWithText (sl::KitIO::songToJson (kit.song)))
     {
@@ -759,7 +759,7 @@ bool SampleLabProcessor::saveSongFile (const juce::File& file, juce::String& err
     return true;
 }
 
-bool SampleLabProcessor::loadSongFile (const juce::File& file, juce::String& error)
+bool NinaProcessor::loadSongFile (const juce::File& file, juce::String& error)
 {
     sl::Song s;
     if (! file.existsAsFile() || ! sl::KitIO::songFromJson (file.loadFileAsString(), s, error))
@@ -776,7 +776,7 @@ bool SampleLabProcessor::loadSongFile (const juce::File& file, juce::String& err
 }
 
 // Piano di esportazione della song: copia dei pattern (con, se richiesto, solo le righe di una cella) e relativi segmenti
-void SampleLabProcessor::songPlan (std::vector<sl::Pattern>& pats, std::vector<sl::Segment>& segs, double& total, int isolateCell) const
+void NinaProcessor::songPlan (std::vector<sl::Pattern>& pats, std::vector<sl::Segment>& segs, double& total, int isolateCell) const
 {
     pats = kit.patterns;
     if (isolateCell >= 0)
@@ -790,7 +790,7 @@ void SampleLabProcessor::songPlan (std::vector<sl::Pattern>& pats, std::vector<s
     total = kit.song.totalBeats (pats);
 }
 
-bool SampleLabProcessor::exportSongMidi (const juce::File& file, juce::String& error)
+bool NinaProcessor::exportSongMidi (const juce::File& file, juce::String& error)
 {
     std::vector<sl::Pattern> pats;
     std::vector<sl::Segment> segs;
@@ -810,7 +810,7 @@ bool SampleLabProcessor::exportSongMidi (const juce::File& file, juce::String& e
     return true;
 }
 
-bool SampleLabProcessor::bounceSongWav (const juce::File& file, juce::String& error)
+bool NinaProcessor::bounceSongWav (const juce::File& file, juce::String& error)
 {
     if (! exportTempoKnown())
     {
@@ -850,7 +850,7 @@ bool SampleLabProcessor::bounceSongWav (const juce::File& file, juce::String& er
 }
 
 // Un WAV per ogni cella suonata dalla song (tutti della stessa lunghezza), con gli effetti della cella ma senza gli effetti master
-int SampleLabProcessor::exportSongStems (const juce::File& folder, juce::String& error)
+int NinaProcessor::exportSongStems (const juce::File& folder, juce::String& error)
 {
     if (! exportTempoKnown())
     {
@@ -909,9 +909,9 @@ int SampleLabProcessor::exportSongStems (const juce::File& folder, juce::String&
     return written;
 }
 
-void SampleLabProcessor::logExport (const juce::String& what) const
+void NinaProcessor::logExport (const juce::String& what) const
 {
-    auto f = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory).getChildFile ("SampleLab").getChildFile ("ui.log");
+    auto f = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory).getChildFile ("NINA").getChildFile ("ui.log");
     f.getParentDirectory().createDirectory();
     if (f.getSize() > 100000)
         f.deleteFile();
@@ -921,13 +921,13 @@ void SampleLabProcessor::logExport (const juce::String& what) const
                   + juce::String (getExportSampleRate(), 0) + " (project " + juce::String (currentSampleRate, 0) + "), wrapper " + juce::String ((int) wrapperType) + "\n");
 }
 
-void SampleLabProcessor::patternEdited()
+void NinaProcessor::patternEdited()
 {
     seqDirty = true;
     publishPattern();
 }
 
-void SampleLabProcessor::setActivePattern (int index)
+void NinaProcessor::setActivePattern (int index)
 {
     kit.activePattern = juce::jlimit (0, sl::kNumPatterns - 1, index);
     seqDirty = true;
@@ -945,7 +945,7 @@ void copyPatternContent (const sl::Pattern& from, sl::Pattern& to)
 }
 }
 
-bool SampleLabProcessor::duplicateActivePattern()
+bool NinaProcessor::duplicateActivePattern()
 {
     const int n = sl::kNumPatterns;
     for (int k = 1; k < n; ++k)
@@ -963,12 +963,12 @@ bool SampleLabProcessor::duplicateActivePattern()
     return false;
 }
 
-void SampleLabProcessor::copyActivePattern()
+void NinaProcessor::copyActivePattern()
 {
     patternClipboard = activePattern();
 }
 
-void SampleLabProcessor::pasteIntoActivePattern()
+void NinaProcessor::pasteIntoActivePattern()
 {
     if (! patternClipboard.has_value())
         return;
@@ -977,7 +977,7 @@ void SampleLabProcessor::pasteIntoActivePattern()
     publishPattern();
 }
 
-void SampleLabProcessor::clearActivePattern()
+void NinaProcessor::clearActivePattern()
 {
     auto& p = activePattern();
     const auto name = p.name;
@@ -987,7 +987,7 @@ void SampleLabProcessor::clearActivePattern()
     publishPattern();
 }
 
-void SampleLabProcessor::renamePattern (int index, const juce::String& name)
+void NinaProcessor::renamePattern (int index, const juce::String& name)
 {
     if (index < 0 || index >= sl::kNumPatterns)
         return;
@@ -995,7 +995,7 @@ void SampleLabProcessor::renamePattern (int index, const juce::String& name)
     seqDirty = true;
 }
 
-bool SampleLabProcessor::addLaneForCell (int cell)
+bool NinaProcessor::addLaneForCell (int cell)
 {
     if (cell < 0 || cell >= kit.numCells() || activePattern().findLane (cell) != nullptr)
         return false;
@@ -1007,19 +1007,19 @@ bool SampleLabProcessor::addLaneForCell (int cell)
     return true;
 }
 
-void SampleLabProcessor::removeLaneForCell (int cell)
+void NinaProcessor::removeLaneForCell (int cell)
 {
     auto& lanes = activePattern().lanes;
     lanes.erase (std::remove_if (lanes.begin(), lanes.end(), [cell] (const sl::Lane& l) { return l.cell == cell; }), lanes.end());
     patternEdited();
 }
 
-void SampleLabProcessor::setSequencerRunning (bool run)
+void NinaProcessor::setSequencerRunning (bool run)
 {
     seqRunning.store (run);
 }
 
-bool SampleLabProcessor::exportPatternMidi (const juce::File& file, int bars, juce::String& error)
+bool NinaProcessor::exportPatternMidi (const juce::File& file, int bars, juce::String& error)
 {
     auto midi = sl::SequencerExport::toMidiFile (activePattern(), kit, bars, getExportBpm());
     if (! sl::SequencerExport::writeMidiFile (midi, file))
@@ -1032,7 +1032,7 @@ bool SampleLabProcessor::exportPatternMidi (const juce::File& file, int bars, ju
 
 // Rendering offline del pattern attivo: stesso motore, stessi parametri correnti (inclusi effetti, lock, tail).
 // L'automazione della DAW non e' inclusa: si usano i valori correnti dei parametri.
-bool SampleLabProcessor::bouncePatternWav (const juce::File& file, int bars, juce::String& error)
+bool NinaProcessor::bouncePatternWav (const juce::File& file, int bars, juce::String& error)
 {
     if (! exportTempoKnown())
     {
@@ -1066,7 +1066,7 @@ bool SampleLabProcessor::bouncePatternWav (const juce::File& file, int bars, juc
     return writeWav24 (file, out, sr, numSamples, error, bpm, (double) juce::jmax (1, bars) * 4.0);
 }
 
-bool SampleLabProcessor::writeWav24 (const juce::File& file, const juce::AudioBuffer<float>& audio, double sr, int numSamples, juce::String& error,
+bool NinaProcessor::writeWav24 (const juce::File& file, const juce::AudioBuffer<float>& audio, double sr, int numSamples, juce::String& error,
                                     double bpm, double beats)
 {
     file.deleteFile();
@@ -1102,7 +1102,7 @@ bool SampleLabProcessor::writeWav24 (const juce::File& file, const juce::AudioBu
 // Un file WAV per ogni riga del pattern (le "tracce" separate), con gli effetti della sua cella (filtro, saturazione, send,
 // delay sincronizzato al tempo, riverbero e relative code) ma senza gli effetti master. Tutti della stessa lunghezza,
 // per allinearli in Cubase.
-int SampleLabProcessor::exportPatternStems (const juce::File& folder, int bars, juce::String& error)
+int NinaProcessor::exportPatternStems (const juce::File& folder, int bars, juce::String& error)
 {
     if (! exportTempoKnown())
     {
@@ -1153,12 +1153,12 @@ int SampleLabProcessor::exportPatternStems (const juce::File& folder, int bars, 
     return written;
 }
 
-sl::SampleDataPtr SampleLabProcessor::getCellData (int cell) const
+sl::SampleDataPtr NinaProcessor::getCellData (int cell) const
 {
     return (cell >= 0 && cell < (int) cellData.size()) ? cellData[(size_t) cell] : nullptr;
 }
 
-bool SampleLabProcessor::loadSampleIntoCell (int cell, const juce::File& file, juce::String& error)
+bool NinaProcessor::loadSampleIntoCell (int cell, const juce::File& file, juce::String& error)
 {
     noteUserInput();
     if (cell < 0 || cell >= kit.numCells())
@@ -1197,7 +1197,7 @@ bool SampleLabProcessor::loadSampleIntoCell (int cell, const juce::File& file, j
     return true;
 }
 
-void SampleLabProcessor::clearCell (int cell)
+void NinaProcessor::clearCell (int cell)
 {
     if (cell < 0 || cell >= kit.numCells())
         return;
@@ -1220,7 +1220,7 @@ void SampleLabProcessor::clearCell (int cell)
     cellEdited (cell);
 }
 
-void SampleLabProcessor::resetKeyRange (int cell)
+void NinaProcessor::resetKeyRange (int cell)
 {
     if (cell < 0 || cell >= kit.numCells())
         return;
@@ -1229,7 +1229,7 @@ void SampleLabProcessor::resetKeyRange (int cell)
     cellEdited (cell);
 }
 
-float SampleLabProcessor::normalizeCell (int cell, float targetDb)
+float NinaProcessor::normalizeCell (int cell, float targetDb)
 {
     const auto data = getCellData (cell);
     if (data == nullptr || cell < 0 || cell >= sl::kNumCells)
@@ -1249,7 +1249,7 @@ float SampleLabProcessor::normalizeCell (int cell, float targetDb)
     return gain;
 }
 
-int SampleLabProcessor::normalizeAllCells (float targetDb)
+int NinaProcessor::normalizeAllCells (float targetDb)
 {
     int count = 0;
     for (int i = 0; i < kit.numCells(); ++i)
@@ -1298,7 +1298,7 @@ juce::uint64 hashPattern (const sl::Pattern& p)
 }
 }
 
-std::vector<juce::uint64> SampleLabProcessor::patternHashes() const
+std::vector<juce::uint64> NinaProcessor::patternHashes() const
 {
     std::vector<juce::uint64> out;
     out.reserve (kit.patterns.size());
@@ -1307,14 +1307,14 @@ std::vector<juce::uint64> SampleLabProcessor::patternHashes() const
     return out;
 }
 
-const std::vector<juce::RangedAudioParameter*>& SampleLabProcessor::undoParams() const
+const std::vector<juce::RangedAudioParameter*>& NinaProcessor::undoParams() const
 {
     if (undoParamList.empty())
         undoParamList = params.all();
     return undoParamList;
 }
 
-juce::uint64 SampleLabProcessor::hashUndoState() const
+juce::uint64 NinaProcessor::hashUndoState() const
 {
     juce::uint64 h = 1469598103934665603ULL;
     for (size_t i = 0; i < kit.cells.size(); ++i)
@@ -1343,7 +1343,7 @@ juce::uint64 SampleLabProcessor::hashUndoState() const
     return h;
 }
 
-SampleLabProcessor::UndoSnap SampleLabProcessor::captureUndo() const
+NinaProcessor::UndoSnap NinaProcessor::captureUndo() const
 {
     UndoSnap s;
     s.cells = kit.cells;
@@ -1368,7 +1368,7 @@ SampleLabProcessor::UndoSnap SampleLabProcessor::captureUndo() const
     return s;
 }
 
-void SampleLabProcessor::applyUndo (const UndoSnap& s)
+void NinaProcessor::applyUndo (const UndoSnap& s)
 {
     kit.cells = s.cells;
     cellData = s.data;
@@ -1402,7 +1402,7 @@ void SampleLabProcessor::applyUndo (const UndoSnap& s)
     publishKit (true);
 }
 
-void SampleLabProcessor::undoTick (bool mouseDown)
+void NinaProcessor::undoTick (bool mouseDown)
 {
     if (mouseDown)
         return;                                            // durante una trascinata non si registra nulla: la gesto e' una voce sola
@@ -1432,7 +1432,7 @@ void SampleLabProcessor::undoTick (bool mouseDown)
     undoBaselineAt = now;
 }
 
-bool SampleLabProcessor::undo()
+bool NinaProcessor::undo()
 {
     undoTick (false);                                      // registra subito eventuali modifiche appena fatte
     if (undoStack.empty())
@@ -1449,7 +1449,7 @@ bool SampleLabProcessor::undo()
     return true;
 }
 
-bool SampleLabProcessor::redo()
+bool NinaProcessor::redo()
 {
     if (redoStack.empty())
         return false;
@@ -1465,7 +1465,7 @@ bool SampleLabProcessor::redo()
     return true;
 }
 
-void SampleLabProcessor::resetUndo()
+void NinaProcessor::resetUndo()
 {
     undoStack.clear();
     redoStack.clear();
@@ -1473,13 +1473,13 @@ void SampleLabProcessor::resetUndo()
     undoBaselineValid = false;
 }
 
-void SampleLabProcessor::cellEdited (int)
+void NinaProcessor::cellEdited (int)
 {
     dirty = true;
     publishKit (false);
 }
 
-void SampleLabProcessor::loadKitSamples()
+void NinaProcessor::loadKitSamples()
 {
     cellData.assign (kit.cells.size(), nullptr);
     for (int i = 0; i < kit.numCells(); ++i)
@@ -1506,7 +1506,7 @@ void SampleLabProcessor::loadKitSamples()
     }
 }
 
-void SampleLabProcessor::newKit()
+void NinaProcessor::newKit()
 {
     kit = sl::Kit::makeDefault();
     cellData.assign (kit.cells.size(), nullptr);
@@ -1518,7 +1518,7 @@ void SampleLabProcessor::newKit()
     resetUndo();
 }
 
-bool SampleLabProcessor::openKit (const juce::File& file, juce::String& error)
+bool NinaProcessor::openKit (const juce::File& file, juce::String& error)
 {
     sl::Kit k;
     if (! sl::KitIO::load (file, k, error))
@@ -1536,7 +1536,7 @@ bool SampleLabProcessor::openKit (const juce::File& file, juce::String& error)
     return true;
 }
 
-bool SampleLabProcessor::saveKit (const juce::File& file, juce::String& error)
+bool NinaProcessor::saveKit (const juce::File& file, juce::String& error)
 {
     params.writeToKit (kit);        // i valori automatizzabili vivono nei parametri: si copiano nel kit prima di scrivere
     kit.midiMap = midiLearn.mappings();
@@ -1568,7 +1568,7 @@ bool SampleLabProcessor::saveKit (const juce::File& file, juce::String& error)
     return true;
 }
 
-bool SampleLabProcessor::openKitKeepSequences (const juce::File& file, juce::String& error)
+bool NinaProcessor::openKitKeepSequences (const juce::File& file, juce::String& error)
 {
     const auto pats = kit.patterns;
     const int active = kit.activePattern;
@@ -1584,7 +1584,7 @@ bool SampleLabProcessor::openKitKeepSequences (const juce::File& file, juce::Str
     return true;
 }
 
-bool SampleLabProcessor::kitFileHasSequences (const juce::File& file)
+bool NinaProcessor::kitFileHasSequences (const juce::File& file)
 {
     sl::Kit k;
     juce::String err;
@@ -1598,7 +1598,7 @@ bool SampleLabProcessor::kitFileHasSequences (const juce::File& file)
     return false;
 }
 
-bool SampleLabProcessor::saveSequencesFile (const juce::File& file, juce::String& error) const
+bool NinaProcessor::saveSequencesFile (const juce::File& file, juce::String& error) const
 {
     if (! file.replaceWithText (sl::KitIO::sequencesToJson (kit)))
     {
@@ -1609,7 +1609,7 @@ bool SampleLabProcessor::saveSequencesFile (const juce::File& file, juce::String
     return true;
 }
 
-bool SampleLabProcessor::loadSequencesFile (const juce::File& file, juce::String& error)
+bool NinaProcessor::loadSequencesFile (const juce::File& file, juce::String& error)
 {
     sl::Kit k = kit;
     if (! file.existsAsFile() || ! sl::KitIO::sequencesFromJson (file.loadFileAsString(), k, error))
@@ -1628,14 +1628,14 @@ bool SampleLabProcessor::loadSequencesFile (const juce::File& file, juce::String
 
 // ------------------------------------------------------- Kit recenti
 
-juce::PropertiesFile& SampleLabProcessor::getSettings() const
+juce::PropertiesFile& NinaProcessor::getSettings() const
 {
     if (appProps == nullptr)
     {
         juce::PropertiesFile::Options o;
-        o.applicationName = "SampleLab";
+        o.applicationName = "NINA";
         o.filenameSuffix = ".settings";
-        o.folderName = "SampleLab";
+        o.folderName = "NINA";
         o.osxLibrarySubFolder = "Application Support";
         o.commonToAllUsers = false;
         o.storageFormat = juce::PropertiesFile::storeAsXML;
@@ -1645,7 +1645,7 @@ juce::PropertiesFile& SampleLabProcessor::getSettings() const
     return *appProps->getUserSettings();
 }
 
-juce::StringArray SampleLabProcessor::getRecentKits() const
+juce::StringArray NinaProcessor::getRecentKits() const
 {
     juce::StringArray list;
     list.addTokens (getSettings().getValue ("recentKits"), "|", "");
@@ -1653,7 +1653,7 @@ juce::StringArray SampleLabProcessor::getRecentKits() const
     return list;
 }
 
-void SampleLabProcessor::addRecentKit (const juce::File& file)
+void NinaProcessor::addRecentKit (const juce::File& file)
 {
     auto list = getRecentKits();
     list.removeString (file.getFullPathName());
@@ -1665,7 +1665,7 @@ void SampleLabProcessor::addRecentKit (const juce::File& file)
     getSettings().saveIfNeeded();
 }
 
-void SampleLabProcessor::removeRecentKit (const juce::String& path)
+void NinaProcessor::removeRecentKit (const juce::String& path)
 {
     auto list = getRecentKits();
     list.removeString (path);
@@ -1673,7 +1673,7 @@ void SampleLabProcessor::removeRecentKit (const juce::String& path)
     getSettings().saveIfNeeded();
 }
 
-void SampleLabProcessor::clearRecentKits()
+void NinaProcessor::clearRecentKits()
 {
     getSettings().setValue ("recentKits", "");
     getSettings().saveIfNeeded();
@@ -1681,11 +1681,11 @@ void SampleLabProcessor::clearRecentKits()
 
 // ------------------------------------------------------------- Stato DAW
 
-void SampleLabProcessor::getStateInformation (juce::MemoryBlock& destData)
+void NinaProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     params.writeToKit (kit);
     kit.midiMap = midiLearn.mappings();
-    juce::ValueTree state ("SampleLabState");
+    juce::ValueTree state ("NinaState");
     state.setProperty ("uiWidth", uiWidth, nullptr);
     state.setProperty ("uiHeight", uiHeight, nullptr);
     state.setProperty ("uiZoom", uiZoom, nullptr);
@@ -1706,7 +1706,7 @@ void SampleLabProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.writeToStream (stream);
 }
 
-void SampleLabProcessor::setStateInformation (const void* data, int sizeInBytes)
+void NinaProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     auto state = juce::ValueTree::readFromData (data, (size_t) sizeInBytes);
     if (! state.isValid())
@@ -1746,5 +1746,5 @@ void SampleLabProcessor::setStateInformation (const void* data, int sizeInBytes)
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new SampleLabProcessor();
+    return new NinaProcessor();
 }

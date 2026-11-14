@@ -11,7 +11,7 @@
 class ModulesBar final : public juce::Component, private juce::Timer
 {
 public:
-    explicit ModulesBar (SampleLabProcessor&);
+    explicit ModulesBar (NinaProcessor&);
 
     void setCell (int cell);
     void refresh();                    // ricollega le manopole ai parametri della cella selezionata
@@ -34,7 +34,7 @@ private:
     void timerCallback() override;
     void updateEnvelope();
 
-    SampleLabProcessor& processor;
+    NinaProcessor& processor;
     int cell = 0;
 
     std::vector<Param> params;

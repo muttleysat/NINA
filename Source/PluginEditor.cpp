@@ -7,7 +7,7 @@ namespace
 // Diario minimo dell'interfaccia (dimensioni, scala, apertura nella DAW): serve a capire problemi di layout all'apertura.
 void uiLog (const juce::String& text)
 {
-    auto f = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory).getChildFile ("SampleLab").getChildFile ("ui.log");
+    auto f = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory).getChildFile ("NINA").getChildFile ("ui.log");
     f.getParentDirectory().createDirectory();
     if (f.getSize() > 100000)
         f.deleteFile();
@@ -23,7 +23,7 @@ void relayoutAll (juce::Component& c)
 }
 }
 
-SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
+NinaEditor::NinaEditor (NinaProcessor& p)
     : AudioProcessorEditor (&p), processor (p), grid (p), waveStrip (p), cellPanel (p), modules (p), fxPanel (p), seqPanel (p), slicePanel (p), songPanel (p), mixerPanel (p)
 {
     juce::LookAndFeel::setDefaultLookAndFeel (&lnf);
@@ -134,26 +134,26 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
                + " -> " + juce::String (w) + "x" + juce::String (h));
         setSize (w, h);
     }
-    // Solo per prove: SAMPLELAB_TAB / SAMPLELAB_CELL aprono direttamente una scheda e selezionano una cella (schermate automatiche); SAMPLELAB_DETECT preme Detect
-    if (const auto tabEnv = juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_TAB", {}); tabEnv.isNotEmpty())
+    // Solo per prove: NINA_TAB / NINA_CELL aprono direttamente una scheda e selezionano una cella (schermate automatiche); NINA_DETECT preme Detect
+    if (const auto tabEnv = juce::SystemStats::getEnvironmentVariable ("NINA_TAB", {}); tabEnv.isNotEmpty())
     {
-        if (const auto cellEnv = juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_CELL", {}); cellEnv.isNotEmpty())
+        if (const auto cellEnv = juce::SystemStats::getEnvironmentVariable ("NINA_CELL", {}); cellEnv.isNotEmpty())
             grid.setSelected (cellEnv.getIntValue());
         showTab (tabEnv.getIntValue());
-        if (const auto fileEnv = juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_SLICEFILE", {}); fileEnv.isNotEmpty())
+        if (const auto fileEnv = juce::SystemStats::getEnvironmentVariable ("NINA_SLICEFILE", {}); fileEnv.isNotEmpty())
             slicePanel.loadFile (juce::File (fileEnv));
-        if (const auto mk = juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_SLICEMARKER", {}); mk.isNotEmpty())
+        if (const auto mk = juce::SystemStats::getEnvironmentVariable ("NINA_SLICEMARKER", {}); mk.isNotEmpty())
             slicePanel.setMarker (mk.getFloatValue());
-        if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_DETECTBPM", {}).isNotEmpty())
+        if (juce::SystemStats::getEnvironmentVariable ("NINA_DETECTBPM", {}).isNotEmpty())
             slicePanel.runDetectBpm();
-        if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_DETECT", {}).isNotEmpty())
+        if (juce::SystemStats::getEnvironmentVariable ("NINA_DETECT", {}).isNotEmpty())
             slicePanel.runDetect();
     }
     sizeButton.setButtonText ("Size " + juce::String (juce::roundToInt (processor.uiZoom * 100.0f)) + "%");
     refreshAll();
 
-    // Solo per prove: SAMPLELAB_UNDOTEST esegue una sequenza di modifiche con annulla/ripeti e scrive l'esito in ui.log
-    if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_UNDOTEST", {}).isNotEmpty())
+    // Solo per prove: NINA_UNDOTEST esegue una sequenza di modifiche con annulla/ripeti e scrive l'esito in ui.log
+    if (juce::SystemStats::getEnvironmentVariable ("NINA_UNDOTEST", {}).isNotEmpty())
     {
         juce::RangedAudioParameter* lvl = processor.getParams().cell (0).at (sl::CellF::Level);
         auto& c0 = processor.getKit().cells[0];
@@ -204,8 +204,8 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
                + " pattern: on=" + juce::String ((int) p1) + " undone=" + juce::String ((int) p2) + " redone=" + juce::String ((int) p3));
     }
 
-    // Solo per prove: SAMPLELAB_SONGTEST costruisce una song di prova, la esporta (MIDI e WAV) e scrive i risultati in ui.log
-    if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_SONGTEST", {}).isNotEmpty())
+    // Solo per prove: NINA_SONGTEST costruisce una song di prova, la esporta (MIDI e WAV) e scrive i risultati in ui.log
+    if (juce::SystemStats::getEnvironmentVariable ("NINA_SONGTEST", {}).isNotEmpty())
     {
         auto& kit = processor.getKit();
         for (int pi = 0; pi < 2; ++pi)
@@ -219,7 +219,7 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
             kit.patterns[(size_t) pi].lanes.push_back (l);
         }
         kit.song.blocks = { { 0, 2 }, { 1, 1 } };               // 2 giri + 1 giro = 12 quarti (3 battute)
-        if (const auto mode = juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_SONGTEST", {}); mode.startsWith ("many"))
+        if (const auto mode = juce::SystemStats::getEnvironmentVariable ("NINA_SONGTEST", {}); mode.startsWith ("many"))
             for (int i = 0; i < (mode == "many60" ? 58 : 22); ++i)
                 kit.song.blocks.push_back ({ i % 2, 1 + i % 3 });
         processor.songEdited();
@@ -248,9 +248,9 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
                + " wav=" + juce::String ((int) okWav) + " wavBytes=" + juce::String (wav.getSize()) + " total=" + juce::String (processor.songTotalBeats(), 2)
                + " err=" + err);
         songPanel.refresh();
-        if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_SONGTEST", {}) == "play")
+        if (juce::SystemStats::getEnvironmentVariable ("NINA_SONGTEST", {}) == "play")
         {
-            if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_SONGSTART", {}).isNotEmpty())
+            if (juce::SystemStats::getEnvironmentVariable ("NINA_SONGSTART", {}).isNotEmpty())
                 processor.setSongStartBeats (4.0);
             processor.setSequencerRunning (true);
             juce::Timer::callAfterDelay (2500, [this] { uiLog ("SONGPLAY t=2.5s songMode=" + juce::String ((int) processor.isSongMode()) + " running=" + juce::String ((int) processor.isSequencerRunning())
@@ -261,8 +261,8 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
         }
     }
 
-    // Solo per prove: SAMPLELAB_COUNTIN avvia il Play con la registrazione accesa (conteggio iniziale di 1 battuta) e scrive la posizione in ui.log
-    if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_COUNTIN", {}).isNotEmpty())
+    // Solo per prove: NINA_COUNTIN avvia il Play con la registrazione accesa (conteggio iniziale di 1 battuta) e scrive la posizione in ui.log
+    if (juce::SystemStats::getEnvironmentVariable ("NINA_COUNTIN", {}).isNotEmpty())
     {
         processor.setCountInBars (1);
         processor.setMetronome (true);
@@ -272,8 +272,8 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
         juce::Timer::callAfterDelay (2500, [this] { uiLog ("COUNTIN t=2.5s ppq=" + juce::String (processor.getSequencerPpq(), 2)); });
     }
 
-    // Solo per prove: SAMPLELAB_CLICKOFF riporta metronomo e conteggio ai valori predefiniti (le prove li lasciano nelle impostazioni salvate)
-    if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_CLICKOFF", {}).isNotEmpty())
+    // Solo per prove: NINA_CLICKOFF riporta metronomo e conteggio ai valori predefiniti (le prove li lasciano nelle impostazioni salvate)
+    if (juce::SystemStats::getEnvironmentVariable ("NINA_CLICKOFF", {}).isNotEmpty())
     {
         juce::Timer::callAfterDelay (1500, [this]
         {
@@ -283,8 +283,8 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
         });
     }
 
-    // Solo per prove: SAMPLELAB_DUMPKIT scrive in ui.log un riassunto del kit caricato dalle impostazioni salvate
-    if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_DUMPKIT", {}).isNotEmpty())
+    // Solo per prove: NINA_DUMPKIT scrive in ui.log un riassunto del kit caricato dalle impostazioni salvate
+    if (juce::SystemStats::getEnvironmentVariable ("NINA_DUMPKIT", {}).isNotEmpty())
         juce::Timer::callAfterDelay (1500, [this]
         {
             const auto& k = processor.getKit();
@@ -300,8 +300,8 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
             uiLog (t);
         });
 
-    // Solo per prove: SAMPLELAB_BOUNCEDIAG scrive in ui.log i dati della song e la durata del WAV esportato a 126 BPM (non modifica il kit)
-    if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_BOUNCEDIAG", {}).isNotEmpty())
+    // Solo per prove: NINA_BOUNCEDIAG scrive in ui.log i dati della song e la durata del WAV esportato a 126 BPM (non modifica il kit)
+    if (juce::SystemStats::getEnvironmentVariable ("NINA_BOUNCEDIAG", {}).isNotEmpty())
         juce::Timer::callAfterDelay (2500, [this]
         {
             const auto& k = processor.getKit();
@@ -318,7 +318,7 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
                 if (k.cells[(size_t) i].hasSample() && k.cells[(size_t) i].tempoSync)
                     t << " " << i << "(loopBpm " << juce::String (k.cells[(size_t) i].loopBpm, 1) << ")";
             processor.setInternalBpmByUser (126.0);
-            processor.setExportRateSetting (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_BOUNCEDIAG", {}).getIntValue());
+            processor.setExportRateSetting (juce::SystemStats::getEnvironmentVariable ("NINA_BOUNCEDIAG", {}).getIntValue());
             juce::Timer::callAfterDelay (600, [this, t] () mutable {
             juce::String err;
             const auto wav = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("bouncediag.wav");
@@ -336,8 +336,8 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
             });
         });
 
-    // Solo per prove: SAMPLELAB_SAVETEST salva i soli suoni in una cartella temporanea e ne legge il contenuto (non modifica il kit in uso)
-    if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_SAVETEST", {}).isNotEmpty())
+    // Solo per prove: NINA_SAVETEST salva i soli suoni in una cartella temporanea e ne legge il contenuto (non modifica il kit in uso)
+    if (juce::SystemStats::getEnvironmentVariable ("NINA_SAVETEST", {}).isNotEmpty())
         juce::Timer::callAfterDelay (2500, [this]
         {
             const auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("savetest");
@@ -362,8 +362,8 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
             dir.deleteRecursively();
         });
 
-    // Solo per prove: SAMPLELAB_ABOUT apre la finestra Info all'avvio
-    if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_ABOUT", {}).isNotEmpty())
+    // Solo per prove: NINA_ABOUT apre la finestra Info all'avvio
+    if (juce::SystemStats::getEnvironmentVariable ("NINA_ABOUT", {}).isNotEmpty())
     {
         AboutPanel probe (1.0f);
         const auto img = probe.createComponentSnapshot (probe.getLocalBounds());
@@ -375,8 +375,8 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
         juce::MessageManager::callAsync ([this] { AboutPanel::show (theme::scaleFor (*this)); });
     }
 
-    // Solo per prove: SAMPLELAB_MIXERDEMO carica dei toni sintetici in alcune celle e li suona (per vedere i meter del mixer)
-    if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_MIXERDEMO", {}).isNotEmpty())
+    // Solo per prove: NINA_MIXERDEMO carica dei toni sintetici in alcune celle e li suona (per vedere i meter del mixer)
+    if (juce::SystemStats::getEnvironmentVariable ("NINA_MIXERDEMO", {}).isNotEmpty())
     {
         const auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("mixerdemo");
         dir.createDirectory();
@@ -415,14 +415,14 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     startTimerHz (10);
 }
 
-void SampleLabEditor::toggleTransport()
+void NinaEditor::toggleTransport()
 {
     if (processor.isHostPlaying())
         return;                                         // la DAW sta suonando: comanda il suo trasporto
     processor.setSequencerRunning (! processor.isSequencerRunning());
 }
 
-void SampleLabEditor::doUndoRedo (bool redo)
+void NinaEditor::doUndoRedo (bool redo)
 {
     processor.noteUserInput();
     processor.undoTick (false);
@@ -440,7 +440,7 @@ void SampleLabEditor::doUndoRedo (bool redo)
     }
 }
 
-bool SampleLabEditor::keyPressed (const juce::KeyPress& key)
+bool NinaEditor::keyPressed (const juce::KeyPress& key)
 {
     processor.noteUserInput();
 
@@ -526,13 +526,13 @@ bool SampleLabEditor::keyPressed (const juce::KeyPress& key)
 // Il nome del kit mostra l'asterisco anche quando un parametro cambia dall'automazione o dal MIDI
 // Il Play suona la song solo nella scheda Song; nelle altre suona il pattern. Il modo non cambia mentre si sta suonando
 // (cambiando scheda durante l'ascolto la riproduzione continua com'era e il modo si aggiorna allo stop).
-void SampleLabEditor::updatePlayMode()
+void NinaEditor::updatePlayMode()
 {
     if (! processor.isSequencerPlaying())
         processor.setSongMode (currentTab == 5);
 }
 
-void SampleLabEditor::timerCallback()
+void NinaEditor::timerCallback()
 {
     updatePlayMode();
 
@@ -575,7 +575,7 @@ void SampleLabEditor::timerCallback()
         bpmLabel.setText (juce::String (host && ov > 0.0 ? ov : processor.getCurrentBpm(), 1) + (host && ov > 0.0 ? " BPM *" : " BPM"), juce::dontSendNotification);
 }
 
-SampleLabEditor::~SampleLabEditor()
+NinaEditor::~NinaEditor()
 {
     juce::Desktop::getInstance().removeGlobalMouseListener (&inputWatcher);
     stopTimer();
@@ -585,7 +585,7 @@ SampleLabEditor::~SampleLabEditor()
 
 // ----------------------------------------------------------------- Dimensioni
 
-void SampleLabEditor::showSizeMenu()
+void NinaEditor::showSizeMenu()
 {
     // Fallback ridimensionamento a percentuali (UI-12b)
     juce::PopupMenu menu;
@@ -602,7 +602,7 @@ void SampleLabEditor::showSizeMenu()
                         });
 }
 
-void SampleLabEditor::applyScale (float zoom)
+void NinaEditor::applyScale (float zoom)
 {
     if (auto* display = juce::Desktop::getInstance().getDisplays().getDisplayForRect (getScreenBounds()))
     {
@@ -618,7 +618,7 @@ void SampleLabEditor::applyScale (float zoom)
 
 // ------------------------------------------------------------------------ Kit
 
-void SampleLabEditor::refreshTopBar()
+void NinaEditor::refreshTopBar()
 {
     const auto& kit = processor.getKit();
     kitLabel.setText (kit.name + (processor.isDirty() ? " *" : ""), juce::dontSendNotification);
@@ -639,7 +639,7 @@ void SampleLabEditor::refreshTopBar()
     nextKitButton.setEnabled (canStep);
 }
 
-void SampleLabEditor::refreshCellViews()
+void NinaEditor::refreshCellViews()
 {
     const int c = grid.getSelected();
     waveStrip.setCell (c);
@@ -657,7 +657,7 @@ void SampleLabEditor::refreshCellViews()
 
 // ------------------------------------------------------------------- Schede
 
-juce::Rectangle<int> SampleLabEditor::tabRect (int index) const
+juce::Rectangle<int> NinaEditor::tabRect (int index) const
 {
     const float s = theme::scaleFor (*this);
     auto r = tabBar.reduced ((int) (12 * s), (int) (5 * s));
@@ -666,7 +666,7 @@ juce::Rectangle<int> SampleLabEditor::tabRect (int index) const
     return { r.getX() + pos[juce::jlimit (0, 5, index)] * (tw + gap), r.getY(), tw, r.getHeight() };
 }
 
-void SampleLabEditor::showTab (int tab)
+void NinaEditor::showTab (int tab)
 {
     currentTab = tab;
     updatePlayMode();
@@ -699,7 +699,7 @@ void SampleLabEditor::showTab (int tab)
     repaint (tabBar);
 }
 
-void SampleLabEditor::mouseDown (const juce::MouseEvent& e)
+void NinaEditor::mouseDown (const juce::MouseEvent& e)
 {
     // Schede attive: Main (0), Seq (1), FX (3), Slice (4) e Song (5)
     for (int tab : { 0, 1, 2, 3, 4, 5 })
@@ -707,7 +707,7 @@ void SampleLabEditor::mouseDown (const juce::MouseEvent& e)
             showTab (tab);
 }
 
-void SampleLabEditor::refreshAll()
+void NinaEditor::refreshAll()
 {
     refreshTopBar();
     grid.setSelected (juce::jmin (grid.getSelected(), processor.getKit().numCells() - 1));
@@ -718,12 +718,12 @@ void SampleLabEditor::refreshAll()
     grid.repaint();
 }
 
-void SampleLabEditor::showError (const juce::String& message)
+void NinaEditor::showError (const juce::String& message)
 {
     juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, "NINA", message);
 }
 
-void SampleLabEditor::confirmDiscard (std::function<void()> proceed, bool alsoSequencesAndSong)
+void NinaEditor::confirmDiscard (std::function<void()> proceed, bool alsoSequencesAndSong)
 {
     const bool seqLoss = alsoSequencesAndSong && (processor.hasUnsavedSequences() || processor.hasUnsavedSong());
     if (! processor.isDirty() && ! seqLoss)
@@ -732,7 +732,7 @@ void SampleLabEditor::confirmDiscard (std::function<void()> proceed, bool alsoSe
         return;
     }
 
-    juce::Component::SafePointer<SampleLabEditor> safe (this);
+    juce::Component::SafePointer<NinaEditor> safe (this);
     juce::AlertWindow::showAsync (juce::MessageBoxOptions()
                                       .withIconType (juce::MessageBoxIconType::QuestionIcon)
                                       .withTitle ("Unsaved changes")
@@ -749,7 +749,7 @@ void SampleLabEditor::confirmDiscard (std::function<void()> proceed, bool alsoSe
                                   });
 }
 
-void SampleLabEditor::showKitMenu()
+void NinaEditor::showKitMenu()
 {
     juce::PopupMenu m;
     const bool undoTab = currentTab == 0 || currentTab == 1 || currentTab == 2 || currentTab == 3 || currentTab == 4 || currentTab == 5;
@@ -824,13 +824,13 @@ void SampleLabEditor::showKitMenu()
                      });
 }
 
-void SampleLabEditor::doNew()
+void NinaEditor::doNew()
 {
     processor.newKit();
     refreshAll();
 }
 
-void SampleLabEditor::doOpen()
+void NinaEditor::doOpen()
 {
     // Un solo comando "Open": riconosce il file dall'estensione (.slkit kit, .slseq sequenze, .slsong song)
     auto start = processor.getKit().file.existsAsFile() ? processor.getKit().file.getParentDirectory()
@@ -845,11 +845,11 @@ void SampleLabEditor::doOpen()
                           });
 }
 
-void SampleLabEditor::openAnyFile (const juce::File& f)
+void NinaEditor::openAnyFile (const juce::File& f)
 {
     if (f.hasFileExtension ("slseq"))
     {
-        juce::Component::SafePointer<SampleLabEditor> safe (this);
+        juce::Component::SafePointer<NinaEditor> safe (this);
         juce::AlertWindow::showAsync (juce::MessageBoxOptions()
                                           .withIconType (juce::MessageBoxIconType::QuestionIcon)
                                           .withTitle ("Open sequences")
@@ -877,14 +877,14 @@ void SampleLabEditor::openAnyFile (const juce::File& f)
             showError (err);
     }
     else
-        confirmDiscard ([this, f] { doOpenFile (f); }, SampleLabProcessor::kitFileHasSequences (f));   // un kit sostituisce quello corrente (e, se e' un vecchio progetto con sequenze, anche quelle)
+        confirmDiscard ([this, f] { doOpenFile (f); }, NinaProcessor::kitFileHasSequences (f));   // un kit sostituisce quello corrente (e, se e' un vecchio progetto con sequenze, anche quelle)
 }
 
-void SampleLabEditor::doOpenFile (const juce::File& f)
+void NinaEditor::doOpenFile (const juce::File& f)
 {
     juce::String err;
     // Un kit "dei soli suoni" (senza sequenze e song) non cancella le sequenze e la song che stai usando
-    const bool keepSequences = ! SampleLabProcessor::kitFileHasSequences (f);
+    const bool keepSequences = ! NinaProcessor::kitFileHasSequences (f);
     if (! (keepSequences ? processor.openKitKeepSequences (f, err) : processor.openKit (f, err)))
     {
         showError (err);
@@ -899,7 +899,7 @@ void SampleLabEditor::doOpenFile (const juce::File& f)
         showError (juce::String (missing) + " sample(s) could not be found next to the kit (marked MISSING in the grid).");
 }
 
-void SampleLabEditor::doOpenAdjacent (int direction)
+void NinaEditor::doOpenAdjacent (int direction)
 {
     // Kit precedente/successivo nella stessa cartella del kit corrente
     const auto& kit = processor.getKit();
@@ -915,7 +915,7 @@ void SampleLabEditor::doOpenAdjacent (int direction)
     doOpenFile (files[(idx + direction + files.size()) % files.size()]);
 }
 
-void SampleLabEditor::doSave()
+void NinaEditor::doSave()
 {
     const auto& kit = processor.getKit();
     if (! kit.file.getFullPathName().isNotEmpty())
@@ -930,7 +930,7 @@ void SampleLabEditor::doSave()
     refreshAll();
 }
 
-void SampleLabEditor::doSaveAs()
+void NinaEditor::doSaveAs()
 {
     const auto& kit = processor.getKit();
     auto start = kit.file.getFullPathName().isNotEmpty()
@@ -957,7 +957,7 @@ void SampleLabEditor::doSaveAs()
 
 // ---------------------------------------------------------------------- Celle
 
-void SampleLabEditor::loadIntoCell (int cell, const juce::File& file)
+void NinaEditor::loadIntoCell (int cell, const juce::File& file)
 {
     juce::String err;
     if (! processor.loadSampleIntoCell (cell, file, err))
@@ -971,7 +971,7 @@ void SampleLabEditor::loadIntoCell (int cell, const juce::File& file)
     refreshTopBar();
 }
 
-void SampleLabEditor::requestLoadDialog (int cell)
+void NinaEditor::requestLoadDialog (int cell)
 {
     chooser = std::make_unique<juce::FileChooser> ("Load sample", juce::File::getSpecialLocation (juce::File::userMusicDirectory),
                                                    "*.wav;*.aif;*.aiff;*.flac;*.ogg;*.mp3");
@@ -986,7 +986,7 @@ void SampleLabEditor::requestLoadDialog (int cell)
 
 // --------------------------------------------------------------------- Layout
 
-void SampleLabEditor::paint (juce::Graphics& g)
+void NinaEditor::paint (juce::Graphics& g)
 {
     g.fillAll (theme::background);
 
@@ -1055,7 +1055,7 @@ void SampleLabEditor::paint (juce::Graphics& g)
     }
 }
 
-void SampleLabEditor::parentHierarchyChanged()
+void NinaEditor::parentHierarchyChanged()
 {
     // L'editor e' stato agganciato (o spostato) nella finestra della DAW: si rifa il layout subito e di nuovo tra poco,
     // quando la DAW ha finito di assegnare dimensione e scala
@@ -1067,7 +1067,7 @@ void SampleLabEditor::parentHierarchyChanged()
                                                         ? juce::Desktop::getInstance().getDisplays().getPrimaryDisplay()->scale : 0.0, 2));
 }
 
-void SampleLabEditor::resized()
+void NinaEditor::resized()
 {
     processor.uiWidth  = getWidth();
     processor.uiHeight = getHeight();

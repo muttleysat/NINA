@@ -13,13 +13,13 @@
 #include "ui/MixerPanel.h"
 #include "ui/SampleBrowser.h"
 
-class SampleLabEditor final : public juce::AudioProcessorEditor,
+class NinaEditor final : public juce::AudioProcessorEditor,
                               public juce::DragAndDropContainer,
                               private juce::Timer
 {
 public:
-    explicit SampleLabEditor (SampleLabProcessor&);
-    ~SampleLabEditor() override;
+    explicit NinaEditor (NinaProcessor&);
+    ~NinaEditor() override;
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -56,18 +56,18 @@ private:
     void loadIntoCell (int cell, const juce::File& file);
     void requestLoadDialog (int cell);
 
-    SampleLabLookAndFeel lnf;
-    SampleLabProcessor& processor;
+    NinaLookAndFeel lnf;
+    NinaProcessor& processor;
 
     // Ogni evento del mouse nell'applicazione segnala un'azione dell'utente alla cronologia di annullamento
     struct InputWatcher final : public juce::MouseListener
     {
-        explicit InputWatcher (SampleLabProcessor& p) : proc (p) {}
+        explicit InputWatcher (NinaProcessor& p) : proc (p) {}
         void mouseDown (const juce::MouseEvent&) override { proc.noteUserInput(); }
         void mouseUp (const juce::MouseEvent&) override { proc.noteUserInput(); }
         void mouseDrag (const juce::MouseEvent&) override { proc.noteUserInput(); }
         void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override { proc.noteUserInput(); }
-        SampleLabProcessor& proc;
+        NinaProcessor& proc;
     };
     InputWatcher inputWatcher { processor };
 
@@ -99,5 +99,5 @@ private:
     static constexpr int baseWidth = 1280;
     static constexpr int baseHeight = 760;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SampleLabEditor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NinaEditor)
 };

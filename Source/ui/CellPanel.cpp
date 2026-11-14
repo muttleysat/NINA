@@ -1,6 +1,6 @@
 #include "CellPanel.h"
 
-CellPanel::CellPanel (SampleLabProcessor& p) : processor (p)
+CellPanel::CellPanel (NinaProcessor& p) : processor (p)
 {
     prevButton.onClick = [this] { if (onStep) onStep (-1); };
     nextButton.onClick = [this] { if (onStep) onStep (+1); };

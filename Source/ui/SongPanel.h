@@ -11,7 +11,7 @@
 class SongPanel final : public juce::Component, private juce::Timer
 {
 public:
-    explicit SongPanel (SampleLabProcessor&);
+    explicit SongPanel (NinaProcessor&);
     ~SongPanel() override;
 
     void refresh();                    // ricostruisce i blocchi dalla song del kit (apertura kit, undo, cambio di nomi dei pattern)
@@ -46,7 +46,7 @@ private:
     void showMessage (const juce::String& text);
     juce::String lengthText() const;
 
-    SampleLabProcessor& processor;
+    NinaProcessor& processor;
 
     juce::TextButton loopButton { "Loop" };
     IconButton addButton { "+ Block", IconButton::Icon::None }, moreButton { {}, IconButton::Icon::More },

@@ -11,7 +11,7 @@
 class MixerPanel final : public juce::Component, private juce::Timer
 {
 public:
-    explicit MixerPanel (SampleLabProcessor&);
+    explicit MixerPanel (NinaProcessor&);
     ~MixerPanel() override;
 
     void refresh();                              // ricostruisce i canali (apertura kit, campioni caricati o tolti)
@@ -32,7 +32,7 @@ private:
     void clearMutes();
     void clearSolos();
 
-    SampleLabProcessor& processor;
+    NinaProcessor& processor;
     juce::ToggleButton allCellsToggle { "All cells" };
     juce::TextButton resetMuteButton { "Reset mutes" }, resetSoloButton { "Reset solos" };
 

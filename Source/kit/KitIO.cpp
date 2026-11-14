@@ -401,7 +401,7 @@ bool fromJson (const juce::String& text, const juce::File& baseDir, Kit& kit, ju
     const int version = getI (root, "schemaVersion", 1);
     if (version > Kit::kSchemaVersion)
     {
-        error = "Il kit e' stato creato con una versione piu' recente di Sample Lab";
+        error = "Il kit e' stato creato con una versione piu' recente di NINA";
         return false;
     }
 

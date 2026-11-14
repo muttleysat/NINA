@@ -225,7 +225,7 @@ void SongPanel::BlockCard::mouseDown (const juce::MouseEvent&)
 
 // ------------------------------------------------------------------------ Scheda
 
-SongPanel::SongPanel (SampleLabProcessor& p) : processor (p)
+SongPanel::SongPanel (NinaProcessor& p) : processor (p)
 {
     strip = std::make_unique<Strip> (*this);
     viewport.setViewedComponent (strip.get(), false);
@@ -259,7 +259,7 @@ SongPanel::SongPanel (SampleLabProcessor& p) : processor (p)
     tailBox.addItem ("Tail: keep", 3);
     tailBox.setSelectedId (juce::jlimit (0, 2, (int) processor.getExportTail()) + 1, juce::dontSendNotification);
     tailBox.setTooltip ("What to do with delay/reverb tails in audio exports (same setting as in the Seq tab)");
-    tailBox.onChange = [this] { processor.setExportTail ((SampleLabProcessor::ExportTail) (tailBox.getSelectedId() - 1)); };
+    tailBox.onChange = [this] { processor.setExportTail ((NinaProcessor::ExportTail) (tailBox.getSelectedId() - 1)); };
     addAndMakeVisible (tailBox);
 
     rateBox.addItem ("Auto", 1);
@@ -374,7 +374,7 @@ void SongPanel::timerCallback()
 {
     if (++rateTick % 30 == 0)
     {
-        const auto autoText = "Auto " + SampleLabProcessor::rateText (processor.getHostSampleRate());
+        const auto autoText = "Auto " + NinaProcessor::rateText (processor.getHostSampleRate());
         if (rateBox.getItemText (0) != autoText)                                               // la frequenza della DAW e' cambiata: si rifa l'elenco
         {
             const int sel = juce::jmax (1, rateBox.getSelectedId());
@@ -529,7 +529,7 @@ void SongPanel::showMessage (const juce::String& text)
 
 juce::File SongPanel::dragFolder() const
 {
-    return juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("SampleLab_drag");
+    return juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("NINA_drag");
 }
 
 juce::String SongPanel::baseName() const
