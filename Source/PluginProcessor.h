@@ -160,6 +160,13 @@ public:
     // Chop (scheda Slice): con la cattura accesa le note MIDI in ingresso non suonano le celle ma vengono solo registrate
     // (istante di ogni nota, in ms del contatore ad alta risoluzione) per mettere i marcatori mentre il loop suona.
     void setChopCapture (bool on) { chopCapture.store (on, std::memory_order_relaxed); }
+    // Registrazione da tastiera nel sequencer: con il sequencer in riproduzione, le note MIDI in ingresso vengono annotate con la
+    // loro posizione musicale (quarti) e l'interfaccia le scrive negli step
+    struct RecNote { double ppq = 0.0; int note = 0; int velocity = 100; };
+    void setSeqRecord (bool on) { if (on) recTail = recHead.load (std::memory_order_acquire); seqRecord.store (on); }
+    bool isSeqRecording() const { return seqRecord.load(); }
+    int drainRecorded (RecNote* out, int maxCount);
+
     uint32_t chopNoteCount() const { return chopHead.load (std::memory_order_acquire); }
     double chopNoteTime (uint32_t index) const { return chopTimes[index % chopTimes.size()].load (std::memory_order_relaxed); }
     int getCellActivity (int cell) const { return engine.getCellActivity (cell); }
@@ -278,6 +285,10 @@ private:
     std::vector<UndoSnap> undoStack, redoStack;
     mutable std::vector<juce::RangedAudioParameter*> undoParamList;
 
+    std::atomic<bool> seqRecord { false };
+    std::array<RecNote, 256> recRing {};
+    std::atomic<uint32_t> recHead { 0 };
+    uint32_t recTail = 0;                                   // solo thread UI
     std::atomic<bool> chopCapture { false };
     std::array<std::atomic<double>, 32> chopTimes {};
     std::atomic<uint32_t> chopHead { 0 };

@@ -50,6 +50,9 @@ private:
     void clearKnobLock (FxCard&, size_t knob);
     void showAddMenu();
     void addAllLoadedCells();
+    void showQuantizeMenu();           // quantizza il pattern o la riga, intensita' della registrazione
+    void quantizePattern (bool onlySelectedLane, float strength);
+    void captureRecorded();            // scrive negli step le note registrate dal thread audio
     void showPatternMenu();            // duplica / copia / incolla / svuota / rinomina il pattern
     void relayoutLanes();              // ricalcola colonne e larghezze (cambio lunghezza righe, ridimensionamento)
     void exportMidi();
@@ -69,6 +72,10 @@ private:
                midiButton { "Export MIDI", IconButton::Icon::Midi }, wavButton { "Bounce WAV", IconButton::Icon::Wave },
                stemsButton { "Export Lanes", IconButton::Icon::Layers }, reseedButton { "Reset Seed", IconButton::Icon::Reset };
     juce::ComboBox patternBox, barsBox, tailBox, hostModeBox;
+    juce::TextButton recButton { "Rec" };
+    IconButton quantButton { "Quantize", IconButton::Icon::Grid };
+    int recSnap = 100;                 // % di quantizzazione delle note registrate (100 = sulla griglia, 0 = micro-timing libero)
+    juce::Rectangle<int> recRect;
     juce::Slider swingSlider;
     int lastViewX = 0;                 // scroll orizzontale corrente (l'intestazione delle righe resta ferma)
 

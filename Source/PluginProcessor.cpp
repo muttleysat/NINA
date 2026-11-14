@@ -237,7 +237,33 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
                 engine.outputMap[(size_t) k] = -1;
         }
     }
+    // Registrazione: ogni note-on con la sua posizione musicale (il trasporto deve girare)
+    if (playing && seqRecord.load (std::memory_order_relaxed) && ! midi.isEmpty() && bpm > 0.0 && currentSampleRate > 0.0)
+    {
+        const double perSample = bpm / (60.0 * currentSampleRate);
+        for (const auto meta : midi)
+        {
+            const auto m = meta.getMessage();
+            if (! m.isNoteOn())
+                continue;
+            const auto head = recHead.load (std::memory_order_relaxed);
+            recRing[head % recRing.size()] = RecNote { ppq0 + (double) meta.samplePosition * perSample, m.getNoteNumber(), (int) m.getVelocity() };
+            recHead.store (head + 1, std::memory_order_release);
+        }
+    }
+
     engine.process (buffer, midi, &seqRunner.getEvents());
+}
+
+int SampleLabProcessor::drainRecorded (RecNote* out, int maxCount)
+{
+    const auto head = recHead.load (std::memory_order_acquire);
+    if (head - recTail > (uint32_t) recRing.size())
+        recTail = head - (uint32_t) recRing.size();
+    int n = 0;
+    while (recTail != head && n < maxCount)
+        out[n++] = recRing[recTail++ % recRing.size()];
+    return n;
 }
 
 juce::AudioProcessorEditor* SampleLabProcessor::createEditor()

@@ -3,6 +3,7 @@
 #include "engine/FxParams.h"
 #include <juce_core/juce_core.h>
 #include <algorithm>
+#include <cmath>
 #include <array>
 #include <cstdint>
 #include <vector>
@@ -51,6 +52,41 @@ struct Lane
     bool dry = false;                  // true: la riga suona senza gli effetti della cella (gli step possono riaccenderli con i lock)
     std::array<Step, kMaxSteps> steps;
 };
+
+// Scrive un colpo suonato al tempo 'ppq' (in quarti dall'inizio) nella lane: lo step piu' vicino della griglia della lane
+// (la lane si ripete ogni 'length' step). 'keep' = quanta parte dello scarto dalla griglia resta come nudge:
+// 0 = quantizzazione piena (nudge 0), 1 = nessuna quantizzazione (il colpo conserva il suo micro-timing).
+// Ritorna l'indice dello step scritto.
+inline int recordHit (Lane& lane, double ppq, int velocity, int pitch, float keep)
+{
+    const double stepBeats = (double) kDivisionBeats[std::clamp (lane.division, 0, kNumDivisions - 1)];
+    const int len = std::clamp (lane.length, 1, kMaxSteps);
+    const double x = ppq / stepBeats;
+    const long long k = (long long) std::floor (x + 0.5);
+    const int idx = (int) (((k % len) + len) % len);
+
+    Step& st = lane.steps[(size_t) idx];
+    st.on = true;
+    st.velocity = (std::uint8_t) std::clamp (velocity, 1, 127);
+    st.pitch = (std::int8_t) std::clamp (pitch, -24, 24);
+    const float dev = (float) (x - (double) k) * std::clamp (keep, 0.0f, 1.0f);
+    st.nudge = std::abs (dev) < 0.002f ? 0.0f : std::clamp (dev, -0.5f, 0.5f);
+    return idx;
+}
+
+// Quantizza il micro-timing degli step accesi: l'intensita' (0..1) e' la parte dello scarto che viene eliminata.
+// Lo swing del pattern e' separato (non e' nel nudge), quindi resta com'e'.
+inline void quantizeLane (Lane& lane, float strength)
+{
+    const float keep = 1.0f - std::clamp (strength, 0.0f, 1.0f);
+    for (auto& st : lane.steps)
+        if (st.on)
+        {
+            st.nudge *= keep;
+            if (std::abs (st.nudge) < 0.002f)
+                st.nudge = 0.0f;
+        }
+}
 
 struct Pattern
 {

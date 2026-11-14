@@ -719,6 +719,29 @@ public:
             expectWithinAbsoluteError (sixteenths[0], 0.75, 1e-9);
         }
 
+        beginTest ("Sequencer: recording snaps hits to the lane grid; quantize removes the nudge");
+        {
+            sl::Lane lane;                                          // 1/16, 16 step: uno step = 0.25 quarti
+            const int i1 = sl::recordHit (lane, 1.02, 90, 0, 0.0f);          // vicino allo step 4 (1.0): quantizzato
+            expectEquals (i1, 4);
+            expect (lane.steps[4].on);
+            expectEquals ((int) lane.steps[4].velocity, 90);
+            expectWithinAbsoluteError (lane.steps[4].nudge, 0.0f, 1e-6f);
+
+            const int i2 = sl::recordHit (lane, 1.30, 100, 3, 1.0f);         // 1.30 = step 5 (1.25) + 0.2 step: resta il micro-timing
+            expectEquals (i2, 5);
+            expectWithinAbsoluteError (lane.steps[5].nudge, 0.2f, 1e-4f);
+            expectEquals ((int) lane.steps[5].pitch, 3);
+
+            const int i3 = sl::recordHit (lane, 4.0 + 0.5, 100, 0, 0.0f);    // oltre il ciclo (16 step = 4 quarti): rientra a 0.5 = step 2
+            expectEquals (i3, 2);
+
+            sl::quantizeLane (lane, 0.5f);
+            expectWithinAbsoluteError (lane.steps[5].nudge, 0.1f, 1e-4f);
+            sl::quantizeLane (lane, 1.0f);
+            expectWithinAbsoluteError (lane.steps[5].nudge, 0.0f, 1e-6f);
+        }
+
         beginTest ("Sequencer: every note-on has a note-off after the gate length");
         {
             auto p = makePattern (4, 4, { 0 });

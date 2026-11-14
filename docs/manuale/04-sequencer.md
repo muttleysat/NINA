@@ -129,6 +129,24 @@ Per copiare in un pattern preciso: **Copy** sul pattern sorgente, passa a quello
 - **Reset Seed**: cambia il "seme" casuale (probabilità e ratchet cambiano ma restano ripetibili).
 - **Export 1/2/4/8 bars** e **Tail**: lunghezza e coda delle esportazioni (capitolo 7); non cambiano la riproduzione.
 
+## Registrare da tastiera e quantizzare
+
+Nella seconda riga della scheda, accanto alle maniglie per la DAW, ci sono **Rec** e **Quantize**.
+
+**Rec** (registrazione).
+1. Accendi **Rec** e fai partire il sequencer (**Play**).
+2. Suona la tastiera MIDI: ogni nota **accende lo step** più vicino della riga della cella che quella nota suona, con la **velocity** con cui l'hai premuta. Se la cella non ha ancora una riga, viene aggiunta.
+3. Se la cella copre più tasti (campione melodico), si registra anche l'**intonazione** (Pitch dello step = nota suonata − Root note).
+4. La registrazione **sovrascrive** velocity, intonazione e posizione dello step su cui cade; gli altri parametri dello step (probabilità, ratchet, lock...) restano.
+5. Le note che suoni continuano a suonare normalmente mentre registri. Con la DAW in registrazione (plugin) e la modalità "silent while recording" il sequencer sta zitto e Rec non scrive nulla.
+
+Una nota che cade tra due step va a quello più vicino. Quanto del tuo "feeling" resta lo decide **Quantize → Recording: snap to the grid**: **100%** (predefinito) mette la nota esattamente sulla griglia, **75 / 50 / 25%** ne conservano una parte come **Nudge**, **Free** conserva tutto il micro-timing. La registrazione non compensa la latenza della scheda audio.
+
+**Quantize** (menu).
+- **Quantize all lanes** o **Quantize the selected lane** con intensità 100 / 75 / 50 / 25%: riporta verso la griglia gli step che hanno un **Nudge** (per esempio quelli registrati con snap parziale). 100% azzera il Nudge.
+- Lo **swing** del pattern non viene toccato: resta com'è.
+- Lo spostamento tra risoluzioni diverse non è una quantizzazione: per cambiare la divisione di una riga si usa la sua risoluzione (vedi sopra).
+
 ## Cose da sapere
 
 - Il sequencer **non ha ancora** quantizzazione, registrazione da tastiera o annullamento (undo). Copia e incolla valgono per l'intero pattern, non per singoli step o righe.

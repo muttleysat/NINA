@@ -735,6 +735,14 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     for (juce::Button* b : std::initializer_list<juce::Button*> { &addButton, &addAllButton, &patternMenuButton, &midiButton, &wavButton,
                                                                   &stemsButton, &reseedButton, &prevPattern, &nextPattern })
         addAndMakeVisible (*b);
+    addAndMakeVisible (recButton);
+    addAndMakeVisible (quantButton);
+    recButton.setClickingTogglesState (true);
+    recButton.setTooltip ("Record: while the sequencer plays, the notes you play on the MIDI keyboard are written into the steps "
+                          "(the lane is added if the cell has none). Notes that fall between two steps go to the nearest one.");
+    recButton.onClick = [this] { processor.setSeqRecord (recButton.getToggleState()); };
+    quantButton.setTooltip ("Quantize the steps' micro-timing (nudge) to the grid, and choose how strictly recorded notes snap to it");
+    quantButton.onClick = [this] { showQuantizeMenu(); };
     addAllButton.setTooltip ("Add every cell that has a sample to the sequencer");
     addAllButton.onClick = [this] { addAllLoadedCells(); };
     patternMenuButton.setTooltip ("Pattern actions: duplicate, copy, paste, clear, rename");
@@ -1271,6 +1279,92 @@ void SeqPanel::addAllLoadedCells()
     refresh();
 }
 
+void SeqPanel::captureRecorded()
+{
+    sl::Pattern& p = pat();
+    if (! processor.isSeqRecording())
+        processor.setSeqRecord (true);
+
+    SampleLabProcessor::RecNote notes[64];
+    const int n = processor.drainRecorded (notes, 64);
+    if (n == 0)
+        return;
+
+    const auto& kit = processor.getKit();
+    const float keep = 1.0f - (float) recSnap / 100.0f;
+    bool added = false, changed = false;
+
+    for (int i = 0; i < n; ++i)
+    {
+        const int note = notes[i].note;
+        for (int c = 0; c < kit.numCells(); ++c)
+        {
+            const auto& cp = kit.cells[(size_t) c];
+            if (note < juce::jmin (cp.lowNote, cp.highNote) || note > juce::jmax (cp.lowNote, cp.highNote) || processor.getCellData (c) == nullptr)
+                continue;
+
+            auto* lane = p.findLane (c);
+            if (lane == nullptr)
+            {
+                if (! processor.addLaneForCell (c))
+                    continue;
+                lane = p.findLane (c);
+                added = true;
+            }
+            if (lane == nullptr)
+                continue;
+
+            const int pitch = cp.lowNote != cp.highNote ? note - cp.rootNote : 0;         // cella melodica: si registra anche l'intonazione
+            sl::recordHit (*lane, notes[i].ppq, notes[i].velocity, pitch, keep);
+            changed = true;
+        }
+    }
+
+    if (added)
+        refresh();
+    if (changed)
+        edited();
+}
+
+void SeqPanel::quantizePattern (bool onlySelectedLane, float strength)
+{
+    auto& p = pat();
+    for (int i = 0; i < (int) p.lanes.size(); ++i)
+        if (! onlySelectedLane || i == selLane)
+            sl::quantizeLane (p.lanes[(size_t) i], strength);
+    edited();
+    refreshEditor();
+}
+
+void SeqPanel::showQuantizeMenu()
+{
+    const bool hasLane = selLane >= 0 && selLane < (int) pat().lanes.size();
+    juce::PopupMenu m;
+    m.addSectionHeader ("Quantize all lanes (clears nudge)");
+    for (int i = 0; i < 4; ++i)
+        m.addItem (1 + i, juce::String (100 - 25 * i) + "%");
+    m.addSectionHeader ("Quantize the selected lane");
+    for (int i = 0; i < 4; ++i)
+        m.addItem (11 + i, juce::String (100 - 25 * i) + "%", hasLane);
+    m.addSectionHeader ("Recording: snap to the grid");
+    const int snaps[] = { 100, 75, 50, 25, 0 };
+    for (int i = 0; i < 5; ++i)
+        m.addItem (21 + i, snaps[i] == 0 ? juce::String ("Free (keeps the micro-timing)") : juce::String (snaps[i]) + "%", true, recSnap == snaps[i]);
+
+    juce::Component::SafePointer<SeqPanel> safe (this);
+    m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (quantButton), [safe, snaps] (int r)
+    {
+        if (safe == nullptr || r == 0)
+            return;
+        if (r >= 1 && r <= 4)
+            safe->quantizePattern (false, (100 - 25 * (r - 1)) / 100.0f);
+        else if (r >= 11 && r <= 14)
+            safe->quantizePattern (true, (100 - 25 * (r - 11)) / 100.0f);
+        else if (r >= 21 && r <= 25)
+            safe->recSnap = snaps[r - 21];
+    });
+}
+
 void SeqPanel::showPatternMenu()
 {
     const int cur = processor.getActivePatternIndex();
@@ -1485,6 +1579,8 @@ void SeqPanel::exportStems()
 
 void SeqPanel::timerCallback()
 {
+    if (recButton.getToggleState())
+        captureRecorded();
     lanes->updateAll();
     if (viewport.getViewPositionX() != lastViewX)
     {
@@ -1682,6 +1778,12 @@ void SeqPanel::resized()
         dragAudio->setBounds (d.removeFromLeft (w));
         d.removeFromLeft (gGap);
         dragLanes->setBounds (d.removeFromLeft (w));
+        d.removeFromLeft (gGap);
+        separatorsX.push_back ({ d.getX() + gGap / 2, 1 });
+        d.removeFromLeft (gGap * 2);
+        recButton.setBounds (d.removeFromLeft ((int) (70 * s)));
+        d.removeFromLeft (gGap);
+        quantButton.setBounds (d.removeFromLeft ((int) (128 * s)));
     }
 
     // Righello dei beat sopra le righe (il testo e' disegnato in paint)
