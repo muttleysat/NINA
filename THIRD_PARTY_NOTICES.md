@@ -31,14 +31,17 @@ their own licences and copyrights.
 - **VST is a trademark of Steinberg Media Technologies GmbH, registered in Europe and
   other countries.**
 
-## Steinberg ASIO SDK (Windows standalone only)
+## Steinberg ASIO SDK 2.3.4 (Windows standalone only)
 
-- Website: <https://www.steinberg.net/developers/>
+- Website: <https://www.steinberg.net/asiosdk>
+- Copyright (c) 2025 Steinberg Media Technologies GmbH.
+- Licence used here: **GNU General Public License v3** (the SDK is dual-licensed with the
+  proprietary Steinberg ASIO licence).
 - **ASIO is a registered trademark and software of Steinberg Media Technologies GmbH.**
 - ASIO driver support is compiled into the Windows standalone only when the SDK is present
-  at build time. The SDK itself is not part of this repository; it is used under the
-  Steinberg ASIO SDK licence that comes with it. The "ASIO Compatible" logo is supplied by
-  Steinberg and is used as required by the Steinberg ASIO usage guidelines.
+  at build time. The SDK itself is not part of this repository (download it from the address
+  above). The "ASIO Compatible" logo is supplied by Steinberg, is used unaltered and as required
+  by the Steinberg ASIO usage guidelines.
 
 ## PayPal
 

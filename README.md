@@ -25,7 +25,7 @@ NINA è software libero sotto licenza **GNU AGPL-3.0** (vedi il file [LICENSE](L
 
 
 
-I driver ASIO richiedono l'SDK Steinberg, che non è nel repository (licenza). Per abilitarli:
+I driver ASIO richiedono l'SDK Steinberg (versione **2.3.4 o successiva**, in doppia licenza: contratto Steinberg oppure **GPL 3**, che è quella compatibile con NINA). L'SDK non è nel repository: si scarica a parte. Per abilitare ASIO:
 
 1. Scarica l'ASIO SDK da <https://www.steinberg.net/asiosdk>.
 2. Estrai il contenuto in `third_party/asiosdk/` (deve esistere `third_party/asiosdk/common/iasiodrv.h`).

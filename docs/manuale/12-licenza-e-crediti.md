@@ -20,7 +20,7 @@ NINA è costruito con componenti di terzi, ognuno con la sua licenza (elenco com
 | **JUCE** | Interfaccia, plugin e lettura/scrittura dei file audio | AGPL-3.0 |
 | **Rubber Band Library** | Stretch dei loop (Sync to tempo, Key lock, slice) | GPL 2 o successiva |
 | **Steinberg VST 3 SDK** | Il formato del plugin | GPL 3 |
-| **Steinberg ASIO SDK** | I driver audio ASIO dello standalone (solo Windows) | Licenza Steinberg ASIO |
+| **Steinberg ASIO SDK** 2.3.4 | I driver audio ASIO dello standalone (solo Windows) | GPL 3 (doppia licenza con quella proprietaria Steinberg) |
 
 ## Marchi
 
