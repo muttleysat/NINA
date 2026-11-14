@@ -148,18 +148,31 @@ end;
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
   ErrorCode: Integer;
+  Started: Boolean;
 begin
   Result := True;
   if (CurPageID = ScopePage.ID) and (ScopePage.SelectedValueIndex = 0) and not IsAdminInstallMode and not WizardSilent then
   begin
     // Rilancia lo stesso installer con i permessi di amministratore, nella stessa lingua, e chiude questo
-    if ShellExec('runas', ExpandConstant('{srcexe}'), '/ALLUSERS /LANG=' + ActiveLanguage, '', SW_SHOWNORMAL, ewNoWait, ErrorCode) then
+    Started := ShellExec('runas', ExpandConstant('{srcexe}'), '/ALLUSERS /LANG=' + ActiveLanguage, '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
+    if not Started then
+    begin
+      // Secondo tentativo tramite PowerShell (Start-Process -Verb RunAs)
+      Log('ShellExec runas failed, error ' + IntToStr(ErrorCode) + '; trying PowerShell');
+      Started := Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+        '-NoProfile -WindowStyle Hidden -Command "Start-Process -FilePath ''' + ExpandConstant('{srcexe}') + ''' -ArgumentList ''/ALLUSERS'',''/LANG=' + ActiveLanguage + ''' -Verb RunAs"',
+        '', SW_HIDE, ewWaitUntilTerminated, ErrorCode) and (ErrorCode = 0);
+    end;
+    if Started then
     begin
       CancelWithoutPrompt := True;
       WizardForm.Close;
     end
     else
-      MsgBox(CustomMessage('ScopeElevateFailed'), mbError, MB_OK);
+    begin
+      Log('Elevation failed, error ' + IntToStr(ErrorCode) + ' ' + SysErrorMessage(ErrorCode));
+      MsgBox(CustomMessage('ScopeElevateFailed') + #13#10#13#10 + '(' + IntToStr(ErrorCode) + ': ' + SysErrorMessage(ErrorCode) + ')', mbError, MB_OK);
+    end;
     Result := False;
   end;
 end;
