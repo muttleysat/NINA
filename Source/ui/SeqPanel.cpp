@@ -771,7 +771,8 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     addButton.onClick = [this] { showAddMenu(); };
     midiButton.onClick = [this] { exportMidi(); };
     wavButton.onClick = [this] { bounceWav(); };
-    reseedButton.setTooltip ("New random seed: probability and ratchet choices change but stay repeatable");
+    reseedButton.setButtonText ({});                    // solo l'icona: libera spazio nella riga dei comandi
+    reseedButton.setTooltip ("Reset Seed: new random seed. Probability and ratchet choices change but stay repeatable");
     reseedButton.onClick = [this] { pat().seed = (std::uint32_t) juce::Random::getSystemRandom().nextInt(); edited(); };
 
     for (int i = 0; i < sl::kNumPatterns; ++i)
@@ -810,7 +811,7 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     tailBox.onChange = [this] { processor.setExportTail ((SampleLabProcessor::ExportTail) (tailBox.getSelectedId() - 1)); };
     addAndMakeVisible (tailBox);
 
-    rateBox.addItem ("Rate: auto", 1);
+    rateBox.addItem ("Auto", 1);
     rateBox.addItem ("44.1 kHz", 2);
     rateBox.addItem ("48 kHz", 3);
     rateBox.addItem ("88.2 kHz", 4);
@@ -1815,7 +1816,7 @@ void SeqPanel::resized()
 
     // Larghezze dei controlli in unita' scalate, ridotte in proporzione se la finestra e' stretta (le due righe sommano circa 1400
     // unita': sotto quella larghezza i controlli si restringono invece di uscire dal pannello o sovrapporsi)
-    const float fit = juce::jlimit (0.55f, 1.0f, (float) (getWidth() - (int) (20 * s)) / (1510.0f * s));
+    const float fit = juce::jlimit (0.55f, 1.0f, (float) (getWidth() - (int) (20 * s)) / (1400.0f * s));
     auto W = [s, fit] (float units) { return (int) (units * s * fit); };
 
     row1Rect = area.removeFromTop (rowH1);
@@ -1827,10 +1828,10 @@ void SeqPanel::resized()
     auto groupEnd = [&] (auto& rowRect) { separatorsX.push_back ({ rowRect.getX() + sGap / 2, 0 }); rowRect.removeFromLeft (sGap); };
 
     // Destra: Reset Seed, poi lo swing (che occupa l'altezza di entrambe le righe)
-    reseedButton.setBounds (r1.removeFromRight (W(128)));
+    reseedButton.setBounds (r1.removeFromRight (W(44)));
     r1.removeFromRight (sGap / 2);
     {
-        const int swingW = W(170);
+        const int swingW = W(150);
         auto sw = juce::Rectangle<int> (r1.getRight() - swingW, row1Rect.getY(), swingW, rowH1 + vgap + rowH2);
         r1.removeFromRight (swingW + sGap / 2);
         separatorsX.push_back ({ sw.getX() - sGap / 4, 2 });
@@ -1863,9 +1864,9 @@ void SeqPanel::resized()
     r1.removeFromLeft (gGap);
     rateBox.setBounds (r1.removeFromLeft (W(104)));
     groupEnd (r1);
-    midiButton.setBounds (r1.removeFromLeft (W(128)));
+    midiButton.setBounds (r1.removeFromLeft (W(122)));
     r1.removeFromLeft (gGap);
-    wavButton.setBounds (r1.removeFromLeft (W(128)));
+    wavButton.setBounds (r1.removeFromLeft (W(122)));
     r1.removeFromLeft (gGap);
     stemsButton.setBounds (r1.removeFromLeft (W(128)));
 

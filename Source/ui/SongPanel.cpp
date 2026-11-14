@@ -264,7 +264,7 @@ SongPanel::SongPanel (SampleLabProcessor& p) : processor (p)
     tailBox.onChange = [this] { processor.setExportTail ((SampleLabProcessor::ExportTail) (tailBox.getSelectedId() - 1)); };
     addAndMakeVisible (tailBox);
 
-    rateBox.addItem ("Rate: auto", 1);
+    rateBox.addItem ("Auto", 1);
     rateBox.addItem ("44.1 kHz", 2);
     rateBox.addItem ("48 kHz", 3);
     rateBox.addItem ("88.2 kHz", 4);
