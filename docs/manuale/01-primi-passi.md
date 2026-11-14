@@ -12,8 +12,8 @@ Si usa il programma di installazione **`NINA-Setup-<versione>.exe`** (si scarica
 
 1. Avvia l'installer. Si apre nella lingua di Windows (italiano o inglese; si può cambiare dal menu iniziale).
 2. Scegli i **componenti**: **NINA Standalone**, **NINA VST3** (per Cubase e le altre DAW), **manuale e licenze**. Per impostazione predefinita sono tutti selezionati.
-3. L'installer chiede i permessi di amministratore: servono per mettere il plugin nella cartella dei VST3 di sistema (`C:\Program Files\Common Files\VST3\NINA.vst3`), valida per tutti gli utenti del computer.
-4. Lo standalone si installa in `C:\Program Files\NINA`, con il collegamento nel **menu Start** (e, se vuoi, sul desktop).
+3. Scegli **per chi installare**: **per tutti gli utenti** (chiede i permessi di amministratore; plugin in `C:\Program Files\Common Files\VST3\NINA.vst3`, standalone in `C:\Program Files\NINA`) oppure **solo per me** (senza amministratore; plugin in `%LOCALAPPDATA%\Programs\Common\VST3\NINA.vst3`, standalone in `%LOCALAPPDATA%\Programs\NINA`).
+4. Lo standalone ha il collegamento nel **menu Start** (e, se vuoi, sul desktop).
 5. In **Cubase**: riavvia la scansione dei plugin (*Studio → Gestione plugin VST → Aggiorna*): NINA compare tra gli strumenti.
 
 **Aggiornare**: scarica il nuovo installer e avvialo: **sostituisce** la versione precedente, mantenendo le impostazioni e i kit. **Disinstallare**: *Impostazioni → App → NINA*, oppure il collegamento «Disinstalla NINA» nel menu Start; non tocca i tuoi kit, sequenze e song.

@@ -38,9 +38,9 @@ Compression=lzma2/ultra64
 SolidCompression=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-; Il VST3 va nella cartella comune dei plugin: installazione sempre per tutti gli utenti (UAC), senza finestre di scelta prima del wizard
-; (da riga di comando resta possibile /CURRENTUSER, usato per i test)
-PrivilegesRequired=admin
+; Parte senza amministratore; la scelta "per tutti gli utenti / solo per me" e' una pagina del wizard (vedi [Code]):
+; per tutti gli utenti l'installer si rilancia con /ALLUSERS (UAC) e il VST3 va in Common Files\VST3 di sistema
+PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=commandline
 CloseApplications=yes
 RestartApplications=no
@@ -73,6 +73,17 @@ italian.LaunchNina=Avvia NINA
 italian.OpenManual=Apri la cartella del manuale
 italian.ManualShortcut=Manuale di NINA
 italian.UninstallShortcut=Disinstalla NINA
+
+english.ScopeTitle=Installation scope
+english.ScopeDesc=Who should NINA be installed for?
+english.ScopeAll=For all users of this computer (requires administrator permission)
+english.ScopeMe=Only for me (no administrator permission needed)
+english.ScopeElevateFailed=Administrator permission was not granted. Choose "Only for me" or try again.
+italian.ScopeTitle=Ambito di installazione
+italian.ScopeDesc=Per chi vuoi installare NINA?
+italian.ScopeAll=Per tutti gli utenti del computer (richiede i permessi di amministratore)
+italian.ScopeMe=Solo per me (non servono i permessi di amministratore)
+italian.ScopeElevateFailed=I permessi di amministratore non sono stati concessi. Scegli "Solo per me" oppure riprova.
 
 [Types]
 Name: "full"; Description: "{cm:TypeFull}"
@@ -110,6 +121,49 @@ Filename: "{app}\NINA.exe"; Description: "{cm:LaunchNina}"; Flags: nowait postin
 Filename: "{app}\Docs\manuale"; Description: "{cm:OpenManual}"; Flags: postinstall shellexec skipifsilent unchecked; Components: docs
 
 [Code]
+var
+  ScopePage: TInputOptionWizardPage;
+  CancelWithoutPrompt: Boolean;
+
+procedure InitializeWizard;
+begin
+  // Se l'installer e' gia' elevato (rilanciato o /ALLUSERS) la pagina viene saltata
+  ScopePage := CreateInputOptionPage(wpWelcome, CustomMessage('ScopeTitle'), CustomMessage('ScopeDesc'), '', True, False);
+  ScopePage.Add(CustomMessage('ScopeAll'));
+  ScopePage.Add(CustomMessage('ScopeMe'));
+  ScopePage.SelectedValueIndex := 0;
+end;
+
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := (PageID = ScopePage.ID) and IsAdminInstallMode;
+end;
+
+procedure CancelButtonClick(CurPageID: Integer; var Cancel, Confirm: Boolean);
+begin
+  if CancelWithoutPrompt then
+    Confirm := False;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  ErrorCode: Integer;
+begin
+  Result := True;
+  if (CurPageID = ScopePage.ID) and (ScopePage.SelectedValueIndex = 0) and not IsAdminInstallMode and not WizardSilent then
+  begin
+    // Rilancia lo stesso installer con i permessi di amministratore, nella stessa lingua, e chiude questo
+    if ShellExec('runas', ExpandConstant('{srcexe}'), '/ALLUSERS /LANG=' + ActiveLanguage, '', SW_SHOWNORMAL, ewNoWait, ErrorCode) then
+    begin
+      CancelWithoutPrompt := True;
+      WizardForm.Close;
+    end
+    else
+      MsgBox(CustomMessage('ScopeElevateFailed'), mbError, MB_OK);
+    Result := False;
+  end;
+end;
+
 // L'attributo di sistema sulla cartella .vst3 fa mostrare in Esplora risorse l'icona del plugin (desktop.ini)
 procedure CurStepChanged(CurStep: TSetupStep);
 var
