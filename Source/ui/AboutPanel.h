@@ -17,11 +17,7 @@ public:
     static void show (float scale);
 
     // Pagina di donazione libera (PayPal): e' l'unico punto del programma dove compare. Per cambiarla basta modificare questo indirizzo.
-    static juce::String donateUrl()
-    {
-        return "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=removed"
-               "&item_name=Support+NINA+%28voluntary+donation%29&currency_code=EUR";
-    }
+    static juce::String donateUrl() { return "https://www.paypal.me/VincenzoTrombetta423"; }
 
     // Codice sorgente (la licenza AGPL richiede di metterlo a disposizione di chi riceve il programma)
     static juce::String sourceUrl() { return "https://github.com/muttleysat/NINA"; }
