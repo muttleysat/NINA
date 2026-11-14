@@ -269,6 +269,9 @@ public:
     void mouseDown (const juce::MouseEvent& e) override
     {
         pressed = scrubbing = false;
+        // Se sta suonando la zona intera, un clic salta al punto indicato e prosegue fino alla stessa fine
+        resumeHi = (owner.previewing && ! owner.chopping && ! owner.testPlaying && owner.cursorHi >= (double) owner.regionEnd() - 1.0e-6)
+                       ? (float) owner.cursorHi : 0.0f;
         // Righello del tempo: un clic suona dal punto indicato fino alla fine della zona; trascinando si fa lo scrub
         if (owner.data() != nullptr && ! e.mods.isPopupMenu() && (float) e.y > 0.0f
             && (float) e.y < waveArea().getY() - 26.0f * theme::scaleFor (*this))
@@ -277,6 +280,7 @@ public:
             pressX = e.x;
             if (! owner.chopping && ! owner.testPlaying)
                 owner.startPreview (pos ((float) e.x), owner.regionEnd());
+            resumeHi = owner.regionEnd();
             return;
         }
 
@@ -312,7 +316,9 @@ public:
         const int slice = sliceAtX ((float) e.x, (float) e.y);
         pressed = true;                                        // un clic suona la slice; trascinando diventa scrub
         pressX = e.x;
-        if (slice >= 0)
+        if (resumeHi > 0.0f)
+            owner.startPreview (juce::jlimit (owner.regionStart(), resumeHi - 1.0e-4f, pos ((float) e.x)), resumeHi);
+        else if (slice >= 0)
             owner.auditionSlice (slice);
     }
 
@@ -354,14 +360,19 @@ public:
         owner.cellsStripRepaint();
     }
 
-    void mouseUp (const juce::MouseEvent&) override
+    void mouseUp (const juce::MouseEvent& e) override
     {
         if (pressed)
         {
             const bool wasScrub = scrubbing;
             pressed = scrubbing = false;
             if (wasScrub)
-                owner.stopAll();
+            {
+                if (resumeHi > 0.0f)        // lo scrub durante la riproduzione riprende da dove rilasci
+                    owner.startPreview (juce::jlimit (owner.regionStart(), resumeHi - 1.0e-4f, pos ((float) e.x)), resumeHi);
+                else
+                    owner.stopAll();
+            }
             repaint();
             return;
         }
@@ -551,6 +562,7 @@ private:
     int hover = -1, dragIndex = -1, dragBracket = -1;
     double holdUntil = 0.0;
     bool pressed = false, scrubbing = false;
+    float resumeHi = 0.0f;
     int pressX = 0;
     bool peaksDirty = true;
     const sl::SampleData* lastData = nullptr;

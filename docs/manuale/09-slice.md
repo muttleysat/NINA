@@ -37,7 +37,7 @@ La scritta in basso a sinistra riassume tutto: numero di slice, da quale a quale
 - **Play zone** (riga SOURCE) o la **barra spaziatrice** suona la zona dall'inizio alla fine con un cursore bianco; premi di nuovo (o **Esc**) per **fermare**. Nella scheda Slice la barra spaziatrice comanda quindi l'ascolto della zona e non il sequencer. Esc ferma anche il Chop e il Click test.
 - Un clic su una slice suona solo quella slice (con Audition acceso).
 - Con lo **zoom** la forma d'onda **segue il cursore** mentre suona (a pagine). Se sposti la vista a mano (rotella) il seguimento si ferma per qualche secondo. Lo zoom con i pulsanti **− [ ] +** si centra sul cursore se sta suonando; la rotella zooma **attorno al mouse** (Maiusc+rotella scorre).
-- **Scrub**: **trascina** il mouse sulla forma d'onda per sentire il punto sotto il cursore (brevi ascolti da 140 ms mentre ti muovi). Un clic sul **righello del tempo** (la fascia dei numeri in alto) suona dal punto indicato fino alla fine della zona; trascinando sul righello fai lo scrub. Mentre la musica suona (o durante lo scrub) la slice sotto il mouse non si evidenzia.
+- **Scrub**: **trascina** il mouse sulla forma d'onda per sentire il punto sotto il cursore (brevi ascolti da 140 ms mentre ti muovi). Un clic sul **righello del tempo** (la fascia dei numeri in alto) suona dal punto indicato fino alla fine della zona; trascinando sul righello fai lo scrub. Se stai ascoltando **tutta la zona** (Play zone), un clic sulla forma d'onda **salta a quel punto** e prosegue fino alla fine; anche lo scrub riprende da dove rilasci il mouse. Mentre la musica suona (o durante lo scrub) la slice sotto il mouse non si evidenzia.
 
 ## Sorgente: una cella o un file esterno
 
