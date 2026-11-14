@@ -23,6 +23,7 @@ Il **nome** della song (campo accanto a Open/Save) si usa per i nomi dei file es
 ## Suonare la song
 
 - Il **Play** (barra in alto o barra spaziatrice) è legato alla **scheda aperta**: nella scheda **Song** suona la **catena dall'inizio**; in tutte le altre (Main, Seq, FX...) suona come sempre il **pattern** selezionato nella scheda Seq. Nella scheda Song lo ricorda la scritta «Play here plays the song». Se cambi scheda mentre sta suonando, la riproduzione continua com'era; il nuovo modo vale dal prossimo Play.
+- **Partire da un blocco**: clicca una scheda di blocco (sul titolo o su uno spazio vuoto, non sui menu e sui pulsanti): si accende il suo titolo con la scritta **Play from here** e il **Play** parte da quel blocco invece che dall'inizio. Un secondo clic sullo stesso blocco toglie la selezione (Play dall'inizio). Con il Loop acceso, alla fine la song ricomincia dal primo blocco.
 - Durante l'ascolto il blocco in riproduzione si illumina con una barra di avanzamento e sulla mappa corre il cursore.
 - **Loop** acceso: alla fine la song ricomincia dal primo blocco. Spento: alla fine il Play si ferma (e il prossimo Play riparte dall'inizio).
 - Nel **plugin**, quando la song è quella che suona, la posizione segue la DAW: la song parte dal punto zero del progetto. Con il Loop acceso si ripete quando la DAW supera la fine.
@@ -55,5 +56,5 @@ Il tempo usato è quello corrente (DAW o riquadro BPM). Come per il sequencer, g
 - La song ha al massimo **128 blocchi**, ciascuno con **1–99** ripetizioni.
 - Un pattern senza righe suona come silenzio per la durata di una battuta.
 - La durata di un giro è quella della riga **più lunga** del pattern: una riga più corta si ripete dentro il giro.
-- La riproduzione parte sempre dall'inizio: non c'è ancora la partenza da un blocco scelto né il loop di una sola parte.
+- Non c'è ancora il loop di una sola parte della song (solo l'intera catena, con **Loop**).
 - Una song fatta di pattern diversi non cambia il BPM: il tempo resta unico per tutto il brano.

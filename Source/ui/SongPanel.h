@@ -27,6 +27,7 @@ private:
 
     void timerCallback() override;
     sl::Song& song() { return processor.song(); }
+    void updateStart();                // il Play parte dal blocco selezionato (o dall'inizio)
     void relayoutStrip();              // dispone i blocchi (a capo, ridimensionati se tanti)
     void edited();                     // pubblica la song al thread audio
     void addBlock (int pattern);

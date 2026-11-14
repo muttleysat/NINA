@@ -155,6 +155,10 @@ Una nota che cade tra due step va a quello più vicino. Quanto del tuo "feeling"
 - Lo **swing** del pattern non viene toccato: resta com'è.
 - Lo spostamento tra risoluzioni diverse non è una quantizzazione: per cambiare la divisione di una riga si usa la sua risoluzione (vedi sopra).
 
+### Lunghezza e risoluzione di tutte le righe
+
+Il menu **⋯** accanto al nome del pattern ha due sottomenu per cambiare **tutte le righe insieme**: **Length of all lanes** (8, 12, 16, 24, 32, 48 o 64 step) e **Resolution of all lanes** (1/4, 1/8, 1/8T, 1/16, 1/16T, 1/32, 1/32T, 1/64). Gli step già scritti restano dove sono (cambiando la risoluzione cambia quando suonano, come con il comando della singola riga); si annulla con Ctrl+Z.
+
 ## Cose da sapere
 
 - Copia e incolla valgono per singolo step, riga intera o pattern intero, non per gruppi di step. **Ctrl+Z / Ctrl+Y** annullano e ripetono anche le modifiche al sequencer (capitolo 8).

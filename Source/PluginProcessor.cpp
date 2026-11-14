@@ -143,8 +143,10 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     {
         if (playing && ! wasRunning)                        // Play dall'inizio; con la registrazione accesa prima c'e' il conteggio iniziale
         {
-            const bool countIn = seqRecord.load (std::memory_order_relaxed) && ! songMode.load (std::memory_order_relaxed);
-            internalPpq = ppq0 = countIn ? -4.0 * (double) countInBars.load (std::memory_order_relaxed) : 0.0;
+            const bool inSong = songMode.load (std::memory_order_relaxed);
+            const bool countIn = seqRecord.load (std::memory_order_relaxed) && ! inSong;
+            internalPpq = ppq0 = inSong ? songStart.load (std::memory_order_relaxed)           // song: dal blocco scelto
+                                        : (countIn ? -4.0 * (double) countInBars.load (std::memory_order_relaxed) : 0.0);
         }
         wasRunning = playing;
         if (playing)

@@ -246,6 +246,8 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
         songPanel.refresh();
         if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_SONGTEST", {}) == "play")
         {
+            if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_SONGSTART", {}).isNotEmpty())
+                processor.setSongStartBeats (4.0);
             processor.setSequencerRunning (true);
             juce::Timer::callAfterDelay (2500, [this] { uiLog ("SONGPLAY t=2.5s songMode=" + juce::String ((int) processor.isSongMode()) + " running=" + juce::String ((int) processor.isSequencerRunning())
                                                                 + " playing=" + juce::String ((int) processor.isSequencerPlaying())
@@ -276,6 +278,23 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
             processor.setClickVolume (0.67f);
         });
     }
+
+    // Solo per prove: SAMPLELAB_DUMPKIT scrive in ui.log un riassunto del kit caricato dalle impostazioni salvate
+    if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_DUMPKIT", {}).isNotEmpty())
+        juce::Timer::callAfterDelay (1500, [this]
+        {
+            const auto& k = processor.getKit();
+            juce::String t = "DUMPKIT name=" + k.name + " samples:";
+            for (int i = 0; i < k.numCells(); ++i)
+                if (k.cells[(size_t) i].hasSample())
+                    t << " " << i << "=" << k.cells[(size_t) i].name;
+            t << " | patterns with lanes:";
+            for (int i = 0; i < (int) k.patterns.size(); ++i)
+                if (! k.patterns[(size_t) i].lanes.empty())
+                    t << " " << (i + 1) << "(" << k.patterns[(size_t) i].lanes.size() << " lanes)";
+            t << " | song blocks=" << (int) k.song.blocks.size();
+            uiLog (t);
+        });
 
     // Solo per prove: SAMPLELAB_ABOUT apre la finestra Info all'avvio
     if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_ABOUT", {}).isNotEmpty())

@@ -1411,6 +1411,19 @@ void SeqPanel::showPatternMenu()
     m.addItem (4, "Clear pattern", ! pat().lanes.empty());
     m.addSeparator();
     m.addItem (5, "Rename...");
+    m.addSeparator();
+    {
+        const bool has = ! pat().lanes.empty();
+        juce::PopupMenu steps, res;
+        const int lens[] = { 8, 12, 16, 24, 32, 48, 64 };
+        for (int i = 0; i < 7; ++i)
+            steps.addItem (100 + i, juce::String (lens[i]) + " steps", has);
+        const int divs[] = { 4, 7, 9, 10, 12, 13, 15, 16 };            // 1/4, 1/8, 1/8T, 1/16, 1/16T, 1/32, 1/32T, 1/64
+        for (int i = 0; i < 8; ++i)
+            res.addItem (200 + i, sl::kDivisionNames[divs[i]], has);
+        m.addSubMenu ("Length of all lanes", steps, has);
+        m.addSubMenu ("Resolution of all lanes", res, has);
+    }
 
     juce::Component::SafePointer<SeqPanel> safe (this);
     m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (patternMenuButton), [safe, cur] (int r)
@@ -1429,6 +1442,22 @@ void SeqPanel::showPatternMenu()
             else
                 juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "NINA",
                                                         "There is no empty pattern left to duplicate into.\nClear a pattern first, or use Copy and Paste.");
+        }
+        else if (r >= 100 && r < 107)
+        {
+            static const int lens[] = { 8, 12, 16, 24, 32, 48, 64 };
+            for (auto& l : safe->pat().lanes)
+                l.length = lens[r - 100];
+            safe->edited();
+            safe->refresh();
+        }
+        else if (r >= 200 && r < 208)
+        {
+            static const int divs[] = { 4, 7, 9, 10, 12, 13, 15, 16 };
+            for (auto& l : safe->pat().lanes)
+                l.division = divs[r - 200];
+            safe->edited();
+            safe->refresh();
         }
         else if (r == 2)
             p.copyActivePattern();

@@ -97,9 +97,9 @@ public:
 
         const double beats = sl::Song::blockBeats (owner.processor.getKit().patterns, blk);
         const double bars = beats / 4.0;
-        g.setColour (theme::text);
+        g.setColour (selected ? theme::accentSoft : theme::text);
         g.setFont (juce::FontOptions (juce::jmax (10.0f, 13.0f * s), juce::Font::bold));
-        g.drawText ("#" + juce::String (index + 1), titleRect, juce::Justification::centredLeft);
+        g.drawText ((selected ? juce::String ("> ") : juce::String()) + "#" + juce::String (index + 1) + (selected ? "  Play from here" : juce::String()), titleRect.withTrimmedRight ((int) (58 * s)), juce::Justification::centredLeft);
         g.setColour (theme::textDim);
         g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.5f * s), juce::Font::bold));
         g.drawText (juce::String (bars, bars == std::floor (bars) ? 0 : 2) + (bars == 1.0 ? " bar" : " bars"), titleRect, juce::Justification::centredRight);
@@ -218,8 +218,9 @@ private:
 
 void SongPanel::BlockCard::mouseDown (const juce::MouseEvent&)
 {
-    owner.selected = index;
+    owner.selected = owner.selected == index ? -1 : index;         // un secondo clic toglie la selezione (Play dall'inizio)
     owner.strip->refreshSelection();
+    owner.updateStart();
 }
 
 // ------------------------------------------------------------------------ Scheda
@@ -317,6 +318,7 @@ void SongPanel::refresh()
 {
     if (selected >= (int) song().blocks.size())
         selected = -1;
+    updateStart();
     loopButton.setToggleState (song().loop, juce::dontSendNotification);
     if (! nameBox.hasKeyboardFocus (true))
         nameBox.setText (song().name, juce::dontSendNotification);
@@ -332,9 +334,16 @@ void SongPanel::relayoutStrip()
     strip->arrange (viewport.getWidth(), viewport.getHeight(), s);
 }
 
+void SongPanel::updateStart()
+{
+    processor.setSongStartBeats (selected >= 0 && selected < (int) song().blocks.size() ? song().blockStart (processor.getKit().patterns, selected) : 0.0);
+    repaint (mapRect);
+}
+
 void SongPanel::edited()
 {
     processor.songEdited();
+    updateStart();
     repaint (mapRect.getUnion (infoRect));
 }
 

@@ -67,6 +67,7 @@ public:
     const sl::Song& song() const { return kit.song; }
     void songEdited();                                      // dopo ogni modifica della song: la pubblica al thread audio
     void setSongMode (bool on);
+    void setSongStartBeats (double beats) { songStart.store (juce::jmax (0.0, beats)); }     // da dove parte il Play nella scheda Song (inizio di un blocco)
     bool isSongMode() const { return songMode.load(); }
     double songTotalBeats() const { return kit.song.totalBeats (kit.patterns); }
     bool saveSongFile (const juce::File& file, juce::String& error) const;
@@ -255,6 +256,7 @@ private:
     sl::SharedExchange<SongMsg> songExchange;
     std::shared_ptr<const SongMsg> songMsg;                 // solo thread audio
     std::atomic<bool> songMode { false };
+    std::atomic<double> songStart { 0.0 };
     void publishSong();
     void songPlan (std::vector<sl::Pattern>& pats, std::vector<sl::Segment>& segs, double& total, int isolateCell) const;
     sl::SequencerRunner seqRunner;
