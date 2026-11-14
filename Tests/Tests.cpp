@@ -563,6 +563,47 @@ public:
             }
         };
 
+        beginTest ("FX: EQ shelves and bell boost/cut the right frequencies; off = identical");
+        {
+            auto gainAt = [] (double freq, const FxParams& fx)
+            {
+                FxChain chain;
+                chain.prepare (kSR, 512);
+                const int total = 16384;
+                std::vector<float> l ((size_t) total), r ((size_t) total);
+                for (int i = 0; i < total; ++i)
+                    l[(size_t) i] = r[(size_t) i] = 0.25f * (float) std::sin (2.0 * juce::MathConstants<double>::pi * freq * i / kSR);
+                for (int pos = 0; pos < total; pos += 512)
+                    chain.eq (l.data() + pos, r.data() + pos, 512, fx);
+                float pk = 0.0f;
+                for (int i = total - 2048; i < total; ++i)
+                    pk = juce::jmax (pk, std::abs (l[(size_t) i]));
+                return pk / 0.25f;
+            };
+
+            FxParams off;
+            off.eqLow = 12.0f;                                          // spento: nessun effetto
+            expectWithinAbsoluteError (gainAt (100.0, off), 1.0f, 0.01f);
+
+            FxParams low; low.eqOn = true; low.eqLow = 12.0f;
+            expect (gainAt (60.0, low) > 3.2f);                         // shelf basso: +12 dB sotto i 120 Hz
+            expectWithinAbsoluteError (gainAt (5000.0, low), 1.0f, 0.08f);
+
+            FxParams mid; mid.eqOn = true; mid.eqMidFreq = 1000.0f; mid.eqMidGain = 12.0f; mid.eqMidQ = 1.0f;
+            expectWithinAbsoluteError (gainAt (1000.0, mid), 3.98f, 0.15f);   // +12 dB al centro
+            expectWithinAbsoluteError (gainAt (100.0, mid), 1.0f, 0.12f);
+
+            FxParams cut = mid; cut.eqMidGain = -12.0f;
+            expectWithinAbsoluteError (gainAt (1000.0, cut), 0.25f, 0.02f);
+
+            FxParams high; high.eqOn = true; high.eqHigh = 12.0f;
+            expect (gainAt (12000.0, high) > 3.2f);                     // shelf alto: +12 dB sopra i 6 kHz
+            expectWithinAbsoluteError (gainAt (100.0, high), 1.0f, 0.08f);
+
+            FxParams flat; flat.eqOn = true;                            // acceso a guadagni zero: trasparente
+            expectWithinAbsoluteError (gainAt (1000.0, flat), 1.0f, 0.001f);
+        }
+
         beginTest ("Mixer: Mute and Solo are saved with the kit");
         {
             Kit kit = Kit::makeDefault();
@@ -579,7 +620,7 @@ public:
         {
             ParamRig pr;
             auto all = pr.root.getParameters (true);
-            expectEquals ((int) all.size(), 48 * 42 + 28);     // 48 celle x 42 (compresi Mute e Solo del mixer) + master 28
+            expectEquals ((int) all.size(), 48 * 48 + 34);     // 48 celle x 48 (compresi Mute/Solo del mixer e i 6 dell'EQ) + master 34
 
             std::set<juce::String> ids;
             for (auto* p : all)

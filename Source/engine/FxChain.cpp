@@ -100,6 +100,10 @@ void FxChain::prepare (double sampleRate, int maxBlockSize)
 
 void FxChain::reset()
 {
+    for (auto& b : eqBand)
+        b.z1[0] = b.z1[1] = b.z2[0] = b.z2[1] = 0.0;
+    eqValid = false;
+    eqWasOn = false;
     compressor.reset();
     compValid = false;
     resetDelay();
@@ -129,6 +133,96 @@ float FxChain::delayMs (const FxParams& p, double bpm) noexcept
         ms = (float) (kDivisionBeats[d] * 60000.0 / juce::jmax (20.0, bpm));
     }
     return juce::jlimit (1.0f, kMaxDelayMs, ms);
+}
+
+namespace
+{
+// Coefficienti RBJ (Audio EQ Cookbook), normalizzati su a0
+struct Coef { double b0, b1, b2, a1, a2; };
+
+Coef normalise (double b0, double b1, double b2, double a0, double a1, double a2)
+{
+    return { b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0 };
+}
+
+Coef lowShelf (double sr, double f, double dB)
+{
+    const double A = std::pow (10.0, dB / 40.0), w0 = 2.0 * juce::MathConstants<double>::pi * f / sr;
+    const double c = std::cos (w0), alpha = std::sin (w0) / 2.0 * std::sqrt (2.0), sq = 2.0 * std::sqrt (A) * alpha;
+    return normalise (A * ((A + 1) - (A - 1) * c + sq), 2 * A * ((A - 1) - (A + 1) * c), A * ((A + 1) - (A - 1) * c - sq),
+                      (A + 1) + (A - 1) * c + sq, -2 * ((A - 1) + (A + 1) * c), (A + 1) + (A - 1) * c - sq);
+}
+
+Coef highShelf (double sr, double f, double dB)
+{
+    const double A = std::pow (10.0, dB / 40.0), w0 = 2.0 * juce::MathConstants<double>::pi * f / sr;
+    const double c = std::cos (w0), alpha = std::sin (w0) / 2.0 * std::sqrt (2.0), sq = 2.0 * std::sqrt (A) * alpha;
+    return normalise (A * ((A + 1) + (A - 1) * c + sq), -2 * A * ((A - 1) + (A + 1) * c), A * ((A + 1) + (A - 1) * c - sq),
+                      (A + 1) - (A - 1) * c + sq, 2 * ((A - 1) - (A + 1) * c), (A + 1) - (A - 1) * c - sq);
+}
+
+Coef peak (double sr, double f, double dB, double q)
+{
+    const double A = std::pow (10.0, dB / 40.0), w0 = 2.0 * juce::MathConstants<double>::pi * f / sr;
+    const double c = std::cos (w0), alpha = std::sin (w0) / (2.0 * q);
+    return normalise (1 + alpha * A, -2 * c, 1 - alpha * A, 1 + alpha / A, -2 * c, 1 - alpha / A);
+}
+}
+
+void FxChain::eq (float* l, float* r, int n, const FxParams& p) noexcept
+{
+    if (! p.eqOn || n <= 0)
+    {
+        eqWasOn = false;
+        return;
+    }
+
+    if (! eqWasOn)                                              // appena acceso: si riparte da stati puliti
+    {
+        for (auto& b : eqBand)
+            b.z1[0] = b.z1[1] = b.z2[0] = b.z2[1] = 0.0;
+        eqValid = false;
+    }
+    eqWasOn = true;
+
+    if (! eqValid || p.eqLow != appliedEq.eqLow || p.eqMidFreq != appliedEq.eqMidFreq || p.eqMidGain != appliedEq.eqMidGain
+        || p.eqMidQ != appliedEq.eqMidQ || p.eqHigh != appliedEq.eqHigh)
+    {
+        const double nyq = sr * 0.45;
+        auto set = [this] (int i, const Coef& c) { eqBand[i].b0 = c.b0; eqBand[i].b1 = c.b1; eqBand[i].b2 = c.b2; eqBand[i].a1 = c.a1; eqBand[i].a2 = c.a2; };
+        eqBandOn[0] = std::abs (p.eqLow) > 0.05f;
+        eqBandOn[1] = std::abs (p.eqMidGain) > 0.05f;
+        eqBandOn[2] = std::abs (p.eqHigh) > 0.05f;
+        if (eqBandOn[0]) set (0, lowShelf (sr, std::min (120.0, nyq), juce::jlimit (-15.0f, 15.0f, p.eqLow)));
+        if (eqBandOn[1]) set (1, peak (sr, juce::jlimit (100.0, nyq, (double) p.eqMidFreq), juce::jlimit (-15.0f, 15.0f, p.eqMidGain),
+                                       juce::jlimit (0.3, 8.0, (double) p.eqMidQ)));
+        if (eqBandOn[2]) set (2, highShelf (sr, std::min (6000.0, nyq), juce::jlimit (-15.0f, 15.0f, p.eqHigh)));
+        appliedEq = p;
+        eqValid = true;
+    }
+
+    float* ch[2] = { l, r };
+    for (int b = 0; b < 3; ++b)
+    {
+        if (! eqBandOn[b])
+            continue;
+        auto& q = eqBand[b];
+        for (int c = 0; c < 2; ++c)
+        {
+            float* x = ch[c];
+            double z1 = q.z1[c], z2 = q.z2[c];
+            for (int i = 0; i < n; ++i)                         // forma trasposta II
+            {
+                const double in = (double) x[i];
+                const double out = q.b0 * in + z1;
+                z1 = q.b1 * in - q.a1 * out + z2;
+                z2 = q.b2 * in - q.a2 * out;
+                x[i] = (float) out;
+            }
+            q.z1[c] = z1;
+            q.z2[c] = z2;
+        }
+    }
 }
 
 void FxChain::compress (float* l, float* r, int n, const FxParams& p) noexcept

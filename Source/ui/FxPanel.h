@@ -6,7 +6,7 @@
 #include "LearnMenu.h"
 #include "Widgets.h"
 
-// Scheda FX: catena di effetti (Saturation > LoFi > Filter > Compressor > Delay > Reverb) della cella
+// Scheda FX: catena di effetti (Saturation > LoFi > Filter > EQ > Compressor > Delay > Reverb) della cella
 // selezionata oppure globale del kit (Master). Tutti i controlli sono parametri automatizzabili.
 class FxPanel final : public juce::Component, private juce::Timer
 {

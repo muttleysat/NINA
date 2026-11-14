@@ -53,6 +53,12 @@ static juce::var fxToVar (const FxParams& f)
     o->setProperty ("reverbSize", f.reverbSize);
     o->setProperty ("reverbDamp", f.reverbDamp);
     o->setProperty ("reverbMix", f.reverbMix);
+    o->setProperty ("eqOn", f.eqOn);
+    o->setProperty ("eqLow", f.eqLow);
+    o->setProperty ("eqMidFreq", f.eqMidFreq);
+    o->setProperty ("eqMidGain", f.eqMidGain);
+    o->setProperty ("eqMidQ", f.eqMidQ);
+    o->setProperty ("eqHigh", f.eqHigh);
     return juce::var (o);
 }
 
@@ -89,6 +95,12 @@ static FxParams fxFromVar (const juce::var& o)
     f.reverbSize = getF (o, "reverbSize", f.reverbSize);
     f.reverbDamp = getF (o, "reverbDamp", f.reverbDamp);
     f.reverbMix = getF (o, "reverbMix", f.reverbMix);
+    f.eqOn = getB (o, "eqOn", f.eqOn);
+    f.eqLow = getF (o, "eqLow", f.eqLow);
+    f.eqMidFreq = getF (o, "eqMidFreq", f.eqMidFreq);
+    f.eqMidGain = getF (o, "eqMidGain", f.eqMidGain);
+    f.eqMidQ = getF (o, "eqMidQ", f.eqMidQ);
+    f.eqHigh = getF (o, "eqHigh", f.eqHigh);
     return f;
 }
 

@@ -15,16 +15,16 @@ FxPanel::FxPanel (SampleLabProcessor& p) : processor (p)
     using F = sl::FxF;
     using B = sl::FxB;
 
-    auto& sat = addCard ("Saturation", 2.4f, B::Sat);
+    auto& sat = addCard ("Saturation", 2.9f, B::Sat);
     addKnob (sat, "Drive", F::Drive);
     addKnob (sat, "Mix", F::SatMix);
 
-    auto& lofi = addCard ("LoFi", 3.2f, B::Lofi);
+    auto& lofi = addCard ("LoFi", 3.0f, B::Lofi);
     addKnob (lofi, "Bits", F::Bits);
     addKnob (lofi, "Rate", F::Downsample);
     addKnob (lofi, "Mix", F::LofiMix);
 
-    auto& filter = addCard ("Filter", 3.2f, B::Filter);
+    auto& filter = addCard ("Filter", 3.0f, B::Filter);
     filter.combo = std::make_unique<juce::ComboBox>();
     addAndMakeVisible (*filter.combo);
     learnMenus.push_back (std::make_unique<LearnMenu> (processor, *filter.combo,
@@ -32,14 +32,21 @@ FxPanel::FxPanel (SampleLabProcessor& p) : processor (p)
     addKnob (filter, "Cutoff", F::Cutoff);
     addKnob (filter, "Reso", F::Resonance);
 
-    auto& comp = addCard ("Compressor", 5.0f, B::Comp);
+    auto& eq = addCard ("EQ", 5.7f, B::Eq);
+    addKnob (eq, "Low", F::EqLow);
+    addKnob (eq, "Mid Hz", F::EqMidFreq);
+    addKnob (eq, "Mid dB", F::EqMidGain);
+    addKnob (eq, "Mid Q", F::EqMidQ);
+    addKnob (eq, "High", F::EqHigh);
+
+    auto& comp = addCard ("Compressor", 5.6f, B::Comp);
     addKnob (comp, "Thresh", F::CompThreshold);
     addKnob (comp, "Ratio", F::CompRatio);
     addKnob (comp, "Attack", F::CompAttack);
     addKnob (comp, "Release", F::CompRelease);
     addKnob (comp, "Makeup", F::CompMakeup);
 
-    auto& delay = addCard ("Delay", 3.6f, B::Delay);
+    auto& delay = addCard ("Delay", 3.3f, B::Delay);
     delay.syncButton = std::make_unique<juce::TextButton> ("Sync");
     delay.syncButton->setTooltip ("Lock the delay time to the project tempo");
     delay.divisionCombo = std::make_unique<juce::ComboBox>();
@@ -53,7 +60,7 @@ FxPanel::FxPanel (SampleLabProcessor& p) : processor (p)
     addKnob (delay, "Feedback", F::DelayFeedback);
     addKnob (delay, "Mix", F::DelayMix);
 
-    auto& reverb = addCard ("Reverb", 3.2f, B::Reverb);
+    auto& reverb = addCard ("Reverb", 3.0f, B::Reverb);
     addKnob (reverb, "Size", F::ReverbSize);
     addKnob (reverb, "Damp", F::ReverbDamp);
     addKnob (reverb, "Mix", F::ReverbMix);

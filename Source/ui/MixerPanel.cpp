@@ -153,9 +153,9 @@ public:
         addAndMakeVisible (outBox);
 
         // Effetti accesi/spenti
-        static const char* fxNames[] = { "S", "L", "F", "C", "D", "R" };
-        static const char* fxTips[] = { "Saturation", "LoFi", "Filter", "Compressor", "Delay", "Reverb" };
-        for (int i = 0; i < 6; ++i)
+        static const char* fxNames[] = { "S", "L", "F", "C", "D", "R", "E" };
+        static const char* fxTips[] = { "Saturation", "LoFi", "Filter", "Compressor", "Delay", "Reverb", "EQ" };
+        for (int i = 0; i < 7; ++i)
         {
             fxBtn[i].setButtonText (fxNames[i]);
             fxBtn[i].setTooltip (juce::String (fxTips[i]) + " on/off for this cell");
@@ -307,8 +307,8 @@ public:
         fxLabelRect = r.removeFromTop ((int) (11 * s));
         {
             auto row = r.removeFromTop ((int) (22 * s));
-            const int bw = row.getWidth() / 6;
-            for (int i = 0; i < 6; ++i)
+            const int bw = row.getWidth() / 7;
+            for (int i = 0; i < 7; ++i)
                 fxBtn[i].setBounds (row.removeFromLeft (bw).reduced (1, 0));
         }
         r.removeFromTop (gap);
@@ -357,14 +357,14 @@ private:
     int cell;
     bool selected = false;
     juce::ComboBox outBox;
-    juce::TextButton fxBtn[6], mute, solo;
+    juce::TextButton fxBtn[7], mute, solo;
     KnobBox sendDelay { "Dly" }, sendReverb { "Rev" };
     juce::Slider pan, fader;
     juce::Label levelLabel, peakLabel;
     MeterView meter;
     juce::Rectangle<int> nameRect, fxLabelRect, panRect;
 
-    std::unique_ptr<juce::ButtonParameterAttachment> fxAtt[6], muteAtt, soloAtt;
+    std::unique_ptr<juce::ButtonParameterAttachment> fxAtt[7], muteAtt, soloAtt;
     std::unique_ptr<juce::SliderParameterAttachment> sendDelayAtt, sendReverbAtt, panAtt, faderAtt;
     std::vector<std::unique_ptr<LearnMenu>> learn;
 };

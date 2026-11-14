@@ -62,6 +62,9 @@ public:
     void resetDelay() noexcept;
     void resetReverb() noexcept;
 
+    // EQ a tre bande in place sul bus (se eqOn): shelf basso 120 Hz, campana centrale, shelf alto 6 kHz. Nessuna allocazione.
+    void eq (float* l, float* r, int n, const FxParams& p) noexcept;
+
     // Compressore in place sul bus (se compOn). n <= maxBlockSize.
     void compress (float* l, float* r, int n, const FxParams& p) noexcept;
 
@@ -77,6 +80,17 @@ public:
 private:
     double sr = 44100.0;
     int maxBlock = 512;
+
+    // EQ: tre biquad (RBJ) per canale; i coefficienti si ricalcolano solo quando cambiano i parametri
+    struct Biquad
+    {
+        double b0 = 1.0, b1 = 0.0, b2 = 0.0, a1 = 0.0, a2 = 0.0;
+        double z1[2] { 0.0, 0.0 }, z2[2] { 0.0, 0.0 };
+    };
+    Biquad eqBand[3];
+    bool eqBandOn[3] { false, false, false };
+    FxParams appliedEq;
+    bool eqValid = false, eqWasOn = false;
 
     juce::dsp::Compressor<float> compressor;
     FxParams appliedComp;

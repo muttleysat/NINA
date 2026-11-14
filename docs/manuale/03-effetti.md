@@ -14,16 +14,19 @@ Ogni effetto è una **scheda** con un interruttore in alto a destra (acceso/spen
 | **Saturation** | Drive (0–36 dB), Mix | Distorsione dolce (saturazione) |
 | **LoFi** | Bits (1–16), Rate (1–40×), Mix | Riduce i bit e la frequenza di campionamento: suono "sporco" digitale |
 | **Filter** | Tipo (Lowpass/Highpass/Bandpass), Cutoff (20 Hz–20 kHz), Reso | Filtro risonante |
+| **EQ** | Low (±15 dB), Mid Hz (100 Hz–8 kHz), Mid dB (±15 dB), Mid Q (0.3–8), High (±15 dB) | Equalizzatore a tre bande: **Low** è uno *shelf* (alza o abbassa tutto sotto i 120 Hz), **Mid** è una *campana* (scegli la frequenza, di quanto alzarla o abbassarla e quanto è stretta con **Q**), **High** è uno *shelf* sopra i 6 kHz |
 | **Compressor** | Thresh, Ratio, Attack, Release, Makeup | Compressore |
 | **Delay** | Sync, valore musicale, Time, Feedback, Mix | Eco |
 | **Reverb** | Size, Damp, Mix | Riverbero |
 
 ## Come lavorano gli effetti di una cella
 
+Ordine della catena: Saturation > LoFi > Filter > **EQ** > Compressor > Delay > Reverb.
+
 Capire questo evita sorprese, soprattutto nel sequencer.
 
 1. **Saturation, LoFi e Filter** lavorano **su ogni singola nota**: ogni colpo ha il suo filtro. Due note ravvicinate non si influenzano.
-2. **Compressor** lavora sulla **somma** di tutte le note della cella.
+2. **EQ** e **Compressor** lavorano sulla **somma** di tutte le note della cella (l'EQ prima, poi il compressore). Le mandate al delay e al riverbero partono prima dell'EQ. L'EQ non è bloccabile dagli step del sequencer.
 3. **Delay e Reverb** sono **mandate** (send): ogni nota manda una quantità del suo suono all'effetto, e l'effetto aggiunge l'eco o il riverbero. Il manopola **Mix** è la quantità mandata di default. L'eco di una nota **continua a risuonare** dopo la fine della nota (fino a circa 4 secondi dall'ultima mandata).
 
 Se un effetto è spento sulla cella, quella cella non lo usa, **tranne** gli step del sequencer che lo accendono con un *lock* (capitolo 4).

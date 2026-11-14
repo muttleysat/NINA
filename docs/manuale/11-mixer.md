@@ -11,7 +11,7 @@ Dall'alto in basso:
 | Elemento | Cosa fa |
 |----------|---------|
 | **Uscita** (menu, di solito *Main*) | L'uscita del plugin su cui suona la cella: Main (il mix) oppure Out 2...Out 16 per mandarla su una traccia separata della DAW (come nel pannello della cella) |
-| **FX: S L F C D R** | Gli effetti della cella: **S**aturation, **L**oFi, **F**ilter, **C**ompressor, **D**elay, **R**everb. Un clic li accende e li spegne (acceso = arancione). I parametri di ogni effetto restano nella scheda FX |
+| **FX: S L F C D R E** | Gli effetti della cella: **S**aturation, **L**oFi, **F**ilter, **C**ompressor, **D**elay, **R**everb, **E**Q. Un clic li accende e li spegne (acceso = arancione). I parametri di ogni effetto restano nella scheda FX |
 | **Dly / Rev** | Le due mandate: quanto segnale della cella va al delay e al riverbero. Alzandole con il mouse, l'effetto si accende da solo. Se l'effetto è spento, la manopola è attenuata (la mandata non si sente) |
 | **PAN** | La posizione stereo, da L100 a R100. Doppio clic: al centro |
 | **M / S** | **Mute** (la cella non suona) e **Solo** (suonano solo le celle in Solo). Si possono avere più celle in Solo. Si accendono in arancione |

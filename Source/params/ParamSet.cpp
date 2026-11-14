@@ -55,27 +55,35 @@ const FDesc kFxF[(size_t) FxF::Count] = {
     { "size",      "Size",     "",   0.0f,   1.0f,   0.01f, 0.5f,    0.0f,   2 },
     { "damp",      "Damping",  "",   0.0f,   1.0f,   0.01f, 0.5f,    0.0f,   2 },
     { "mix",       "Mix",      "",   0.0f,   1.0f,   0.01f, 0.25f,   0.0f,   2 },
+    { "low",       "Low",      "dB", -15.0f, 15.0f,  0.1f,  0.0f,    0.0f,   1 },
+    { "midfreq",   "Mid Freq", "Hz", 100.0f, 8000.0f, 1.0f, 1000.0f, 1000.0f, 0 },
+    { "midgain",   "Mid Gain", "dB", -15.0f, 15.0f,  0.1f,  0.0f,    0.0f,   1 },
+    { "midq",      "Mid Q",    "",   0.3f,   8.0f,   0.01f, 1.0f,    1.0f,   2 },
+    { "high",      "High",     "dB", -15.0f, 15.0f,  0.1f,  0.0f,    0.0f,   1 },
 };
 float FxParams::* const kFxFM[(size_t) FxF::Count] = {
     &FxParams::drive, &FxParams::satMix, &FxParams::bits, &FxParams::downsample, &FxParams::lofiMix,
     &FxParams::cutoff, &FxParams::resonance, &FxParams::compThreshold, &FxParams::compRatio, &FxParams::compAttack,
     &FxParams::compRelease, &FxParams::compMakeup, &FxParams::delayTime, &FxParams::delayFeedback, &FxParams::delayMix,
     &FxParams::reverbSize, &FxParams::reverbDamp, &FxParams::reverbMix,
+    &FxParams::eqLow, &FxParams::eqMidFreq, &FxParams::eqMidGain, &FxParams::eqMidQ, &FxParams::eqHigh,
 };
 // Effetto a cui appartiene ogni parametro float
 const FxB kFxFOwner[(size_t) FxF::Count] = {
     FxB::Sat, FxB::Sat, FxB::Lofi, FxB::Lofi, FxB::Lofi, FxB::Filter, FxB::Filter,
     FxB::Comp, FxB::Comp, FxB::Comp, FxB::Comp, FxB::Comp, FxB::Delay, FxB::Delay, FxB::Delay,
     FxB::Reverb, FxB::Reverb, FxB::Reverb,
+    FxB::Eq, FxB::Eq, FxB::Eq, FxB::Eq, FxB::Eq,
 };
 
 struct FxName { const char* id; const char* name; };
 const FxName kFxNames[(size_t) FxB::Count] = {
     { "sat", "Saturation" }, { "lofi", "LoFi" }, { "filter", "Filter" },
-    { "comp", "Compressor" }, { "delay", "Delay" }, { "reverb", "Reverb" },
+    { "comp", "Compressor" }, { "delay", "Delay" }, { "reverb", "Reverb" }, { "eq", "EQ" },
 };
 bool FxParams::* const kFxBM[(size_t) FxB::Count] = {
     &FxParams::satOn, &FxParams::lofiOn, &FxParams::filterOn, &FxParams::compOn, &FxParams::delayOn, &FxParams::reverbOn,
+    &FxParams::eqOn,
 };
 
 juce::NormalisableRange<float> makeRange (const FDesc& d)

@@ -258,6 +258,7 @@ void Engine::renderChunk (int start, int n) noexcept
             reverbSent = reverbSent || rS > 0.0f;
         }
 
+        chain.eq (busL.data(), busR.data(), n, fx);
         chain.compress (busL.data(), busR.data(), n, fx);
 
         // Delay e riverbero restano attivi finche' dura la coda dell'ultima mandata: l'eco di un colpo risuona anche dopo la nota
@@ -317,6 +318,7 @@ void Engine::renderMaster (float* l, float* r, int n) noexcept
     else
         masterInsert.reset();
 
+    masterFx.eq (l, r, n, fx);
     masterFx.compress (l, r, n, fx);
 
     if (fx.delayOn)

@@ -15,9 +15,11 @@ inline constexpr double kDivisionBeats[kNumDivisions] = {
 // Parametri degli effetti (float), uguali per ogni cella e per il master
 enum class FxF { Drive, SatMix, Bits, Downsample, LofiMix, Cutoff, Resonance,
                  CompThreshold, CompRatio, CompAttack, CompRelease, CompMakeup,
-                 DelayTime, DelayFeedback, DelayMix, ReverbSize, ReverbDamp, ReverbMix, Count };
+                 DelayTime, DelayFeedback, DelayMix, ReverbSize, ReverbDamp, ReverbMix,
+                 EqLow, EqMidFreq, EqMidGain, EqMidQ, EqHigh,          // EQ: in coda, cosi' gli indici dei parametri esistenti non cambiano
+                 Count };
 // Interruttori on/off degli effetti
-enum class FxB { Sat, Lofi, Filter, Comp, Delay, Reverb, Count };
+enum class FxB { Sat, Lofi, Filter, Comp, Delay, Reverb, Eq, Count };
 
 // Parametri degli effetti di una cella o del kit (master). Struttura semplice (nessuna stringa),
 // copiabile nel thread audio. Ordine della catena: Saturation > LoFi > Filter > Compressor > Delay > Reverb.
@@ -62,7 +64,15 @@ struct FxParams
     float reverbDamp = 0.5f;
     float reverbMix = 0.25f;
 
-    bool anyOn() const noexcept { return satOn || lofiOn || filterOn || compOn || delayOn || reverbOn; }
+    // EQ a tre bande sul bus: shelf basso (120 Hz), campana centrale (frequenza, guadagno, Q), shelf alto (6 kHz)
+    bool eqOn = false;
+    float eqLow = 0.0f;            // dB, -15..+15
+    float eqMidFreq = 1000.0f;     // Hz, 100..8000
+    float eqMidGain = 0.0f;        // dB
+    float eqMidQ = 1.0f;           // 0.3..8
+    float eqHigh = 0.0f;           // dB
+
+    bool anyOn() const noexcept { return satOn || lofiOn || filterOn || compOn || delayOn || reverbOn || eqOn; }
     bool hasTail() const noexcept { return delayOn || reverbOn; }
 
     bool operator== (const FxParams&) const = default;
@@ -91,6 +101,11 @@ inline void setFxFloat (FxParams& p, FxF f, float v) noexcept
         case FxF::ReverbSize: p.reverbSize = v; break;
         case FxF::ReverbDamp: p.reverbDamp = v; break;
         case FxF::ReverbMix: p.reverbMix = v; break;
+        case FxF::EqLow: p.eqLow = v; break;
+        case FxF::EqMidFreq: p.eqMidFreq = v; break;
+        case FxF::EqMidGain: p.eqMidGain = v; break;
+        case FxF::EqMidQ: p.eqMidQ = v; break;
+        case FxF::EqHigh: p.eqHigh = v; break;
         case FxF::Count: break;
     }
 }
@@ -105,6 +120,7 @@ inline void setFxBool (FxParams& p, FxB b, bool v) noexcept
         case FxB::Comp: p.compOn = v; break;
         case FxB::Delay: p.delayOn = v; break;
         case FxB::Reverb: p.reverbOn = v; break;
+        case FxB::Eq: p.eqOn = v; break;
         case FxB::Count: break;
     }
 }
@@ -120,6 +136,7 @@ inline constexpr FxB fxOwner (FxF f) noexcept
         case FxF::CompThreshold: case FxF::CompRatio: case FxF::CompAttack: case FxF::CompRelease: case FxF::CompMakeup: return FxB::Comp;
         case FxF::DelayTime: case FxF::DelayFeedback: case FxF::DelayMix: return FxB::Delay;
         case FxF::ReverbSize: case FxF::ReverbDamp: case FxF::ReverbMix: return FxB::Reverb;
+        case FxF::EqLow: case FxF::EqMidFreq: case FxF::EqMidGain: case FxF::EqMidQ: case FxF::EqHigh: return FxB::Eq;
         case FxF::Count: break;
     }
     return FxB::Sat;
@@ -140,9 +157,11 @@ inline constexpr bool isPerHitLockable (FxF f) noexcept
     }
 }
 
-// Parametri "bloccabili" dagli step del sequencer: prima i 18 valori degli effetti (FxF), poi i 6 interruttori on/off (FxB)
-inline constexpr int kNumLockable = (int) FxF::Count + (int) FxB::Count;
-inline constexpr int lockIndex (FxB b) noexcept { return (int) FxF::Count + (int) b; }
+// Parametri "bloccabili" dagli step del sequencer: prima i 18 valori degli effetti per colpo (i primi 18 FxF, indici fissi nei file),
+// poi gli interruttori on/off (FxB). L'EQ non e' bloccabile per colpo (agisce sul bus), ma il suo interruttore ha un indice.
+inline constexpr int kNumLockFxF = 18;
+inline constexpr int kNumLockable = kNumLockFxF + (int) FxB::Count;
+inline constexpr int lockIndex (FxB b) noexcept { return kNumLockFxF + (int) b; }
 
 inline float getFxFloat (const FxParams& p, FxF f) noexcept
 {
@@ -166,6 +185,11 @@ inline float getFxFloat (const FxParams& p, FxF f) noexcept
         case FxF::ReverbSize: return p.reverbSize;
         case FxF::ReverbDamp: return p.reverbDamp;
         case FxF::ReverbMix: return p.reverbMix;
+        case FxF::EqLow: return p.eqLow;
+        case FxF::EqMidFreq: return p.eqMidFreq;
+        case FxF::EqMidGain: return p.eqMidGain;
+        case FxF::EqMidQ: return p.eqMidQ;
+        case FxF::EqHigh: return p.eqHigh;
         case FxF::Count: break;
     }
     return 0.0f;

@@ -995,7 +995,7 @@ bool SeqPanel::effectOn (const sl::Step& s, sl::FxB b, int cell) const
     const int sw = sl::lockIndex (b);
     if (s.hasLock (sw))
         return s.lockValues[(size_t) sw] >= 0.5f;
-    for (int f = 0; f < (int) sl::FxF::Count; ++f)
+    for (int f = 0; f < sl::kNumLockFxF; ++f)
         if (sl::fxOwner ((sl::FxF) f) == b && sl::isPerHitLockable ((sl::FxF) f) && s.hasLock (f))
             return true;
     return cell >= 0 ? processor.getParams().cell (cell).fx.power (b)->get() : false;
@@ -1039,7 +1039,7 @@ void SeqPanel::onFxPower (FxCard& card)
     const bool desired = card.power.getToggleState();
     const bool cellOn = cell >= 0 ? processor.getParams().cell (cell).fx.power (card.effect)->get() : false;
     bool valueLocks = false;
-    for (int f = 0; f < (int) sl::FxF::Count; ++f)
+    for (int f = 0; f < sl::kNumLockFxF; ++f)
         if (sl::fxOwner ((sl::FxF) f) == card.effect && sl::isPerHitLockable ((sl::FxF) f) && s->hasLock (f))
             valueLocks = true;
 
