@@ -171,8 +171,24 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
         lvl->setValueNotifyingHost (0.3f);
         processor.undoTick (false);
         const bool a6 = processor.canUndo() == before && std::abs (lvl->getValue() - 0.3f) < 1.0e-4f;
+        // Pattern: uno step acceso si annulla e si ripete
+        processor.resetUndo();
+        processor.undoTick (false);
+        auto& pat0 = processor.activePattern();
+        processor.addLaneForCell (0);
+        processor.undoTick (false);
+        processor.noteUserInput();
+        pat0.lanes.back().steps[3].on = true;
+        processor.patternEdited();
+        processor.undoTick (false);
+        const bool p1 = processor.activePattern().lanes.back().steps[3].on;
+        processor.undo();
+        const bool p2 = ! processor.activePattern().lanes.empty() ? ! processor.activePattern().lanes.back().steps[3].on : false;
+        processor.redo();
+        const bool p3 = processor.activePattern().lanes.back().steps[3].on;
         uiLog ("UNDOTEST canUndo=" + juce::String ((int) a1) + " step1=" + juce::String ((int) a2) + " step2=" + juce::String ((int) a3)
-               + " redo1=" + juce::String ((int) a4) + " redo2=" + juce::String ((int) a5) + " automation-ignored=" + juce::String ((int) a6));
+               + " redo1=" + juce::String ((int) a4) + " redo2=" + juce::String ((int) a5) + " automation-ignored=" + juce::String ((int) a6)
+               + " pattern: on=" + juce::String ((int) p1) + " undone=" + juce::String ((int) p2) + " redone=" + juce::String ((int) p3));
     }
 
     juce::Desktop::getInstance().addGlobalMouseListener (&inputWatcher);
@@ -211,7 +227,7 @@ bool SampleLabEditor::keyPressed (const juce::KeyPress& key)
     processor.noteUserInput();
 
     // Annulla / ripeti (Main, FX, Slice): Ctrl+Z, Ctrl+Y o Ctrl+Maiusc+Z
-    if ((currentTab == 0 || currentTab == 3 || currentTab == 4) && key.getModifiers().isCommandDown())
+    if ((currentTab == 0 || currentTab == 1 || currentTab == 3 || currentTab == 4) && key.getModifiers().isCommandDown())
     {
         const int k = key.getKeyCode();
         if (k == 'Z' || k == 'z')
@@ -472,7 +488,7 @@ void SampleLabEditor::confirmDiscard (std::function<void()> proceed)
 void SampleLabEditor::showKitMenu()
 {
     juce::PopupMenu m;
-    const bool undoTab = currentTab == 0 || currentTab == 3 || currentTab == 4;
+    const bool undoTab = currentTab == 0 || currentTab == 1 || currentTab == 3 || currentTab == 4;
     m.addItem (30, "Undo  (Ctrl+Z)", undoTab && (processor.canUndo() || slicePanel.localUndoTime() > 0.0));
     m.addItem (31, "Redo  (Ctrl+Y)", undoTab && (processor.canRedo() || slicePanel.localRedoTime() > 0.0));
     m.addSeparator();

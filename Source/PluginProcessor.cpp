@@ -964,6 +964,44 @@ inline void mixHash (juce::uint64& h, juce::uint64 v) { h ^= v + 0x9e3779b97f4a7
 inline juce::uint64 bitsOf (float f) { juce::uint32 u = 0; std::memcpy (&u, &f, sizeof u); return u; }
 }
 
+namespace
+{
+juce::uint64 hashPattern (const sl::Pattern& p)
+{
+    juce::uint64 h = 1099511628211ULL;
+    mixHash (h, (juce::uint64) p.name.hashCode64());
+    mixHash (h, bitsOf (p.swing));
+    mixHash (h, p.seed);
+    for (const auto& l : p.lanes)
+    {
+        mixHash (h, (juce::uint64) (l.cell + 2) * 131u + (juce::uint64) l.division * 7u + (juce::uint64) l.length * 1009u);
+        mixHash (h, (l.mute ? 1u : 0u) | (l.solo ? 2u : 0u) | (l.dry ? 4u : 0u));
+        for (const auto& st : l.steps)
+        {
+            mixHash (h, (st.on ? 1u : 0u) | (st.reverse ? 2u : 0u) | ((juce::uint64) st.velocity << 8) | ((juce::uint64) st.probability << 16)
+                            | ((juce::uint64) st.ratchet << 24) | ((juce::uint64) (st.pitch + 64) << 32) | ((juce::uint64) (st.mode + 2) << 40));
+            if (! st.on && st.lockMask == 0 && st.nudge == 0.0f)
+                continue;                                    // step spento e senza modifiche: il resto non conta
+            mixHash (h, bitsOf (st.nudge));
+            mixHash (h, bitsOf (st.gate));
+            mixHash (h, st.lockMask);
+            for (const float v : st.lockValues)
+                mixHash (h, bitsOf (v));
+        }
+    }
+    return h;
+}
+}
+
+std::vector<juce::uint64> SampleLabProcessor::patternHashes() const
+{
+    std::vector<juce::uint64> out;
+    out.reserve (kit.patterns.size());
+    for (const auto& p : kit.patterns)
+        out.push_back (hashPattern (p));
+    return out;
+}
+
 const std::vector<juce::RangedAudioParameter*>& SampleLabProcessor::undoParams() const
 {
     if (undoParamList.empty())
@@ -991,6 +1029,8 @@ juce::uint64 SampleLabProcessor::hashUndoState() const
     }
     for (auto* p : undoParams())
         mixHash (h, bitsOf (p->getValue()));
+    for (const auto ph : patternHashes())
+        mixHash (h, ph);
     return h;
 }
 
@@ -1002,6 +1042,18 @@ SampleLabProcessor::UndoSnap SampleLabProcessor::captureUndo() const
     s.params.reserve (undoParams().size());
     for (auto* p : undoParams())
         s.params.push_back (p->getValue());
+    s.patHashes = patternHashes();
+    patCache.resize (kit.patterns.size());
+    for (size_t i = 0; i < kit.patterns.size(); ++i)
+    {
+        auto& pc = patCache[i];
+        if (pc.ptr == nullptr || pc.hash != s.patHashes[i])
+        {
+            pc.ptr = std::make_shared<const sl::Pattern> (kit.patterns[i]);
+            pc.hash = s.patHashes[i];
+        }
+        s.patterns.push_back (pc.ptr);
+    }
     s.hash = hashUndoState();
     return s;
 }
@@ -1010,6 +1062,25 @@ void SampleLabProcessor::applyUndo (const UndoSnap& s)
 {
     kit.cells = s.cells;
     cellData = s.data;
+
+    // Pattern modificati rispetto a ora: si ripristinano e si mostra quello cambiato (il pattern attivo, se e' tra questi)
+    {
+        const auto cur = patternHashes();
+        int show = -1;
+        for (size_t i = 0; i < cur.size() && i < s.patHashes.size() && i < kit.patterns.size(); ++i)
+            if (cur[i] != s.patHashes[i] && s.patterns[i] != nullptr)
+            {
+                kit.patterns[i] = *s.patterns[i];
+                if (show < 0 || (int) i == kit.activePattern)
+                    show = (int) i;
+            }
+        if (show >= 0)
+        {
+            kit.activePattern = show;
+            publishPattern();
+        }
+    }
+
     const auto& list = undoParams();
     for (size_t i = 0; i < list.size() && i < s.params.size(); ++i)
         if (std::abs (list[i]->getValue() - s.params[i]) > 1.0e-7f)
@@ -1085,6 +1156,7 @@ void SampleLabProcessor::resetUndo()
 {
     undoStack.clear();
     redoStack.clear();
+    patCache.clear();
     undoBaselineValid = false;
 }
 

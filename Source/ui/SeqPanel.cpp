@@ -1323,7 +1323,10 @@ void SeqPanel::captureRecorded()
     if (added)
         refresh();
     if (changed)
+    {
+        processor.noteUserInput();           // le note suonate contano come azione dell'utente (annullabili)
         edited();
+    }
 }
 
 void SeqPanel::quantizePattern (bool onlySelectedLane, float strength)

@@ -99,8 +99,8 @@ public:
 
     bool loadSampleIntoCell (int cell, const juce::File& file, juce::String& error);
     void clearCell (int cell);                     // toglie il campione e riporta la cella al suo tasto di partenza
-    // Annulla / ripeti per le schede Main, FX e Slice: celle (campioni, nome, tasti, slice, tempo), tutti i parametri (manopole). Non riguarda
-    // il sequencer. Le modifiche si riconoscono confrontando lo stato a intervalli (undoTick, ~10 Hz): una trascinata di manopola o una
+    // Annulla / ripeti per le schede Main, FX, Seq e Slice: celle (campioni, nome, tasti, slice, tempo), tutti i parametri (manopole) e i
+    // pattern del sequencer (step, righe, swing, nome). Le modifiche si riconoscono confrontando lo stato a intervalli (undoTick, ~10 Hz): una trascinata di manopola o una
     // distribuzione di slice e' una voce sola. Contano solo le modifiche fatte dall'utente (noteUserInput), non l'automazione della DAW.
     void undoTick (bool mouseDown);
     void noteUserInput() { lastUserInputMs = juce::Time::getMillisecondCounterHiRes(); }
@@ -272,11 +272,16 @@ private:
         std::vector<sl::CellParams> cells;
         std::vector<sl::SampleDataPtr> data;
         std::vector<float> params;
+        std::vector<std::shared_ptr<const sl::Pattern>> patterns;     // i pattern non modificati sono condivisi tra le voci
+        std::vector<juce::uint64> patHashes;
         juce::uint64 hash = 0;
         double when = 0.0;
     };
     UndoSnap captureUndo() const;
     juce::uint64 hashUndoState() const;
+    std::vector<juce::uint64> patternHashes() const;
+    struct PatCache { juce::uint64 hash = 0; std::shared_ptr<const sl::Pattern> ptr; };
+    mutable std::vector<PatCache> patCache;
     void applyUndo (const UndoSnap&);
     const std::vector<juce::RangedAudioParameter*>& undoParams() const;
     UndoSnap undoBaseline;

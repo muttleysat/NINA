@@ -149,6 +149,6 @@ Una nota che cade tra due step va a quello più vicino. Quanto del tuo "feeling"
 
 ## Cose da sapere
 
-- Il sequencer **non ha ancora** quantizzazione, registrazione da tastiera o annullamento (undo). Copia e incolla valgono per l'intero pattern, non per singoli step o righe.
+- Copia e incolla valgono per l'intero pattern, non per singoli step o righe. **Ctrl+Z / Ctrl+Y** annullano e ripetono anche le modifiche al sequencer (capitolo 8).
 - Un lock vale per il colpo di quello step; la sua eco (delay/riverbero) continua anche dopo.
 - Modificare una cella (nome, effetti, livelli) cambia anche come suona nel sequencer, perché la cella è la stessa.
