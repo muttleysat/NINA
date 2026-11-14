@@ -38,9 +38,10 @@ Compression=lzma2/ultra64
 SolidCompression=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-; Il VST3 va nella cartella comune dei plugin (serve l'amministratore); chi non e' amministratore puo' installare per il solo utente corrente
+; Il VST3 va nella cartella comune dei plugin: installazione sempre per tutti gli utenti (UAC), senza finestre di scelta prima del wizard
+; (da riga di comando resta possibile /CURRENTUSER, usato per i test)
 PrivilegesRequired=admin
-PrivilegesRequiredOverridesAllowed=commandline dialog
+PrivilegesRequiredOverridesAllowed=commandline
 CloseApplications=yes
 RestartApplications=no
 ChangesAssociations=no
