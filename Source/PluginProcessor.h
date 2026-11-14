@@ -155,6 +155,7 @@ public:
     // sequenze (16 pattern). La song ha il suo file (.slsong). Aprendo i soli suoni si tengono le sequenze e la song correnti.
     bool saveKitSoundsOnly (const juce::File& file, juce::String& error);
     bool openKitKeepSequences (const juce::File& file, juce::String& error);
+    static bool kitFileHasSequences (const juce::File& file);          // il file .slkit contiene righe nei pattern o una song? (altrimenti sono i soli suoni)
     bool saveSequencesFile (const juce::File& file, juce::String& error) const;
     bool loadSequencesFile (const juce::File& file, juce::String& error);
 

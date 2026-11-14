@@ -232,7 +232,7 @@ SongPanel::SongPanel (SampleLabProcessor& p) : processor (p)
     viewport.setScrollBarsShown (true, false);            // solo scorrimento verticale: i blocchi vanno a capo
     addAndMakeVisible (viewport);
 
-    for (juce::Button* b : std::initializer_list<juce::Button*> { &loopButton, &addButton, &moreButton, &openButton,
+    for (juce::Button* b : std::initializer_list<juce::Button*> { &loopButton, &addButton, &moreButton,
                                                                   &saveButton, &midiButton, &wavButton, &stemsButton })
         addAndMakeVisible (*b);
 
@@ -245,9 +245,7 @@ SongPanel::SongPanel (SampleLabProcessor& p) : processor (p)
     addButton.onClick = [this] { showAddMenu(); };
     moreButton.setTooltip ("Song actions: clear, fill with the patterns that have notes");
     moreButton.onClick = [this] { showMoreMenu(); };
-    openButton.setTooltip ("Load a chain of patterns from a .slsong file (the patterns themselves stay in the kit)");
-    openButton.onClick = [this] { openSong(); };
-    saveButton.setTooltip ("Save this chain of patterns as a .slsong file. The song is also saved inside the kit (Save).");
+    saveButton.setTooltip ("Save this chain of patterns as a .slsong file (open it later with Kit > Open...). The song is also saved inside the kit (Save).");
     saveButton.onClick = [this] { saveSong(); };
 
     nameBox.setText (song().name, juce::dontSendNotification);
@@ -573,26 +571,6 @@ void SongPanel::saveSong()
                           });
 }
 
-void SongPanel::openSong()
-{
-    chooser = std::make_unique<juce::FileChooser> ("Open song", defaultFile ("Songs", ".slsong").getParentDirectory(), "*.slsong");
-    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
-                          [this] (const juce::FileChooser& fc)
-                          {
-                              const auto f = fc.getResult();
-                              if (f == juce::File())
-                                  return;
-                              juce::String err;
-                              if (processor.loadSongFile (f, err))
-                              {
-                                  selected = -1;
-                                  refresh();
-                              }
-                              else
-                                  showMessage (err);
-                          });
-}
-
 void SongPanel::exportMidi()
 {
     if (song().empty())
@@ -804,8 +782,6 @@ void SongPanel::resized()
         separatorsX.push_back ({ d.getX() + gGap / 2, 1 });
         d.removeFromLeft (gGap * 2);
         nameBox.setBounds (d.removeFromLeft ((int) (170 * s)));
-        d.removeFromLeft (gGap);
-        openButton.setBounds (d.removeFromLeft ((int) (120 * s)));
         d.removeFromLeft (gGap);
         saveButton.setBounds (d.removeFromLeft ((int) (120 * s)));
     }

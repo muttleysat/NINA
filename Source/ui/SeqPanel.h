@@ -60,7 +60,6 @@ private:
     void quantizePattern (bool onlySelectedLane, float strength);
     void captureRecorded();            // scrive negli step le note registrate dal thread audio
     void saveSequences();               // tutti i pattern in un file .slseq
-    void openSequences();
     void showPatternMenu();            // duplica / copia / incolla / svuota / rinomina il pattern
     void relayoutLanes();              // ricalcola colonne e larghezze (cambio lunghezza righe, ridimensionamento)
     void exportMidi();

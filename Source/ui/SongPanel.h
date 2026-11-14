@@ -37,7 +37,6 @@ private:
     void duplicateBlock (int index);
     void removeBlock (int index);
     void saveSong();
-    void openSong();
     void exportMidi();
     void bounceWav();
     void exportStems();
@@ -51,7 +50,7 @@ private:
 
     juce::TextButton loopButton { "Loop" };
     IconButton addButton { "+ Block", IconButton::Icon::None }, moreButton { {}, IconButton::Icon::More },
-               openButton { "Open song", IconButton::Icon::None }, saveButton { "Save song", IconButton::Icon::None },
+               saveButton { "Save song", IconButton::Icon::None },
                midiButton { "Export MIDI", IconButton::Icon::Midi }, wavButton { "Bounce WAV", IconButton::Icon::Wave },
                stemsButton { "Export Lanes", IconButton::Icon::Layers };
     juce::TextEditor nameBox;

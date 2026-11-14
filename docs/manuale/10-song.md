@@ -33,7 +33,7 @@ Il **nome** della song (campo accanto a Open/Save) si usa per i nomi dei file es
 ## Salvare e aprire la song
 
 - **Save song** scrive un file **.slsong** (testo leggibile) con la sola catena di blocchi, il nome e il Loop. Il file propone la cartella `Songs` accanto al kit.
-- **Open song** carica una catena da un file .slsong al posto di quella attuale.
+- Per **aprire** una song usa **Kit → Open...** e scegli il file `.slsong`: la catena sostituisce quella attuale.
 - La song è **salvata anche dentro il kit**: con **Save** del kit non perdi la catena. Il file .slsong serve per tenere più versioni o scambiare catene tra kit: i blocchi richiamano i pattern per numero (1–16), quindi funzionano con i pattern del kit in cui li apri.
 - La song si annulla con **Ctrl+Z** come il resto (aggiungere, spostare, togliere blocchi, ripetizioni, Loop).
 

@@ -1580,6 +1580,20 @@ bool SampleLabProcessor::openKitKeepSequences (const juce::File& file, juce::Str
     return true;
 }
 
+bool SampleLabProcessor::kitFileHasSequences (const juce::File& file)
+{
+    sl::Kit k;
+    juce::String err;
+    if (! sl::KitIO::load (file, k, err))
+        return true;                                                   // se non si legge, ci pensera' l'apertura normale a segnalare l'errore
+    if (! k.song.empty())
+        return true;
+    for (const auto& p : k.patterns)
+        if (! p.lanes.empty())
+            return true;
+    return false;
+}
+
 bool SampleLabProcessor::saveSequencesFile (const juce::File& file, juce::String& error) const
 {
     if (! file.replaceWithText (sl::KitIO::sequencesToJson (kit)))

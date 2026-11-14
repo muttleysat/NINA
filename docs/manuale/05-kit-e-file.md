@@ -29,11 +29,15 @@ Il salvataggio normale (**Save**, **Save as...**) scrive un **progetto completo*
 | **Sequenze** | I **16 pattern** (righe, step, lock, swing, nomi) e il pattern attivo | Scheda **Seq**, menu **⋯** accanto al nome del pattern → **Save all sequences...** | `.slseq` |
 | **Song** | La catena di blocchi, il Loop e il nome | Scheda **Song** → **Save song** | `.slsong` |
 
-Per ricaricarli: **Kit → Open kit sounds only (keep my sequences and song)...** apre i suoni di un kit **mantenendo** le sequenze e la song che hai ora (così puoi cambiare i suoni senza perdere il lavoro); **Open sequences from a file...** (menu ⋯ della scheda Seq) sostituisce **tutti i 16 pattern** con quelli del file (chiede conferma, si annulla con Ctrl+Z); **Open song** (scheda Song) carica una catena.
+**Per aprirli c'è un solo comando: Kit → Open...** Sceglie da solo cosa fare in base al tipo di file:
+
+- **`.slkit`** (kit): apre il kit. Se il file contiene **sequenze o una song** (salvataggio normale) sostituisce tutto come prima; se invece è un kit **dei soli suoni** (senza pattern né song, per esempio salvato con *Save kit sounds only*) cambia i suoni e **mantiene le sequenze e la song che hai ora**. Se hai modifiche non salvate, chiede conferma.
+- **`.slseq`** (sequenze): sostituisce **tutti i 16 pattern** con quelli del file (chiede conferma, si annulla con Ctrl+Z).
+- **`.slsong`** (song): carica la catena di blocchi al posto di quella attuale.
 
 Cose da sapere:
 - **Save kit sounds only** salva una **copia**: il kit su cui stai lavorando non cambia (nome, percorso e asterisco restano come sono). I campioni vengono copiati nella cartella accanto al file, come per il salvataggio normale.
-- Aprendo i soli suoni, il kit risulta **modificato** (asterisco): contiene le sequenze di prima, che non sono nel file aperto. Un **Save** normale lo sovrascriverebbe con tutto.
+- Aprendo un kit dei soli suoni, il kit risulta **modificato** (asterisco): contiene le sequenze di prima, che non sono nel file aperto. Un **Save** normale lo sovrascriverebbe con tutto. Un kit senza nessuna riga nei pattern e senza song è considerato «dei soli suoni»: per ripartire da zero usa **Kit → New kit**.
 - Le righe dei pattern e i blocchi della song richiamano le celle e i pattern **per numero** (A1 è la cella 0...): funzionano con qualunque kit, ma suonano ciò che c'è in quelle celle.
 
 ## Il menu Kit e i pulsanti in alto
@@ -44,9 +48,9 @@ Cose da sapere:
 | **< >** | Passa al kit precedente/successivo **nella stessa cartella** del kit corrente (attive solo se ce n'è un altro) |
 | **Save** | Salva il kit (la prima volta chiede il nome) |
 | **Kit → New kit** | Crea un kit vuoto |
-| **Kit → Open...** | Apre un file `.slkit` |
+| **Kit → Open...** | Apre un file `.slkit` (kit), `.slseq` (sequenze) o `.slsong` (song): riconosce il tipo dall'estensione |
 | **Kit → Save** / **Save as...** | Salva / salva con un altro nome (progetto completo) |
-| **Kit → Save kit sounds only...** / **Open kit sounds only...** | Salva i soli suoni / apre i suoni tenendo le tue sequenze e la tua song (vedi sopra) |
+| **Kit → Save kit sounds only...** | Salva i soli suoni (senza sequenze e song) in un `.slkit` |
 | **Kit → Normalize all cells** | Normalizza il Level di tutte le celle (picco a −1 dBFS) |
 | **Kit → Recent kits** | Gli **ultimi 5 kit** aperti o salvati, con **Clear recent** per svuotare l'elenco |
 

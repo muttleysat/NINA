@@ -1452,42 +1452,6 @@ void SeqPanel::saveSequences()
                           });
 }
 
-void SeqPanel::openSequences()
-{
-    const auto& kit = processor.getKit();
-    const auto dir = kit.file.getFullPathName().isNotEmpty() ? kit.file.getSiblingFile ("Sequences")
-                                                             : juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
-    chooser = std::make_unique<juce::FileChooser> ("Open sequences", dir, "*.slseq");
-    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
-                          [this] (const juce::FileChooser& fc)
-                          {
-                              const auto f = fc.getResult();
-                              if (! f.existsAsFile())
-                                  return;
-                              juce::Component::SafePointer<SeqPanel> safe (this);
-                              juce::AlertWindow::showAsync (juce::MessageBoxOptions()
-                                                                .withIconType (juce::MessageBoxIconType::QuestionIcon)
-                                                                .withTitle ("Open sequences")
-                                                                .withMessage ("Replace ALL 16 patterns of this kit with the ones in the file?\nYou can undo with Ctrl+Z.")
-                                                                .withButton ("Replace")
-                                                                .withButton ("Cancel")
-                                                                .withAssociatedComponent (this),
-                                                            [safe, f] (int res)
-                                                            {
-                                                                if (res != 1 || safe == nullptr)
-                                                                    return;
-                                                                juce::String err;
-                                                                if (safe->processor.loadSequencesFile (f, err))
-                                                                {
-                                                                    safe->selLane = safe->selStep = -1;
-                                                                    safe->refresh();
-                                                                }
-                                                                else
-                                                                    safe->showMessage (err);
-                                                            });
-                          });
-}
-
 void SeqPanel::showPatternMenu()
 {
     const int cur = processor.getActivePatternIndex();
@@ -1501,7 +1465,6 @@ void SeqPanel::showPatternMenu()
     m.addItem (5, "Rename...");
     m.addSeparator();
     m.addItem (20, "Save all sequences (16 patterns) to a file...");
-    m.addItem (21, "Open sequences from a file...");
     m.addSeparator();
     {
         const bool has = ! pat().lanes.empty();
@@ -1536,8 +1499,6 @@ void SeqPanel::showPatternMenu()
         }
         else if (r == 20)
             safe->saveSequences();
-        else if (r == 21)
-            safe->openSequences();
         else if (r >= 100 && r < 107)
         {
             static const int lens[] = { 8, 12, 16, 24, 32, 48, 64 };
