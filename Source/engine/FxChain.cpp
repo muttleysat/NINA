@@ -111,7 +111,7 @@ void FxChain::reset()
         b.z1[0] = b.z1[1] = b.z2[0] = b.z2[1] = 0.0;
     eqValid = false;
     eqWasOn = false;
-    stActive = false;
+    stState = StState::Off;
     stPos = stLen = 0;
     std::fill (stRingL.begin(), stRingL.end(), 0.0f);
     std::fill (stRingR.begin(), stRingR.end(), 0.0f);
@@ -199,7 +199,7 @@ float FxChain::eqResponseDb (const FxParams& p, double freq, double sr) noexcept
     return (float) db;
 }
 
-void FxChain::stutter (float* l, float* r, int n, const FxParams& p, double bpm) noexcept
+void FxChain::stutter (float* l, float* r, int n, const FxParams& p, double bpm, bool onset) noexcept
 {
     if (stCap <= 0 || n <= 0)
         return;
@@ -211,22 +211,45 @@ void FxChain::stutter (float* l, float* r, int n, const FxParams& p, double bpm)
     const float keep = 1.0f - juce::jlimit (0.0f, 0.95f, p.stutterDecay);
     const int fade = juce::jmax (8, (int) (0.002 * sr));                 // 2 ms di dissolvenza ai bordi: niente scatti
 
-    // Congela le ultime 'len' campioni dell'anello (compreso l'ultimo scritto)
-    auto capture = [&] (int len)
+    // Congela le ultime 'len' campioni dell'anello (compreso l'ultimo scritto); ritorna il picco della porzione
+    auto captureHistory = [&] (int len)
     {
         int src = stW - len + 1;
         if (src < 0)
             src += cap;
+        float pk = 0.0f;
         for (int k = 0; k < len; ++k)
         {
             stFrozenL[(size_t) k] = stRingL[(size_t) src];
             stFrozenR[(size_t) k] = stRingR[(size_t) src];
+            pk = juce::jmax (pk, std::abs (stFrozenL[(size_t) k]), std::abs (stFrozenR[(size_t) k]));
             if (++src == cap)
                 src = 0;
         }
         stLen = len;
         stPos = 0;
+        return pk;
     };
+
+    if (! p.stutterOn)
+    {
+        stState = StState::Off;
+        for (int i = 0; i < n; ++i)                                      // anche da spento si registra la storia
+        {
+            stRingL[(size_t) stW] = l[i];
+            stRingR[(size_t) stW] = r[i];
+            if (++stW == cap)
+                stW = 0;
+        }
+        return;
+    }
+
+    if (onset)                                                          // nuovo colpo: da qui si registra la porzione da ripetere
+    {
+        stState = StState::Capturing;
+        stLen = desired;
+        stCapturePos = 0;
+    }
 
     for (int i = 0; i < n; ++i)
     {
@@ -234,15 +257,31 @@ void FxChain::stutter (float* l, float* r, int n, const FxParams& p, double bpm)
         stRingL[(size_t) stW] = dl;
         stRingR[(size_t) stW] = dr;
 
-        if (p.stutterOn)
+        if (stState == StState::Off)                                    // appena acceso
         {
-            if (! stActive)
+            // Se c'e' suono nella storia recente (loop in corso) si ripete quello, altrimenti si aspetta il prossimo colpo
+            if (captureHistory (desired) > 1.0e-3f)
             {
-                capture (desired);
                 stGain = 1.0f;
-                stActive = true;
+                stState = StState::Repeating;
             }
+            else
+                stState = StState::Armed;
+        }
 
+        if (stState == StState::Capturing)
+        {
+            stFrozenL[(size_t) stCapturePos] = dl;                      // il colpo suona normalmente mentre si registra
+            stFrozenR[(size_t) stCapturePos] = dr;
+            if (++stCapturePos >= stLen)
+            {
+                stState = StState::Repeating;
+                stPos = 0;
+                stGain = 1.0f;
+            }
+        }
+        else if (stState == StState::Repeating)
+        {
             const float e = juce::jmin (1.0f, (float) juce::jmin (stPos, stLen - 1 - stPos) / (float) fade);
             const float g = stGain * e;
             l[i] = dl * (1.0f - mix) + stFrozenL[(size_t) stPos] * g * mix;
@@ -251,14 +290,12 @@ void FxChain::stutter (float* l, float* r, int n, const FxParams& p, double bpm)
             if (++stPos >= stLen)
             {
                 stGain *= keep;
-                if (desired != stLen)                                    // cambio di divisione o di tempo: si ricatta al prossimo giro
-                    capture (desired);
+                if (desired != stLen)                                    // cambio di divisione o di tempo: si ricatta la storia
+                    captureHistory (desired);
                 else
                     stPos = 0;
             }
         }
-        else
-            stActive = false;
 
         if (++stW == cap)
             stW = 0;

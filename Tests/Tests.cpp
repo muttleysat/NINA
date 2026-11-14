@@ -671,6 +671,88 @@ public:
             expectWithinAbsoluteError (a[100], 0.37f, 1.0e-6f);
         }
 
+        beginTest ("Engine: stutter on a playing cell repeats the last slice (end to end)");
+        {
+            Rig rig;
+            auto ramp = std::make_shared<SampleData>();                 // 2 s di rampa che si ripete ogni 10000 campioni: riconoscibile
+            const int N = (int) (2.0 * kSR);
+            ramp->audio.setSize (1, N);
+            for (int i = 0; i < N; ++i)
+                ramp->audio.setSample (0, i, 0.1f + 0.8f * (float) (i % 10000) / 10000.0f);
+            ramp->sampleRate = kSR;
+            rig.setCells ({ { cell (60, TriggerMode::Loop), ramp } });
+            const int L = (int) std::lround (0.125 * kSR);              // 1/16 a 120 BPM
+            const int total = 6 * L + 4096;
+            const int onAt = 2 * L;
+            juce::AudioBuffer<float> out (2, total);
+            out.clear();
+            for (int pos = 0; pos < total; pos += 256)
+            {
+                const int n = juce::jmin (256, total - pos);
+                juce::AudioBuffer<float> blk (2, n);
+                blk.clear();
+                juce::MidiBuffer m;
+                if (pos == 0)
+                    m.addEvent (juce::MidiMessage::noteOn (1, 60, 1.0f), 0);
+                rig.engine.live.fx[0].stutterOn = pos >= onAt;
+                rig.engine.live.fx[0].stutterDivision = 10;
+                rig.engine.process (blk, m);
+                for (int c = 0; c < 2; ++c)
+                    out.copyFrom (c, pos, blk, c, 0, n);
+            }
+            const int t0 = onAt + 3 * L / 2;
+            for (int k : { 100, 700, 1500 })
+                expectWithinAbsoluteError (out.getSample (0, t0 + k), out.getSample (0, t0 + k + L), 2.0e-3f);
+            // senza stutter la rampa non ha periodo L: la stessa misura darebbe valori diversi
+            expect (std::abs (out.getSample (0, onAt - L + 100) - out.getSample (0, onAt + 100)) > 0.0f);
+        }
+
+        beginTest ("FX: stutter on a new hit records the slice that starts there, plays it normally, then repeats it (silent history)");
+        {
+            FxChain chain;
+            chain.prepare (kSR, 512);
+            FxParams fx; fx.stutterOn = true; fx.stutterDivision = 10;     // 1/16 a 120 BPM
+            const int L = (int) std::lround (0.125 * kSR);
+            const int S = 512 * 30;                                        // inizio del colpo (all'inizio di un blocco)
+            const int total = S + 5 * L;
+            std::vector<float> in ((size_t) total, 0.0f), out ((size_t) total, 0.0f);
+            for (int i = S; i < S + L * 3; ++i)                            // un colpo lungo 3 porzioni: rampa riconoscibile
+                in[(size_t) i] = 0.1f + 0.8f * (float) ((i - S) % 9000) / 9000.0f;
+            for (int pos = 0; pos < total; pos += 512)
+            {
+                const int n = juce::jmin (512, total - pos);
+                std::vector<float> bl (in.begin() + pos, in.begin() + pos + n), br (bl);
+                chain.stutter (bl.data(), br.data(), n, fx, 120.0, pos == S);
+                std::copy (bl.begin(), bl.end(), out.begin() + pos);
+            }
+            for (int k : { 150, 1000, 4000 })
+            {
+                expectWithinAbsoluteError (out[(size_t) (S + k)], in[(size_t) (S + k)], 1.0e-5f);          // prima porzione: il colpo normale
+                expectWithinAbsoluteError (out[(size_t) (S + L + k)], in[(size_t) (S + k)], 1.0e-4f);      // poi la stessa porzione, ripetuta
+                expectWithinAbsoluteError (out[(size_t) (S + 2 * L + k)], in[(size_t) (S + k)], 1.0e-4f);
+            }
+            expect (out[(size_t) (S + 4 * L + 1000)] > 0.05f);             // anche dopo la fine del colpo continua a ripetere
+            expectEquals (out[(size_t) (S - 1000)], 0.0f);                 // prima del colpo: silenzio (niente da ripetere)
+        }
+
+        beginTest ("Engine: stutter on a one-shot hit repeats it after the sample ended");
+        {
+            Rig rig;
+            auto ramp = std::make_shared<SampleData>();                    // 0.2 s: piu' corto di due porzioni
+            const int N = (int) (0.2 * kSR);
+            ramp->audio.setSize (1, N);
+            for (int i = 0; i < N; ++i)
+                ramp->audio.setSample (0, i, 0.1f + 0.8f * (float) (i % 7000) / 7000.0f);
+            ramp->sampleRate = kSR;
+            rig.setCells ({ { cell (60, TriggerMode::OneShot), ramp } });
+            rig.engine.live.fx[0].stutterOn = true;
+            rig.engine.live.fx[0].stutterDivision = 10;
+            const int L = (int) std::lround (0.125 * kSR);
+            auto out = rig.render (L * 6, noteOn (60, 256));
+            expect (peak (out, L * 5, L * 6) > 0.1f);                      // molto dopo la fine del campione (0.2 s) suona ancora
+            expectWithinAbsoluteError (out.getSample (0, 256 + L + 3000), out.getSample (0, 256 + 3000), 0.02f);
+        }
+
         beginTest ("Mixer: Mute and Solo are saved with the kit");
         {
             Kit kit = Kit::makeDefault();

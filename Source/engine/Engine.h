@@ -109,6 +109,8 @@ private:
     std::array<FxParams, kMaxCells> effFx;           // copia dei parametri effetti del blocco corrente
     std::array<Voice, kMaxVoices> voices;
     std::array<std::atomic<int>, kMaxCells> activity {};
+    std::array<bool, kMaxCells> cellOnset {};          // un nuovo colpo e' appena partito sulla cella (per lo stutter)
+    bool masterOnset = false;
     std::atomic<float> peakL { 0.0f }, peakR { 0.0f };
     std::array<std::atomic<float>, kMaxCells> cellPeakL {}, cellPeakR {};
     std::atomic<float> masterAccL { 0.0f }, masterAccR { 0.0f };

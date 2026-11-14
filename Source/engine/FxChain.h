@@ -68,9 +68,12 @@ public:
     // Risposta in dB dell'EQ alla frequenza 'freq' (per disegnare la curva)
     static float eqResponseDb (const FxParams& p, double freq, double sampleRate = 44100.0) noexcept;
 
-    // Stutter (beat repeat) in place, da chiamare alla fine della catena: registra sempre il segnale in un anello; quando e' acceso
-    // ripete a ciclo l'ultima porzione (lunga quanto la divisione musicale, con il BPM dato). Nessuna allocazione.
-    void stutter (float* l, float* r, int n, const FxParams& p, double bpm) noexcept;
+    // Stutter (beat repeat) in place, da chiamare alla fine della catena. Registra sempre il segnale in un anello. Da acceso:
+    //  - appena acceso, se nella storia recente c'e' suono (un loop in corso) ripete a ciclo l'ultima porzione;
+    //  - a ogni nuovo colpo della cella ('onset') registra la porzione che parte da li' (intanto il colpo si sente normalmente) e poi
+    //    la ripete a ciclo, ogni volta piu' piano secondo Decay, finche' non arriva un altro colpo o si spegne.
+    // La porzione dura quanto la divisione musicale (con il BPM dato). Nessuna allocazione.
+    void stutter (float* l, float* r, int n, const FxParams& p, double bpm, bool onset = false) noexcept;
 
     // Compressore in place sul bus (se compOn). n <= maxBlockSize.
     void compress (float* l, float* r, int n, const FxParams& p) noexcept;
@@ -102,7 +105,9 @@ private:
     // Stutter: anello della storia recente e porzione "congelata" che si ripete
     std::vector<float> stRingL, stRingR, stFrozenL, stFrozenR;
     int stCap = 0, stW = 0, stLen = 0, stPos = 0;
-    bool stActive = false;
+    enum class StState { Off, Armed, Capturing, Repeating };
+    StState stState = StState::Off;
+    int stCapturePos = 0;
     float stGain = 1.0f;
 
     juce::dsp::Compressor<float> compressor;

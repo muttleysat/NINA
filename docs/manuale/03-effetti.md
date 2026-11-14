@@ -16,13 +16,13 @@ Ogni effetto è una **scheda** con un interruttore in alto a destra (acceso/spen
 | **Filter** | Tipo (Lowpass/Highpass/Bandpass), Cutoff (20 Hz–20 kHz), Reso | Filtro risonante |
 | **EQ** | Low (±15 dB), Mid Hz (100 Hz–8 kHz), Mid dB (±15 dB), Mid Q (0.3–8), High (±15 dB) | Equalizzatore a tre bande, con la **curva di risposta** disegnata sopra le manopole (20 Hz–20 kHz, ±18 dB; si aggiorna mentre giri le manopole, anche con l'automazione): **Low** è uno *shelf* (alza o abbassa tutto sotto i 120 Hz), **Mid** è una *campana* (scegli la frequenza, di quanto alzarla o abbassarla e quanto è stretta con **Q**), **High** è uno *shelf* sopra i 6 kHz |
 | **Compressor** | Thresh, Ratio, Attack, Release, Makeup | Compressore |
-| **Stutter** | Divisione (1/1…1/64), Decay, Mix | *Beat repeat*: da quando lo accendi **ripete a ciclo l'ultima porzione di suono** della cella, lunga quanto la divisione scelta (1/16 a 120 BPM = 125 ms) e **sincronizzata al tempo**. **Decay** abbassa ogni ripetizione rispetto alla precedente (0 = tutte uguali), **Mix** dosa ripetizione e suono normale (1 = solo la ripetizione). Spegnendolo il suono torna normale. Con un loop o un break dà il classico effetto «inceppato». Sul **Master** ripete tutto il kit |
+| **Stutter** | Divisione (1/1…1/64), Decay, Mix | *Beat repeat* **sincronizzato al tempo**. Acceso, funziona così: **a ogni nuovo colpo della cella** registra la porzione di suono che parte da lì, lunga quanto la divisione scelta (1/16 a 120 BPM = 125 ms); intanto il colpo si sente normalmente, poi la porzione si **ripete a ciclo** finché non arriva un altro colpo o lo spegni. Se lo accendi mentre un **loop o un break** sta già suonando, ripete subito l'ultima porzione di ciò che si sentiva. **Decay** abbassa ogni ripetizione rispetto alla precedente (0 = tutte uguali), **Mix** dosa ripetizione e suono normale (1 = solo la ripetizione). Sul **Master** vale per tutto il kit (i nuovi colpi di qualunque cella lo riarmano) |
 | **Delay** | Sync, valore musicale, Time, Feedback, Mix | Eco |
 | **Reverb** | Size, Damp, Mix | Riverbero |
 
 ## Come lavorano gli effetti di una cella
 
-Ordine della catena: Saturation > LoFi > Filter > **EQ** > Compressor > Delay > Reverb > **Stutter** (lo Stutter è l'ultimo: ripete ciò che senti dalla cella, code incluse). Lo Stutter ricorda al massimo 0,75 secondi: con tempi molto lenti le divisioni più lunghe vengono accorciate.
+Ordine della catena: Saturation > LoFi > Filter > **EQ** > Compressor > Delay > Reverb > **Stutter** (lo Stutter è l'ultimo: ripete ciò che senti dalla cella, code incluse). Lo Stutter ripete al massimo 0,75 secondi: con tempi molto lenti le divisioni più lunghe vengono accorciate.
 
 Capire questo evita sorprese, soprattutto nel sequencer.
 

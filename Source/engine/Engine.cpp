@@ -142,6 +142,8 @@ void Engine::noteOn (int note, float velocity) noexcept
             continue;
 
         allocateVoice()->start (cell.data, d, c, note, velocity, sampleRate, ++ageCounter);
+        cellOnset[(size_t) c] = true;
+        masterOnset = true;
     }
 }
 
@@ -182,6 +184,8 @@ void Engine::seqEvent (const SeqEvent& e) noexcept
     auto* v = allocateVoice();
     v->start (cell.data, d, e.cell, d.rootNote, e.velocity, sampleRate, ++ageCounter, e.semis, true, e.reverse, e.mode);
     v->setLocks (e.lockMask, e.lockValues);      // i lock valgono solo per questo colpo
+    cellOnset[(size_t) e.cell] = true;
+    masterOnset = true;
 }
 
 void Engine::renderVoices (int start, int count) noexcept
@@ -278,7 +282,8 @@ void Engine::renderChunk (int start, int n) noexcept
                 chain.resetReverb();
         }
 
-        chain.stutter (busL.data(), busR.data(), n, fx, live.bpm);        // ultimo effetto della cella: ripete cio' che si sente
+        chain.stutter (busL.data(), busR.data(), n, fx, live.bpm, cellOnset[(size_t) c]);
+        cellOnset[(size_t) c] = false;        // ultimo effetto della cella: ripete cio' che si sente
 
         // Mixer: una cella in mute (o esclusa da un solo) continua a girare (voci, code) ma non arriva alle uscite
         if (live.mute[(size_t) c] || (anySolo && ! live.solo[(size_t) c]))
@@ -343,7 +348,8 @@ void Engine::renderMaster (float* l, float* r, int n) noexcept
     }
     masterReverbWasOn = fx.reverbOn;
 
-    masterFx.stutter (l, r, n, fx, live.bpm);
+    masterFx.stutter (l, r, n, fx, live.bpm, masterOnset);
+    masterOnset = false;
 }
 
 void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& midi,
