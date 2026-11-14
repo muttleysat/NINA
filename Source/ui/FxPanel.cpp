@@ -46,6 +46,23 @@ FxPanel::FxPanel (SampleLabProcessor& p) : processor (p)
     addKnob (comp, "Release", F::CompRelease);
     addKnob (comp, "Makeup", F::CompMakeup);
 
+    auto& chorus = addCard ("Chorus", 3.0f, B::Chorus);
+    addKnob (chorus, "Rate", F::ChorusRate);
+    addKnob (chorus, "Depth", F::ChorusDepth);
+    addKnob (chorus, "Mix", F::ChorusMix);
+
+    auto& flanger = addCard ("Flanger", 4.0f, B::Flanger);
+    addKnob (flanger, "Rate", F::FlangerRate);
+    addKnob (flanger, "Depth", F::FlangerDepth);
+    addKnob (flanger, "Fdbk", F::FlangerFeedback);
+    addKnob (flanger, "Mix", F::FlangerMix);
+
+    auto& phaser = addCard ("Phaser", 4.0f, B::Phaser);
+    addKnob (phaser, "Rate", F::PhaserRate);
+    addKnob (phaser, "Depth", F::PhaserDepth);
+    addKnob (phaser, "Fdbk", F::PhaserFeedback);
+    addKnob (phaser, "Mix", F::PhaserMix);
+
     auto& delay = addCard ("Delay", 3.6f, B::Delay);
     delay.syncButton = std::make_unique<juce::TextButton> ("Sync");
     delay.syncButton->setTooltip ("Lock the delay time to the project tempo");

@@ -75,6 +75,12 @@ public:
     // La porzione dura quanto la divisione musicale (con il BPM dato). Nessuna allocazione.
     void stutter (float* l, float* r, int n, const FxParams& p, double bpm, bool onset = false) noexcept;
 
+    // Effetti di modulazione in place sul bus (se acceso): chorus (linea di ritardo modulata), flanger (ritardo brevissimo con feedback),
+    // phaser (4 filtri passa-tutto modulati con feedback). Ognuno ha il suo LFO, con i due canali sfasati di 90 gradi per l'ampiezza stereo.
+    void chorus (float* l, float* r, int n, const FxParams& p) noexcept;
+    void flanger (float* l, float* r, int n, const FxParams& p) noexcept;
+    void phaser (float* l, float* r, int n, const FxParams& p) noexcept;
+
     // Compressore in place sul bus (se compOn). n <= maxBlockSize.
     void compress (float* l, float* r, int n, const FxParams& p) noexcept;
 
@@ -109,6 +115,13 @@ private:
     StState stState = StState::Off;
     int stCapturePos = 0;
     float stGain = 1.0f;
+
+    // Linee di ritardo del chorus e del flanger (2 canali), stato degli LFO e del phaser
+    std::vector<float> chLine[2], flLine[2];
+    int chW = 0, flW = 0;
+    double chPhase = 0.0, flPhase = 0.0, phPhase = 0.0;
+    float flFb[2] { 0.0f, 0.0f }, phFb[2] { 0.0f, 0.0f }, apZ[2][4] {};
+    bool chWasOn = false, flWasOn = false, phWasOn = false;
 
     juce::dsp::Compressor<float> compressor;
     FxParams appliedComp;

@@ -18,9 +18,12 @@ enum class FxF { Drive, SatMix, Bits, Downsample, LofiMix, Cutoff, Resonance,
                  DelayTime, DelayFeedback, DelayMix, ReverbSize, ReverbDamp, ReverbMix,
                  EqLow, EqMidFreq, EqMidGain, EqMidQ, EqHigh,          // EQ e Stutter: in coda, cosi' gli indici dei parametri esistenti non cambiano
                  StutterDecay, StutterMix,
+                 ChorusRate, ChorusDepth, ChorusMix,
+                 FlangerRate, FlangerDepth, FlangerFeedback, FlangerMix,
+                 PhaserRate, PhaserDepth, PhaserFeedback, PhaserMix,
                  Count };
 // Interruttori on/off degli effetti
-enum class FxB { Sat, Lofi, Filter, Comp, Delay, Reverb, Eq, Stutter, Count };
+enum class FxB { Sat, Lofi, Filter, Comp, Delay, Reverb, Eq, Stutter, Chorus, Flanger, Phaser, Count };
 
 // Parametri degli effetti di una cella o del kit (master). Struttura semplice (nessuna stringa),
 // copiabile nel thread audio. Ordine della catena: Saturation > LoFi > Filter > Compressor > Delay > Reverb.
@@ -79,7 +82,18 @@ struct FxParams
     float stutterDecay = 0.0f;     // 0..0.9: quanto si abbassa ogni ripetizione rispetto alla precedente
     float stutterMix = 1.0f;       // 0..1: 1 = solo la ripetizione
 
-    bool anyOn() const noexcept { return satOn || lofiOn || filterOn || compOn || delayOn || reverbOn || eqOn || stutterOn; }
+    // Effetti di modulazione sul bus: chorus, flanger e phaser (LFO in Hz, profondita' 0..1, feedback 0..0.9, mix 0..1)
+    bool chorusOn = false;
+    float chorusRate = 0.8f, chorusDepth = 0.5f, chorusMix = 0.5f;
+    bool flangerOn = false;
+    float flangerRate = 0.3f, flangerDepth = 0.7f, flangerFeedback = 0.5f, flangerMix = 0.5f;
+    bool phaserOn = false;
+    float phaserRate = 0.4f, phaserDepth = 0.7f, phaserFeedback = 0.4f, phaserMix = 0.5f;
+
+    bool anyOn() const noexcept
+    {
+        return satOn || lofiOn || filterOn || compOn || delayOn || reverbOn || eqOn || stutterOn || chorusOn || flangerOn || phaserOn;
+    }
     bool hasTail() const noexcept { return delayOn || reverbOn; }
 
     bool operator== (const FxParams&) const = default;
@@ -115,6 +129,17 @@ inline void setFxFloat (FxParams& p, FxF f, float v) noexcept
         case FxF::EqHigh: p.eqHigh = v; break;
         case FxF::StutterDecay: p.stutterDecay = v; break;
         case FxF::StutterMix: p.stutterMix = v; break;
+        case FxF::ChorusRate: p.chorusRate = v; break;
+        case FxF::ChorusDepth: p.chorusDepth = v; break;
+        case FxF::ChorusMix: p.chorusMix = v; break;
+        case FxF::FlangerRate: p.flangerRate = v; break;
+        case FxF::FlangerDepth: p.flangerDepth = v; break;
+        case FxF::FlangerFeedback: p.flangerFeedback = v; break;
+        case FxF::FlangerMix: p.flangerMix = v; break;
+        case FxF::PhaserRate: p.phaserRate = v; break;
+        case FxF::PhaserDepth: p.phaserDepth = v; break;
+        case FxF::PhaserFeedback: p.phaserFeedback = v; break;
+        case FxF::PhaserMix: p.phaserMix = v; break;
         case FxF::Count: break;
     }
 }
@@ -131,6 +156,9 @@ inline void setFxBool (FxParams& p, FxB b, bool v) noexcept
         case FxB::Reverb: p.reverbOn = v; break;
         case FxB::Eq: p.eqOn = v; break;
         case FxB::Stutter: p.stutterOn = v; break;
+        case FxB::Chorus: p.chorusOn = v; break;
+        case FxB::Flanger: p.flangerOn = v; break;
+        case FxB::Phaser: p.phaserOn = v; break;
         case FxB::Count: break;
     }
 }
@@ -148,6 +176,9 @@ inline constexpr FxB fxOwner (FxF f) noexcept
         case FxF::ReverbSize: case FxF::ReverbDamp: case FxF::ReverbMix: return FxB::Reverb;
         case FxF::EqLow: case FxF::EqMidFreq: case FxF::EqMidGain: case FxF::EqMidQ: case FxF::EqHigh: return FxB::Eq;
         case FxF::StutterDecay: case FxF::StutterMix: return FxB::Stutter;
+        case FxF::ChorusRate: case FxF::ChorusDepth: case FxF::ChorusMix: return FxB::Chorus;
+        case FxF::FlangerRate: case FxF::FlangerDepth: case FxF::FlangerFeedback: case FxF::FlangerMix: return FxB::Flanger;
+        case FxF::PhaserRate: case FxF::PhaserDepth: case FxF::PhaserFeedback: case FxF::PhaserMix: return FxB::Phaser;
         case FxF::Count: break;
     }
     return FxB::Sat;
@@ -203,6 +234,17 @@ inline float getFxFloat (const FxParams& p, FxF f) noexcept
         case FxF::EqHigh: return p.eqHigh;
         case FxF::StutterDecay: return p.stutterDecay;
         case FxF::StutterMix: return p.stutterMix;
+        case FxF::ChorusRate: return p.chorusRate;
+        case FxF::ChorusDepth: return p.chorusDepth;
+        case FxF::ChorusMix: return p.chorusMix;
+        case FxF::FlangerRate: return p.flangerRate;
+        case FxF::FlangerDepth: return p.flangerDepth;
+        case FxF::FlangerFeedback: return p.flangerFeedback;
+        case FxF::FlangerMix: return p.flangerMix;
+        case FxF::PhaserRate: return p.phaserRate;
+        case FxF::PhaserDepth: return p.phaserDepth;
+        case FxF::PhaserFeedback: return p.phaserFeedback;
+        case FxF::PhaserMix: return p.phaserMix;
         case FxF::Count: break;
     }
     return 0.0f;

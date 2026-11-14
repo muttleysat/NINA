@@ -63,6 +63,20 @@ static juce::var fxToVar (const FxParams& f)
     o->setProperty ("stutterDivision", f.stutterDivision);
     o->setProperty ("stutterDecay", f.stutterDecay);
     o->setProperty ("stutterMix", f.stutterMix);
+    o->setProperty ("chorusOn", f.chorusOn);
+    o->setProperty ("chorusRate", f.chorusRate);
+    o->setProperty ("chorusDepth", f.chorusDepth);
+    o->setProperty ("chorusMix", f.chorusMix);
+    o->setProperty ("flangerOn", f.flangerOn);
+    o->setProperty ("flangerRate", f.flangerRate);
+    o->setProperty ("flangerDepth", f.flangerDepth);
+    o->setProperty ("flangerFeedback", f.flangerFeedback);
+    o->setProperty ("flangerMix", f.flangerMix);
+    o->setProperty ("phaserOn", f.phaserOn);
+    o->setProperty ("phaserRate", f.phaserRate);
+    o->setProperty ("phaserDepth", f.phaserDepth);
+    o->setProperty ("phaserFeedback", f.phaserFeedback);
+    o->setProperty ("phaserMix", f.phaserMix);
     return juce::var (o);
 }
 
@@ -109,6 +123,20 @@ static FxParams fxFromVar (const juce::var& o)
     f.stutterDivision = juce::jlimit (0, kNumDivisions - 1, getI (o, "stutterDivision", f.stutterDivision));
     f.stutterDecay = getF (o, "stutterDecay", f.stutterDecay);
     f.stutterMix = getF (o, "stutterMix", f.stutterMix);
+    f.chorusOn = getB (o, "chorusOn", f.chorusOn);
+    f.chorusRate = getF (o, "chorusRate", f.chorusRate);
+    f.chorusDepth = getF (o, "chorusDepth", f.chorusDepth);
+    f.chorusMix = getF (o, "chorusMix", f.chorusMix);
+    f.flangerOn = getB (o, "flangerOn", f.flangerOn);
+    f.flangerRate = getF (o, "flangerRate", f.flangerRate);
+    f.flangerDepth = getF (o, "flangerDepth", f.flangerDepth);
+    f.flangerFeedback = getF (o, "flangerFeedback", f.flangerFeedback);
+    f.flangerMix = getF (o, "flangerMix", f.flangerMix);
+    f.phaserOn = getB (o, "phaserOn", f.phaserOn);
+    f.phaserRate = getF (o, "phaserRate", f.phaserRate);
+    f.phaserDepth = getF (o, "phaserDepth", f.phaserDepth);
+    f.phaserFeedback = getF (o, "phaserFeedback", f.phaserFeedback);
+    f.phaserMix = getF (o, "phaserMix", f.phaserMix);
     return f;
 }
 

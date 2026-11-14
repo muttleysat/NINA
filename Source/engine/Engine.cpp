@@ -264,6 +264,9 @@ void Engine::renderChunk (int start, int n) noexcept
 
         chain.eq (busL.data(), busR.data(), n, fx);
         chain.compress (busL.data(), busR.data(), n, fx);
+        chain.chorus (busL.data(), busR.data(), n, fx);
+        chain.flanger (busL.data(), busR.data(), n, fx);
+        chain.phaser (busL.data(), busR.data(), n, fx);
 
         // Delay e riverbero restano attivi finche' dura la coda dell'ultima mandata: l'eco di un colpo risuona anche dopo la nota
         if (delaySent) delayTail[(size_t) c] = tailSamples;
@@ -327,6 +330,9 @@ void Engine::renderMaster (float* l, float* r, int n) noexcept
 
     masterFx.eq (l, r, n, fx);
     masterFx.compress (l, r, n, fx);
+    masterFx.chorus (l, r, n, fx);
+    masterFx.flanger (l, r, n, fx);
+    masterFx.phaser (l, r, n, fx);
 
     if (fx.delayOn)
     {

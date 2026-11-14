@@ -753,6 +753,54 @@ public:
             expectWithinAbsoluteError (out.getSample (0, 256 + L + 3000), out.getSample (0, 256 + 3000), 0.02f);
         }
 
+        beginTest ("FX: flanger makes a comb (notch at 1/(2*delay)), chorus and phaser stay bounded, off/mix 0 are transparent");
+        {
+            auto run = [] (FxParams fx, auto&& proc, double freq, int total, float amp)
+            {
+                FxChain chain;
+                chain.prepare (kSR, 512);
+                std::vector<float> l ((size_t) total), r ((size_t) total);
+                for (int i = 0; i < total; ++i)
+                    l[(size_t) i] = r[(size_t) i] = amp * (float) std::sin (2.0 * juce::MathConstants<double>::pi * freq * i / kSR);
+                for (int pos = 0; pos < total; pos += 512)
+                    proc (chain, l.data() + pos, r.data() + pos, juce::jmin (512, total - pos), fx);
+                float pk = 0.0f;
+                for (int i = total - 4096; i < total; ++i)
+                    pk = juce::jmax (pk, std::abs (l[(size_t) i]));
+                return pk / amp;
+            };
+            auto flang = [] (FxChain& c, float* l, float* r, int n, const FxParams& p) { c.flanger (l, r, n, p); };
+            auto chor = [] (FxChain& c, float* l, float* r, int n, const FxParams& p) { c.chorus (l, r, n, p); };
+            auto phas = [] (FxChain& c, float* l, float* r, int n, const FxParams& p) { c.phaser (l, r, n, p); };
+
+            FxParams f; f.flangerOn = true; f.flangerDepth = 0.0f; f.flangerFeedback = 0.0f; f.flangerMix = 1.0f;     // ritardo fisso 0.2 ms
+            expect (run (f, flang, 2500.0, 16384, 0.25f) < 0.2f);                                                      // buco del pettine
+            expect (run (f, flang, 5000.0, 16384, 0.25f) > 0.85f);                                                     // massimo del pettine
+
+            FxParams off;                                                                                              // spenti: identici
+            off.chorusMix = off.flangerMix = off.phaserMix = 1.0f;
+            expectWithinAbsoluteError (run (off, chor, 1000.0, 8192, 0.25f), 1.0f, 0.001f);
+            expectWithinAbsoluteError (run (off, flang, 1000.0, 8192, 0.25f), 1.0f, 0.001f);
+            expectWithinAbsoluteError (run (off, phas, 1000.0, 8192, 0.25f), 1.0f, 0.001f);
+
+            FxParams zero; zero.chorusOn = zero.flangerOn = zero.phaserOn = true;                                      // acceso con Mix 0: trasparente
+            zero.chorusMix = zero.flangerMix = zero.phaserMix = 0.0f;
+            expectWithinAbsoluteError (run (zero, chor, 1000.0, 8192, 0.25f), 1.0f, 0.001f);
+            expectWithinAbsoluteError (run (zero, phas, 1000.0, 8192, 0.25f), 1.0f, 0.001f);
+
+            FxParams c; c.chorusOn = true; c.chorusMix = 1.0f; c.chorusDepth = 1.0f;
+            const float cg = run (c, chor, 800.0, 44100, 0.25f);
+            expect (cg > 0.3f && cg < 1.05f);                                                                          // somma di due copie: mai oltre il segnale
+
+            FxParams p; p.phaserOn = true; p.phaserFeedback = 0.9f; p.phaserMix = 1.0f;                                // feedback al massimo: stabile
+            const float pg = run (p, phas, 600.0, 88200, 0.25f);
+            expect (pg > 0.05f && pg < 3.0f);
+
+            FxParams fb; fb.flangerOn = true; fb.flangerFeedback = 0.9f; fb.flangerMix = 1.0f;
+            const float fg = run (fb, flang, 300.0, 88200, 0.25f);
+            expect (fg > 0.05f && fg < 12.0f);                                                                         // con il feedback massimo risuona ma non esplode
+        }
+
         beginTest ("Mixer: Mute and Solo are saved with the kit");
         {
             Kit kit = Kit::makeDefault();
@@ -769,7 +817,7 @@ public:
         {
             ParamRig pr;
             auto all = pr.root.getParameters (true);
-            expectEquals ((int) all.size(), 48 * 52 + 38);     // 48 celle x 52 (compresi Mute/Solo del mixer, EQ e Stutter) + master 38
+            expectEquals ((int) all.size(), 48 * 66 + 52);     // 48 celle x 66 (compresi Mute/Solo del mixer, EQ, Stutter, chorus, flanger, phaser) + master 52
 
             std::set<juce::String> ids;
             for (auto* p : all)

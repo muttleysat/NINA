@@ -96,6 +96,13 @@ void FxChain::prepare (double sampleRate, int maxBlockSize)
     delayL.assign ((size_t) delaySize, 0.0f);
     delayR.assign ((size_t) delaySize, 0.0f);
 
+    const int modSize = (int) (sampleRate * 0.04) + 8;               // 40 ms bastano per chorus e flanger
+    for (int ch = 0; ch < 2; ++ch)
+    {
+        chLine[ch].assign ((size_t) modSize, 0.0f);
+        flLine[ch].assign ((size_t) modSize, 0.0f);
+    }
+
     stCap = (int) (sampleRate * 0.75) + 8;                      // lo stutter ripete al massimo 0.75 s
     stRingL.assign ((size_t) stCap, 0.0f);
     stRingR.assign ((size_t) stCap, 0.0f);
@@ -111,6 +118,15 @@ void FxChain::reset()
         b.z1[0] = b.z1[1] = b.z2[0] = b.z2[1] = 0.0;
     eqValid = false;
     eqWasOn = false;
+    chWasOn = flWasOn = phWasOn = false;
+    chW = flW = 0;
+    for (int ch = 0; ch < 2; ++ch)
+    {
+        std::fill (chLine[ch].begin(), chLine[ch].end(), 0.0f);
+        std::fill (flLine[ch].begin(), flLine[ch].end(), 0.0f);
+        flFb[ch] = phFb[ch] = 0.0f;
+        for (auto& z : apZ[ch]) z = 0.0f;
+    }
     stState = StState::Off;
     stPos = stLen = 0;
     std::fill (stRingL.begin(), stRingL.end(), 0.0f);
@@ -299,6 +315,163 @@ void FxChain::stutter (float* l, float* r, int n, const FxParams& p, double bpm,
 
         if (++stW == cap)
             stW = 0;
+    }
+}
+
+namespace
+{
+// Lettura con interpolazione lineare 'delay' campioni indietro rispetto alla posizione di scrittura 'w'
+inline float readLine (const std::vector<float>& b, int w, float delay) noexcept
+{
+    const int size = (int) b.size();
+    float rp = (float) w - delay;
+    while (rp < 0.0f)
+        rp += (float) size;
+    int i0 = (int) rp;
+    const float f = rp - (float) i0;
+    if (i0 >= size)
+        i0 -= size;
+    int i1 = i0 + 1;
+    if (i1 >= size)
+        i1 -= size;
+    return b[(size_t) i0] * (1.0f - f) + b[(size_t) i1] * f;
+}
+constexpr double kTwoPi = juce::MathConstants<double>::twoPi;
+}
+
+void FxChain::chorus (float* l, float* r, int n, const FxParams& p) noexcept
+{
+    if (! p.chorusOn || n <= 0)
+    {
+        chWasOn = false;
+        return;
+    }
+    if (! chWasOn)
+    {
+        for (int ch = 0; ch < 2; ++ch)
+            std::fill (chLine[ch].begin(), chLine[ch].end(), 0.0f);
+        chWasOn = true;
+    }
+
+    const double inc = (double) juce::jlimit (0.05f, 5.0f, p.chorusRate) / sr;
+    const float depthMs = juce::jlimit (0.0f, 1.0f, p.chorusDepth) * 6.0f;
+    const float mix = juce::jlimit (0.0f, 1.0f, p.chorusMix);
+    const float dryG = 1.0f - 0.5f * mix, wetG = 0.5f * mix;
+    const int size = (int) chLine[0].size();
+    float* io[2] = { l, r };
+
+    for (int i = 0; i < n; ++i)
+    {
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            const float dry = io[ch][i];
+            chLine[ch][(size_t) chW] = dry;
+            const float lfo = (float) std::sin (kTwoPi * (chPhase + 0.25 * ch));
+            const float d = (15.0f + depthMs * lfo) * (float) sr * 0.001f;
+            const float wet = readLine (chLine[ch], chW, d);
+            io[ch][i] = dry * dryG + wet * wetG;
+        }
+        if (++chW == size)
+            chW = 0;
+        chPhase += inc;
+        if (chPhase >= 1.0)
+            chPhase -= 1.0;
+    }
+}
+
+void FxChain::flanger (float* l, float* r, int n, const FxParams& p) noexcept
+{
+    if (! p.flangerOn || n <= 0)
+    {
+        flWasOn = false;
+        return;
+    }
+    if (! flWasOn)
+    {
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            std::fill (flLine[ch].begin(), flLine[ch].end(), 0.0f);
+            flFb[ch] = 0.0f;
+        }
+        flWasOn = true;
+    }
+
+    const double inc = (double) juce::jlimit (0.05f, 5.0f, p.flangerRate) / sr;
+    const float depth = juce::jlimit (0.0f, 1.0f, p.flangerDepth);
+    const float fb = juce::jlimit (0.0f, 0.9f, p.flangerFeedback);
+    const float mix = juce::jlimit (0.0f, 1.0f, p.flangerMix);
+    const float dryG = 1.0f - 0.5f * mix, wetG = 0.5f * mix;
+    const int size = (int) flLine[0].size();
+    float* io[2] = { l, r };
+
+    for (int i = 0; i < n; ++i)
+    {
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            const float dry = io[ch][i];
+            flLine[ch][(size_t) flW] = dry + fb * flFb[ch];                 // il feedback rientra nella linea
+            const float lfo = (float) std::sin (kTwoPi * (flPhase + 0.25 * ch));
+            const float d = (0.2f + depth * 2.6f * (0.5f + 0.5f * lfo)) * (float) sr * 0.001f;       // 0.2 .. 2.8 ms
+            const float wet = readLine (flLine[ch], flW, d);
+            flFb[ch] = wet;
+            io[ch][i] = dry * dryG + wet * wetG;
+        }
+        if (++flW == size)
+            flW = 0;
+        flPhase += inc;
+        if (flPhase >= 1.0)
+            flPhase -= 1.0;
+    }
+}
+
+void FxChain::phaser (float* l, float* r, int n, const FxParams& p) noexcept
+{
+    if (! p.phaserOn || n <= 0)
+    {
+        phWasOn = false;
+        return;
+    }
+    if (! phWasOn)
+    {
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            phFb[ch] = 0.0f;
+            for (auto& z : apZ[ch]) z = 0.0f;
+        }
+        phWasOn = true;
+    }
+
+    const double inc = (double) juce::jlimit (0.05f, 5.0f, p.phaserRate) / sr;
+    const float depth = juce::jlimit (0.0f, 1.0f, p.phaserDepth);
+    const float fb = juce::jlimit (0.0f, 0.9f, p.phaserFeedback);
+    const float mix = juce::jlimit (0.0f, 1.0f, p.phaserMix);
+    const float dryG = 1.0f - 0.5f * mix, wetG = 0.5f * mix;
+    const float fMax = (float) std::min (sr * 0.45, 4000.0);
+    float* io[2] = { l, r };
+
+    for (int i = 0; i < n; ++i)
+    {
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            const float dry = io[ch][i];
+            const float lfo = (float) std::sin (kTwoPi * (phPhase + 0.25 * ch));
+            const float f = 200.0f * std::pow (fMax / 200.0f, 0.5f + 0.5f * depth * lfo);            // 200 Hz .. 4 kHz, esponenziale
+            const float t = std::tan (juce::MathConstants<float>::pi * f / (float) sr);
+            const float a = (t - 1.0f) / (t + 1.0f);
+
+            float x = dry + fb * phFb[ch];
+            for (int st = 0; st < 4; ++st)                                  // quattro filtri passa-tutto del primo ordine
+            {
+                const float y = a * x + apZ[ch][st];
+                apZ[ch][st] = x - a * y;
+                x = y;
+            }
+            phFb[ch] = x;
+            io[ch][i] = dry * dryG + x * wetG;
+        }
+        phPhase += inc;
+        if (phPhase >= 1.0)
+            phPhase -= 1.0;
     }
 }
 

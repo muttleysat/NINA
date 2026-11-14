@@ -62,6 +62,17 @@ const FDesc kFxF[(size_t) FxF::Count] = {
     { "high",      "High",     "dB", -15.0f, 15.0f,  0.1f,  0.0f,    0.0f,   1 },
     { "decay",     "Decay",    "",   0.0f,   0.9f,   0.01f, 0.0f,    0.0f,   2 },
     { "mix",       "Mix",      "",   0.0f,   1.0f,   0.01f, 1.0f,    0.0f,   2 },
+    { "rate",      "Rate",     "Hz", 0.05f,  5.0f,   0.01f, 0.8f,    0.8f,   2 },
+    { "depth",     "Depth",    "",   0.0f,   1.0f,   0.01f, 0.5f,    0.0f,   2 },
+    { "mix",       "Mix",      "",   0.0f,   1.0f,   0.01f, 0.5f,    0.0f,   2 },
+    { "rate",      "Rate",     "Hz", 0.05f,  5.0f,   0.01f, 0.3f,    0.6f,   2 },
+    { "depth",     "Depth",    "",   0.0f,   1.0f,   0.01f, 0.7f,    0.0f,   2 },
+    { "feedback",  "Feedback", "",   0.0f,   0.9f,   0.01f, 0.5f,    0.0f,   2 },
+    { "mix",       "Mix",      "",   0.0f,   1.0f,   0.01f, 0.5f,    0.0f,   2 },
+    { "rate",      "Rate",     "Hz", 0.05f,  5.0f,   0.01f, 0.4f,    0.8f,   2 },
+    { "depth",     "Depth",    "",   0.0f,   1.0f,   0.01f, 0.7f,    0.0f,   2 },
+    { "feedback",  "Feedback", "",   0.0f,   0.9f,   0.01f, 0.4f,    0.0f,   2 },
+    { "mix",       "Mix",      "",   0.0f,   1.0f,   0.01f, 0.5f,    0.0f,   2 },
 };
 float FxParams::* const kFxFM[(size_t) FxF::Count] = {
     &FxParams::drive, &FxParams::satMix, &FxParams::bits, &FxParams::downsample, &FxParams::lofiMix,
@@ -70,6 +81,9 @@ float FxParams::* const kFxFM[(size_t) FxF::Count] = {
     &FxParams::reverbSize, &FxParams::reverbDamp, &FxParams::reverbMix,
     &FxParams::eqLow, &FxParams::eqMidFreq, &FxParams::eqMidGain, &FxParams::eqMidQ, &FxParams::eqHigh,
     &FxParams::stutterDecay, &FxParams::stutterMix,
+    &FxParams::chorusRate, &FxParams::chorusDepth, &FxParams::chorusMix,
+    &FxParams::flangerRate, &FxParams::flangerDepth, &FxParams::flangerFeedback, &FxParams::flangerMix,
+    &FxParams::phaserRate, &FxParams::phaserDepth, &FxParams::phaserFeedback, &FxParams::phaserMix,
 };
 // Effetto a cui appartiene ogni parametro float
 const FxB kFxFOwner[(size_t) FxF::Count] = {
@@ -78,17 +92,20 @@ const FxB kFxFOwner[(size_t) FxF::Count] = {
     FxB::Reverb, FxB::Reverb, FxB::Reverb,
     FxB::Eq, FxB::Eq, FxB::Eq, FxB::Eq, FxB::Eq,
     FxB::Stutter, FxB::Stutter,
+    FxB::Chorus, FxB::Chorus, FxB::Chorus,
+    FxB::Flanger, FxB::Flanger, FxB::Flanger, FxB::Flanger,
+    FxB::Phaser, FxB::Phaser, FxB::Phaser, FxB::Phaser,
 };
 
 struct FxName { const char* id; const char* name; };
 const FxName kFxNames[(size_t) FxB::Count] = {
     { "sat", "Saturation" }, { "lofi", "LoFi" }, { "filter", "Filter" },
     { "comp", "Compressor" }, { "delay", "Delay" }, { "reverb", "Reverb" }, { "eq", "EQ" },
-    { "stutter", "Stutter" },
+    { "stutter", "Stutter" }, { "chorus", "Chorus" }, { "flanger", "Flanger" }, { "phaser", "Phaser" },
 };
 bool FxParams::* const kFxBM[(size_t) FxB::Count] = {
     &FxParams::satOn, &FxParams::lofiOn, &FxParams::filterOn, &FxParams::compOn, &FxParams::delayOn, &FxParams::reverbOn,
-    &FxParams::eqOn, &FxParams::stutterOn,
+    &FxParams::eqOn, &FxParams::stutterOn, &FxParams::chorusOn, &FxParams::flangerOn, &FxParams::phaserOn,
 };
 
 juce::NormalisableRange<float> makeRange (const FDesc& d)
