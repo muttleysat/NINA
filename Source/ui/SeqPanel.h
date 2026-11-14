@@ -78,7 +78,7 @@ private:
                midiButton { "Export MIDI", IconButton::Icon::Midi }, wavButton { "Bounce WAV", IconButton::Icon::Wave },
                stemsButton { "Export Lanes", IconButton::Icon::Layers }, reseedButton { "Reset Seed", IconButton::Icon::Reset };
     juce::ComboBox patternBox, barsBox, tailBox, hostModeBox;
-    juce::TextButton recButton { "Rec" };
+    juce::TextButton recButton { "Rec" }, clickButton { "Click" };
     IconButton quantButton { "Quantize", IconButton::Icon::Grid };
     std::optional<sl::Step> stepClip;
     std::optional<sl::Lane> laneClip;

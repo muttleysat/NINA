@@ -96,6 +96,7 @@ public:
     template <typename Fn>
     static void generateSegments (const std::vector<Segment>& segs, double period, double ppq0, double ppq1, Fn&& fn)
     {
+        ppq0 = std::max (ppq0, 0.0);                    // la timeline parte da zero (prima c'e' solo il conteggio iniziale)
         if (segs.empty() || ppq1 <= ppq0)
             return;
         const long long cycle0 = period > 0.0 ? (long long) std::floor (ppq0 / period) : 0;

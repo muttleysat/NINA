@@ -689,9 +689,15 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
                                                                   &stemsButton, &reseedButton, &prevPattern, &nextPattern })
         addAndMakeVisible (*b);
     addAndMakeVisible (recButton);
+    addAndMakeVisible (clickButton);
+    clickButton.setClickingTogglesState (true);
+    clickButton.setToggleState (processor.isMetronomeOn(), juce::dontSendNotification);
+    clickButton.setTooltip ("Metronome: a click on every beat while the sequencer plays (louder on the first beat of the bar).\n"
+                            "The count-in before recording always clicks, even with the metronome off.");
+    clickButton.onClick = [this] { processor.setMetronome (clickButton.getToggleState()); };
     addAndMakeVisible (quantButton);
     recButton.setClickingTogglesState (true);
-    recButton.setTooltip ("Record: while the sequencer plays, the notes you play on the MIDI keyboard are written into the steps "
+    recButton.setTooltip ("Record: with Rec on, Play first counts in (see Quantize > Count-in) and then the notes you play on the MIDI keyboard are written into the steps "
                           "(the lane is added if the cell has none). Notes that fall between two steps go to the nearest one.");
     recButton.onClick = [this] { processor.setSeqRecord (recButton.getToggleState()); };
     quantButton.setTooltip ("Quantize the steps' micro-timing (nudge) to the grid, and choose how strictly recorded notes snap to it");
@@ -1355,6 +1361,9 @@ void SeqPanel::showQuantizeMenu()
     m.addSectionHeader ("Quantize the selected lane");
     for (int i = 0; i < 4; ++i)
         m.addItem (11 + i, juce::String (100 - 25 * i) + "%", hasLane);
+    m.addSectionHeader ("Recording: count-in before Play");
+    for (int i = 0; i < 3; ++i)
+        m.addItem (31 + i, i == 0 ? juce::String ("Off") : (i == 1 ? juce::String ("1 bar") : juce::String ("2 bars")), true, processor.getCountInBars() == i);
     m.addSectionHeader ("Recording: snap to the grid");
     const int snaps[] = { 100, 75, 50, 25, 0 };
     for (int i = 0; i < 5; ++i)
@@ -1371,6 +1380,8 @@ void SeqPanel::showQuantizeMenu()
             safe->quantizePattern (true, (100 - 25 * (r - 11)) / 100.0f);
         else if (r >= 21 && r <= 25)
             safe->recSnap = snaps[r - 21];
+        else if (r >= 31 && r <= 33)
+            safe->processor.setCountInBars (r - 31);
     });
 }
 
@@ -1590,6 +1601,17 @@ void SeqPanel::timerCallback()
 {
     if (recButton.getToggleState())
         captureRecorded();
+
+    // Durante il conteggio iniziale il pulsante Rec mostra il numero del quarto che manca
+    {
+        juce::String t = "Rec";
+        if (recButton.getToggleState() && processor.isSequencerPlaying() && processor.getSequencerPpq() < 0.0)
+            t = juce::String ((int) std::ceil (-processor.getSequencerPpq() - 1.0e-9));
+        if (recButton.getButtonText() != t)
+            recButton.setButtonText (t);
+    }
+    if (clickButton.getToggleState() != processor.isMetronomeOn())
+        clickButton.setToggleState (processor.isMetronomeOn(), juce::dontSendNotification);
     lanes->updateAll();
     if (viewport.getViewPositionX() != lastViewX)
     {
@@ -1790,7 +1812,9 @@ void SeqPanel::resized()
         d.removeFromLeft (gGap);
         separatorsX.push_back ({ d.getX() + gGap / 2, 1 });
         d.removeFromLeft (gGap * 2);
-        recButton.setBounds (d.removeFromLeft ((int) (70 * s)));
+        clickButton.setBounds (d.removeFromLeft ((int) (60 * s)));
+        d.removeFromLeft (gGap);
+        recButton.setBounds (d.removeFromLeft ((int) (56 * s)));
         d.removeFromLeft (gGap);
         quantButton.setBounds (d.removeFromLeft ((int) (128 * s)));
     }

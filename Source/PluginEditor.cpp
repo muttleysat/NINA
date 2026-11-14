@@ -255,6 +255,17 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
         }
     }
 
+    // Solo per prove: SAMPLELAB_COUNTIN avvia il Play con la registrazione accesa (conteggio iniziale di 1 battuta) e scrive la posizione in ui.log
+    if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_COUNTIN", {}).isNotEmpty())
+    {
+        processor.setCountInBars (1);
+        processor.setMetronome (true);
+        processor.setSeqRecord (true);
+        processor.setSequencerRunning (true);
+        juce::Timer::callAfterDelay (700, [this] { uiLog ("COUNTIN t=0.7s ppq=" + juce::String (processor.getSequencerPpq(), 2)); });
+        juce::Timer::callAfterDelay (2500, [this] { uiLog ("COUNTIN t=2.5s ppq=" + juce::String (processor.getSequencerPpq(), 2)); });
+    }
+
     // Solo per prove: SAMPLELAB_ABOUT apre la finestra Info all'avvio
     if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_ABOUT", {}).isNotEmpty())
     {

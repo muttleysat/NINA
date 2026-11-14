@@ -139,12 +139,14 @@ Per copiare in un pattern preciso: **Copy** sul pattern sorgente, passa a quello
 
 Nella seconda riga della scheda, accanto alle maniglie per la DAW, ci sono **Rec** e **Quantize**.
 
+**Click** (metronomo) e conteggio iniziale. Il pulsante **Click** accende un **metronomo**: un click a ogni quarto mentre il sequencer gira, più alto sul primo quarto di ogni battuta (4/4). Va al Main e non passa dagli effetti. Per registrare in tempo c'è anche il **conteggio iniziale** (precount): con **Rec** acceso e il trasporto interno (standalone, o plugin con la DAW ferma), il **Play** non parte subito dal pattern ma conta prima **1 battuta** (4 click, anche a metronomo spento) e il pulsante Rec mostra il numero che manca (4, 3, 2, 1). Poi parte il pattern e si registra. La durata si sceglie in **Quantize → Recording: count-in before Play** (**Off**, **1 bar**, **2 bars**). Nel plugin, con la DAW in marcia, il conteggio è quello della DAW. Le note suonate durante il conteggio non si registrano (tranne un anticipo di mezzo quarto sul primo quarto).
+
 **Rec** (registrazione).
-1. Accendi **Rec** e fai partire il sequencer (**Play**).
+1. Accendi **Rec** e fai partire il sequencer (**Play**): dopo il conteggio iniziale, se è attivo.
 2. Suona la tastiera MIDI: ogni nota **accende lo step** più vicino della riga della cella che quella nota suona, con la **velocity** con cui l'hai premuta. Se la cella non ha ancora una riga, viene aggiunta.
 3. Se la cella copre più tasti (campione melodico), si registra anche l'**intonazione** (Pitch dello step = nota suonata − Root note).
 4. La registrazione **sovrascrive** velocity, intonazione e posizione dello step su cui cade; gli altri parametri dello step (probabilità, ratchet, lock...) restano.
-5. Le note che suoni continuano a suonare normalmente mentre registri. Con la DAW in registrazione (plugin) e la modalità "silent while recording" il sequencer sta zitto e Rec non scrive nulla.
+5. Le note che suoni continuano a suonare normalmente mentre registri. Rec non registra mentre suona la scheda **Song**. Con la DAW in registrazione (plugin) e la modalità "silent while recording" il sequencer sta zitto e Rec non scrive nulla.
 
 Una nota che cade tra due step va a quello più vicino. Quanto del tuo "feeling" resta lo decide **Quantize → Recording: snap to the grid**: **100%** (predefinito) mette la nota esattamente sulla griglia, **75 / 50 / 25%** ne conservano una parte come **Nudge**, **Free** conserva tutto il micro-timing. La registrazione non compensa la latenza della scheda audio.
 

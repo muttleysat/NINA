@@ -141,8 +141,11 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
 
     if (! useHostPpq)
     {
-        if (playing && ! wasRunning)
-            internalPpq = ppq0 = 0.0;                       // Play dall'inizio
+        if (playing && ! wasRunning)                        // Play dall'inizio; con la registrazione accesa prima c'e' il conteggio iniziale
+        {
+            const bool countIn = seqRecord.load (std::memory_order_relaxed) && ! songMode.load (std::memory_order_relaxed);
+            internalPpq = ppq0 = countIn ? -4.0 * (double) countInBars.load (std::memory_order_relaxed) : 0.0;
+        }
         wasRunning = playing;
         if (playing)
             internalPpq += (double) numSamples * bpm / (60.0 * currentSampleRate);
@@ -255,7 +258,8 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
         }
     }
     // Registrazione: ogni note-on con la sua posizione musicale (il trasporto deve girare)
-    if (playing && seqRecord.load (std::memory_order_relaxed) && ! midi.isEmpty() && bpm > 0.0 && currentSampleRate > 0.0)
+    if (playing && seqRecord.load (std::memory_order_relaxed) && ! songMode.load (std::memory_order_relaxed) && ! midi.isEmpty() && bpm > 0.0
+        && currentSampleRate > 0.0)
     {
         const double perSample = bpm / (60.0 * currentSampleRate);
         for (const auto meta : midi)
@@ -263,6 +267,8 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
             const auto m = meta.getMessage();
             if (! m.isNoteOn())
                 continue;
+            if (ppq0 + (double) meta.samplePosition * perSample < -0.5)
+                continue;                                   // durante il conteggio iniziale non si registra (tranne l'anticipo sul primo quarto)
             const auto head = recHead.load (std::memory_order_relaxed);
             recRing[head % recRing.size()] = RecNote { ppq0 + (double) meta.samplePosition * perSample, m.getNoteNumber(), (int) m.getVelocity() };
             recHead.store (head + 1, std::memory_order_release);
@@ -270,6 +276,53 @@ void SampleLabProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
     }
 
     engine.process (buffer, midi, &seqRunner.getEvents());
+
+    // Metronomo / conteggio iniziale: un click a ogni quarto (accento sul primo della battuta), sommato alle uscite Main
+    {
+        const bool counting = playing && ppq0 < 0.0;
+        int trig[256];
+        bool accent[256];
+        int nTrig = 0;
+        if (playing && bpm > 0.0 && (clickOn.load (std::memory_order_relaxed) || counting))
+        {
+            const double ppq1 = ppq0 + (double) numSamples * bpm / (60.0 * currentSampleRate);
+            const double samplesPerBeat = 60.0 * currentSampleRate / bpm;
+            for (double b = std::ceil (ppq0 - 1.0e-9); b < ppq1 - 1.0e-9 && nTrig < 256; b += 1.0)
+            {
+                if (! clickOn.load (std::memory_order_relaxed) && b >= 0.0)
+                    break;                                  // metronomo spento: solo i quarti del conteggio iniziale
+                trig[nTrig] = juce::jlimit (0, numSamples - 1, (int) ((b - ppq0) * samplesPerBeat));
+                accent[nTrig] = (((long long) std::llround (b) % 4) + 4) % 4 == 0;
+                ++nTrig;
+            }
+        }
+
+        if (nTrig > 0 || clickLeft > 0)
+        {
+            const int chans = juce::jmin (2, buffer.getNumChannels());
+            int next = 0;
+            for (int i = 0; i < numSamples; ++i)
+            {
+                while (next < nTrig && trig[next] == i)
+                {
+                    clickTotal = clickLeft = (int) (0.025 * currentSampleRate);          // 25 ms
+                    clickFreq = accent[next] ? 1760.0f : 1175.0f;
+                    clickAmp = accent[next] ? 0.5f : 0.34f;
+                    clickPhase = 0.0f;
+                    ++next;
+                }
+                if (clickLeft > 0)
+                {
+                    const float env = (float) clickLeft / (float) clickTotal;
+                    const float v = std::sin (clickPhase) * clickAmp * env * env;
+                    clickPhase += juce::MathConstants<float>::twoPi * clickFreq / (float) currentSampleRate;
+                    --clickLeft;
+                    for (int ch = 0; ch < chans; ++ch)
+                        buffer.getWritePointer (ch)[i] += v;
+                }
+            }
+        }
+    }
 }
 
 int SampleLabProcessor::drainRecorded (RecNote* out, int maxCount)
@@ -1505,6 +1558,8 @@ void SampleLabProcessor::getStateInformation (juce::MemoryBlock& destData)
     state.setProperty ("uiZoom", uiZoom, nullptr);
     state.setProperty ("internalBpm", internalBpm.load(), nullptr);
     state.setProperty ("hostSeqMode", hostSeqMode.load(), nullptr);
+    state.setProperty ("metronome", clickOn.load(), nullptr);
+    state.setProperty ("countInBars", countInBars.load(), nullptr);
     state.setProperty ("songMode", songMode.load(), nullptr);
     state.setProperty ("kitJson", sl::KitIO::toJson (kit, false), nullptr);   // percorsi assoluti
     state.setProperty ("kitFile", kit.file.getFullPathName(), nullptr);
@@ -1526,6 +1581,8 @@ void SampleLabProcessor::setStateInformation (const void* data, int sizeInBytes)
     setInternalBpm (state.getProperty ("internalBpm", 120.0));
     hostSeqMode.store (juce::jlimit (0, 2, (int) state.getProperty ("hostSeqMode", (int) HostSeqMode::MuteOnRecord)));
     songMode.store ((bool) state.getProperty ("songMode", false));
+    clickOn.store ((bool) state.getProperty ("metronome", false));
+    countInBars.store (juce::jlimit (0, 2, (int) state.getProperty ("countInBars", 1)));
 
     const juce::String json = state.getProperty ("kitJson", juce::String());
     if (json.isNotEmpty())

@@ -180,6 +180,13 @@ public:
     struct RecNote { double ppq = 0.0; int note = 0; int velocity = 100; };
     void setSeqRecord (bool on) { if (on) recTail = recHead.load (std::memory_order_acquire); seqRecord.store (on); }
     bool isSeqRecording() const { return seqRecord.load(); }
+    // Metronomo e conteggio iniziale (precount): il click suona a ogni quarto mentre il sequencer gira (accento sul primo di ogni battuta,
+    // 4/4); con la registrazione accesa e il trasporto interno, prima di partire il sequencer conta 'countInBars' battute (clic anche
+    // a metronomo spento).
+    void setMetronome (bool on) { clickOn.store (on); }
+    bool isMetronomeOn() const { return clickOn.load(); }
+    void setCountInBars (int bars) { countInBars.store (juce::jlimit (0, 2, bars)); }
+    int getCountInBars() const { return countInBars.load(); }
     int drainRecorded (RecNote* out, int maxCount);
 
     uint32_t chopNoteCount() const { return chopHead.load (std::memory_order_acquire); }
@@ -319,6 +326,11 @@ private:
     mutable std::vector<juce::RangedAudioParameter*> undoParamList;
 
     std::atomic<bool> seqRecord { false };
+    std::atomic<bool> clickOn { false };
+    std::atomic<int> countInBars { 1 };
+    // Sintesi del click (solo thread audio)
+    int clickLeft = 0, clickTotal = 0;
+    float clickPhase = 0.0f, clickFreq = 1200.0f, clickAmp = 0.0f;
     std::array<RecNote, 256> recRing {};
     std::atomic<uint32_t> recHead { 0 };
     uint32_t recTail = 0;                                   // solo thread UI

@@ -829,6 +829,20 @@ public:
             expectEquals (split, 3);
         }
 
+        beginTest ("Song: the timeline starts at zero (nothing plays during a negative count-in position)");
+        {
+            std::vector<Pattern> pats (kNumPatterns);
+            pats[0] = makePattern (4, 4, { 0 });
+            Song song;
+            song.blocks = { { 0, 1 } };
+            auto segs = makeSegments (song, pats);
+            int n = 0;
+            Sequencer::generateSegments (segs, 4.0, -4.0, 0.0, [&] (const TimedEvent&) { ++n; });     // conteggio iniziale con loop: nessun evento
+            expectEquals (n, 0);
+            Sequencer::generateSegments (segs, 4.0, -1.0, 1.0, [&] (const TimedEvent& e) { n += e.type == SeqEvent::Type::NoteOn ? 1 : 0; });
+            expectEquals (n, 1);                                                                      // solo il colpo a 0
+        }
+
         beginTest ("Song: saved with the kit and as a .slsong text");
         {
             Kit kit = Kit::makeDefault();
