@@ -23,7 +23,7 @@ void relayoutAll (juce::Component& c)
 }
 
 SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
-    : AudioProcessorEditor (&p), processor (p), grid (p), waveStrip (p), cellPanel (p), modules (p), fxPanel (p), seqPanel (p), slicePanel (p), songPanel (p)
+    : AudioProcessorEditor (&p), processor (p), grid (p), waveStrip (p), cellPanel (p), modules (p), fxPanel (p), seqPanel (p), slicePanel (p), songPanel (p), mixerPanel (p)
 {
     juce::LookAndFeel::setDefaultLookAndFeel (&lnf);
 
@@ -71,6 +71,8 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     addChildComponent (seqPanel);
     addChildComponent (slicePanel);
     addChildComponent (songPanel);
+    addChildComponent (mixerPanel);
+    mixerPanel.onCellSelected = [this] (int c) { grid.setSelected (c); };
     slicePanel.onKitChanged = [this] { refreshAll(); };
 
     browser.onFileActivated = [this] (const juce::File& f)
@@ -84,7 +86,7 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     browser.onPreview = [this] (const juce::File& f) { processor.auditionFile (f, browser.getPreviewGainDb()); };
     browser.onPreviewStop = [this] { processor.stopAudition(); };
 
-    grid.onSelectionChanged = [this] (int) { refreshCellViews(); };
+    grid.onSelectionChanged = [this] (int c) { refreshCellViews(); mixerPanel.setSelectedCell (c); };
     grid.onMultiChanged = [this] { cellPanel.repaint(); };
     cellPanel.selectedCells = [this] { return grid.selectedCells(); };
     grid.onFileDropped = [this] (int c, const juce::File& f) { loadIntoCell (c, f); };
@@ -248,6 +250,40 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
         }
     }
 
+    // Solo per prove: SAMPLELAB_MIXERDEMO carica dei toni sintetici in alcune celle e li suona (per vedere i meter del mixer)
+    if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_MIXERDEMO", {}).isNotEmpty())
+    {
+        const auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("mixerdemo");
+        dir.createDirectory();
+        juce::WavAudioFormat wav;
+        for (int i = 0; i < 10; ++i)
+        {
+            const auto f = dir.getChildFile ("Tone" + juce::String (i + 1) + ".wav");
+            juce::AudioBuffer<float> b (2, 44100 * 4);
+            for (int n = 0; n < b.getNumSamples(); ++n)
+            {
+                const float v = std::sin (juce::MathConstants<float>::twoPi * (110.0f * (float) (i + 1)) * (float) n / 44100.0f) * (0.15f + 0.08f * (float) i);
+                b.setSample (0, n, v);
+                b.setSample (1, n, v);
+            }
+            f.deleteFile();
+            if (std::unique_ptr<juce::FileOutputStream> out { f.createOutputStream() })
+                if (std::unique_ptr<juce::AudioFormatWriter> w { wav.createWriterFor (out.get(), 44100.0, 2, 24, {}, 0) })
+                {
+                    out.release();
+                    w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
+                }
+            juce::String err;
+            processor.loadSampleIntoCell (i < 5 ? i : 12 + i, f, err);
+        }
+        processor.getParams().cell (1).mute->setValueNotifyingHost (1.0f);
+        processor.getParams().cell (2).solo->setValueNotifyingHost (1.0f);
+        processor.getParams().cell (3).fx.power (sl::FxB::Delay)->setValueNotifyingHost (1.0f);
+        refreshAll();
+        for (int i = 0; i < 10; ++i)
+            processor.getKeyboardState().noteOn (1, processor.getKit().cells[(size_t) (i < 5 ? i : 12 + i)].lowNote, 0.9f);
+    }
+
     juce::Desktop::getInstance().addGlobalMouseListener (&inputWatcher);
     setWantsKeyboardFocus (true);
     theme::noButtonFocus (*this);
@@ -284,7 +320,7 @@ bool SampleLabEditor::keyPressed (const juce::KeyPress& key)
     processor.noteUserInput();
 
     // Annulla / ripeti (Main, FX, Slice): Ctrl+Z, Ctrl+Y o Ctrl+Maiusc+Z
-    if ((currentTab == 0 || currentTab == 1 || currentTab == 3 || currentTab == 4 || currentTab == 5) && key.getModifiers().isCommandDown())
+    if ((currentTab == 0 || currentTab == 1 || currentTab == 3 || currentTab == 2 || currentTab == 4 || currentTab == 5) && key.getModifiers().isCommandDown())
     {
         const int k = key.getKeyCode();
         if (k == 'Z' || k == 'z')
@@ -487,13 +523,19 @@ juce::Rectangle<int> SampleLabEditor::tabRect (int index) const
 void SampleLabEditor::showTab (int tab)
 {
     currentTab = tab;
-    const bool seq = tab == 1, slice = tab == 4, song = tab == 5;
+    const bool seq = tab == 1, slice = tab == 4, song = tab == 5, mixer = tab == 2;
 
     // Le schede Seq e Song occupano lo spazio di griglia, forma d'onda e moduli
-    browser.setVisible (! seq && ! song);
-    cellPanel.setVisible (! seq && ! slice && ! song);
-    grid.setVisible (! seq && ! slice && ! song);
-    waveStrip.setVisible (! seq && ! slice && ! song);
+    browser.setVisible (! seq && ! song && ! mixer);
+    cellPanel.setVisible (! seq && ! slice && ! song && ! mixer);
+    grid.setVisible (! seq && ! slice && ! song && ! mixer);
+    waveStrip.setVisible (! seq && ! slice && ! song && ! mixer);
+    mixerPanel.setVisible (mixer);
+    if (mixer)
+    {
+        mixerPanel.setSelectedCell (grid.getSelected());
+        mixerPanel.refresh();
+    }
     slicePanel.setVisible (slice);
     seqPanel.setVisible (seq);
     songPanel.setVisible (song);
@@ -512,7 +554,7 @@ void SampleLabEditor::showTab (int tab)
 void SampleLabEditor::mouseDown (const juce::MouseEvent& e)
 {
     // Schede attive: Main (0), Seq (1), FX (3), Slice (4) e Song (5)
-    for (int tab : { 0, 1, 3, 4, 5 })
+    for (int tab : { 0, 1, 2, 3, 4, 5 })
         if (tabRect (tab).contains (e.getPosition()))
             showTab (tab);
 }
@@ -524,6 +566,7 @@ void SampleLabEditor::refreshAll()
     refreshCellViews();
     seqPanel.refresh();
     songPanel.refresh();
+    mixerPanel.refresh();
     grid.repaint();
 }
 
@@ -558,7 +601,7 @@ void SampleLabEditor::confirmDiscard (std::function<void()> proceed)
 void SampleLabEditor::showKitMenu()
 {
     juce::PopupMenu m;
-    const bool undoTab = currentTab == 0 || currentTab == 1 || currentTab == 3 || currentTab == 4 || currentTab == 5;
+    const bool undoTab = currentTab == 0 || currentTab == 1 || currentTab == 2 || currentTab == 3 || currentTab == 4 || currentTab == 5;
     m.addItem (30, "Undo  (Ctrl+Z)", undoTab && (processor.canUndo() || slicePanel.localUndoTime() > 0.0));
     m.addItem (31, "Redo  (Ctrl+Y)", undoTab && (processor.canRedo() || slicePanel.localRedoTime() > 0.0));
     m.addSeparator();
@@ -782,7 +825,7 @@ void SampleLabEditor::paint (juce::Graphics& g)
 
     struct TabInfo { const char* name; IconButton::Icon icon; bool enabled; };
     const TabInfo tabs[] = { { "Main", IconButton::Icon::TabMain, true }, { "Seq", IconButton::Icon::TabSeq, true },
-                             { "Mixer", IconButton::Icon::Mixer, false }, { "FX", IconButton::Icon::Cube, true },
+                             { "Mixer", IconButton::Icon::Mixer, true }, { "FX", IconButton::Icon::Cube, true },
                              { "Slice", IconButton::Icon::Scissors, true }, { "Song", IconButton::Icon::Layers, true } };
     for (int i = 0; i < 6; ++i)
     {
@@ -908,5 +951,6 @@ void SampleLabEditor::resized()
     // Scheda Seq: da sopra la griglia fino al fondo dei moduli
     seqPanel.setBounds (fullArea.getX(), fullArea.getY(), fullArea.getWidth(), bottomArea.getBottom() - fullArea.getY());
     songPanel.setBounds (seqPanel.getBounds());
+    mixerPanel.setBounds (seqPanel.getBounds());
     juce::ignoreUnused (bottomAreaTop);
 }

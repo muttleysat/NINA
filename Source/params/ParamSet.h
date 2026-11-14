@@ -32,6 +32,8 @@ struct CellRefs
 {
     std::array<juce::AudioParameterFloat*, (size_t) CellF::Count> f {};
     juce::AudioParameterBool* reverse = nullptr;
+    juce::AudioParameterBool* mute = nullptr;      // mixer
+    juce::AudioParameterBool* solo = nullptr;
     juce::AudioParameterChoice* mode = nullptr;
     FxRefs fx;
 

@@ -27,6 +27,7 @@ struct CellParams
     float tuneCents = 0.0f;            // -100..+100
     float pitchSemis = 0.0f;           // -24..+24
     bool reverse = false;
+    bool mute = false, solo = false;   // mixer: la cella non suona (mute) / suonano solo le celle in solo
     TriggerMode mode = TriggerMode::OneShot;
 
     // Inviluppo AHDSR (secondi, sustain 0..1)

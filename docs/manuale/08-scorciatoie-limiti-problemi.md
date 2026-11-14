@@ -36,7 +36,6 @@
 - Per lo slicing: nessun allineamento dei tagli alla griglia del tempo (vedi capitolo 9). Il tempo dei brani non a tempo fisso va stimato per zone brevi (nessuna mappa dei battiti).
 - Altri effetti: EQ, chorus, flanger, phaser, stutter e altri effetti creativi.
 - Aggiungere **righe e celle** oltre le 48 della griglia.
-- La scheda **Mixer**.
 - La versione **macOS** (il codice la prevede ma non è mai stata compilata né provata) e il formato AU.
 - Sample da ingresso audio (campionamento da scheda): escluso per ora.
 

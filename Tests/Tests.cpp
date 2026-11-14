@@ -325,6 +325,41 @@ public:
             expectWithinAbsoluteError (out.getSample (0, 1000), 2.0f, 0.05f);
         }
 
+        beginTest ("Mixer: Mute silences a cell, Solo isolates cells, the meters read the cell peaks");
+        {
+            Rig rig;
+            rig.setCells ({ { cell (60), makeSine (440.0, 1.0, 0.5f) }, { cell (62), makeSine (880.0, 1.0, 0.25f) } });
+            juce::MidiBuffer m;
+            m.addEvent (juce::MidiMessage::noteOn (1, 60, 1.0f), 0);
+            m.addEvent (juce::MidiMessage::noteOn (1, 62, 1.0f), 0);
+
+            auto both = rig.render (4096, m);
+            const float pBoth = peak (both, 512, 4096);
+            expect (pBoth > 0.6f);                                   // 0.5 + 0.25 insieme (un po' meno per la fase)
+            const auto p0 = rig.engine.takeCellPeaks (0);
+            const auto p1 = rig.engine.takeCellPeaks (1);
+            expectWithinAbsoluteError (p0.first, 0.5f, 0.02f);
+            expectWithinAbsoluteError (p1.first, 0.25f, 0.02f);
+            expectEquals (rig.engine.takeCellPeaks (0).first, 0.0f);   // la lettura azzera
+
+            Rig muted;                                               // cella 0 in Mute: resta solo la cella 1
+            muted.setCells ({ { cell (60), makeSine (440.0, 1.0, 0.5f) }, { cell (62), makeSine (880.0, 1.0, 0.25f) } });
+            muted.engine.live.mute[0] = true;
+            auto b = muted.render (4096, m);
+            expectWithinAbsoluteError (peak (b, 512, 4096), 0.25f, 0.02f);
+            expectEquals (muted.engine.takeCellPeaks (0).first, 0.0f);
+
+            Rig soloed;                                              // Solo sulla cella 0: la 1 non si sente
+            soloed.setCells ({ { cell (60), makeSine (440.0, 1.0, 0.5f) }, { cell (62), makeSine (880.0, 1.0, 0.25f) } });
+            soloed.engine.live.solo[0] = true;
+            auto c = soloed.render (4096, m);
+            expectWithinAbsoluteError (peak (c, 512, 4096), 0.5f, 0.02f);
+            expectEquals (soloed.engine.takeCellPeaks (1).first, 0.0f);
+
+            const auto mp = rig.engine.takeMasterPeaks();            // il master vede il mix
+            expect (mp.first > 0.6f);
+        }
+
         beginTest ("Activity reports active voices per cell");
         {
             Rig r;
@@ -528,11 +563,23 @@ public:
             }
         };
 
+        beginTest ("Mixer: Mute and Solo are saved with the kit");
+        {
+            Kit kit = Kit::makeDefault();
+            kit.cells[3].mute = true;
+            kit.cells[5].solo = true;
+            Kit loaded; juce::String err;
+            expect (KitIO::fromJson (KitIO::toJson (kit, true), juce::File(), loaded, err), err);
+            expect (loaded.cells[3].mute && ! loaded.cells[3].solo);
+            expect (loaded.cells[5].solo && ! loaded.cells[5].mute);
+            expect (! loaded.cells[0].mute && ! loaded.cells[0].solo);
+        }
+
         beginTest ("Params: every control is exposed with a unique stable ID");
         {
             ParamRig pr;
             auto all = pr.root.getParameters (true);
-            expectEquals ((int) all.size(), 48 * 40 + 28);     // 48 celle x 40 + master 28
+            expectEquals ((int) all.size(), 48 * 42 + 28);     // 48 celle x 42 (compresi Mute e Solo del mixer) + master 28
 
             std::set<juce::String> ids;
             for (auto* p : all)

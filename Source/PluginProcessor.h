@@ -157,6 +157,8 @@ public:
     void clearRecentKits();
 
     std::pair<float, float> getMasterLevels() const { return engine.getMasterLevels(); }
+    std::pair<float, float> takeCellPeaks (int cell) { return engine.takeCellPeaks (cell); }     // mixer: picchi dall'ultima lettura
+    std::pair<float, float> takeMasterPeaks() { return engine.takeMasterPeaks(); }
 
     // Tempo per gli effetti sincronizzati: BPM della DAW se la DAW lo fornisce, altrimenti il BPM interno (standalone)
     double getCurrentBpm() const { return currentBpm.load(); }

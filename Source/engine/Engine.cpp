@@ -208,6 +208,10 @@ void Engine::renderChunk (int start, int n) noexcept
             hasVoice[(size_t) v.getCellIndex()] = true;
 
     const int numCells = juce::jmin ((int) current->cells.size(), (int) kMaxCells);
+    bool anySolo = false;
+    for (int c = 0; c < numCells; ++c)
+        anySolo = anySolo || live.solo[(size_t) c];
+
     for (int c = 0; c < numCells; ++c)
     {
         const bool voiceOn = hasVoice[(size_t) c];
@@ -271,6 +275,21 @@ void Engine::renderChunk (int start, int n) noexcept
             chain.reverbFx (sendRL.data(), sendRR.data(), busL.data(), busR.data(), n, fx);
             if (! reverbSent && (reverbTail[(size_t) c] -= n) <= 0)
                 chain.resetReverb();
+        }
+
+        // Mixer: una cella in mute (o esclusa da un solo) continua a girare (voci, code) ma non arriva alle uscite
+        if (live.mute[(size_t) c] || (anySolo && ! live.solo[(size_t) c]))
+            continue;
+
+        {
+            float pl = 0.0f, pr = 0.0f;
+            for (int i = 0; i < n; ++i)
+            {
+                pl = juce::jmax (pl, std::abs (busL[(size_t) i]));
+                pr = juce::jmax (pr, std::abs (busR[(size_t) i]));
+            }
+            raise (cellPeakL[(size_t) c], pl);
+            raise (cellPeakR[(size_t) c], pr);
         }
 
         // Uscita della cella: Main oppure una delle uscite aggiuntive (se il bus e' attivo, altrimenti Main)
@@ -377,9 +396,12 @@ void Engine::process (juce::AudioBuffer<float>& buffer, const juce::MidiBuffer& 
         Engine& e; juce::AudioBuffer<float>& b;
         ~PeakGuard()
         {
-            e.peakL.store (b.getMagnitude (0, 0, b.getNumSamples()), std::memory_order_relaxed);
-            e.peakR.store (b.getNumChannels() > 1 ? b.getMagnitude (1, 0, b.getNumSamples()) : b.getMagnitude (0, 0, b.getNumSamples()),
-                           std::memory_order_relaxed);
+            const float pl = b.getMagnitude (0, 0, b.getNumSamples());
+            const float pr = b.getNumChannels() > 1 ? b.getMagnitude (1, 0, b.getNumSamples()) : pl;
+            e.peakL.store (pl, std::memory_order_relaxed);
+            e.peakR.store (pr, std::memory_order_relaxed);
+            raise (e.masterAccL, pl);
+            raise (e.masterAccR, pr);
         }
     } peakGuard { *this, buffer };
 

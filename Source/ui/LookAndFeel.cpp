@@ -132,10 +132,61 @@ void SampleLabLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButt
     g.drawText (b.getButtonText(), b.getLocalBounds().withTrimmedLeft ((int) w + 10), juce::Justification::centredLeft);
 }
 
+// Fader verticale del mixer (senza casella di testo): lascia sopra e sotto lo spazio per meta' del cursore, cosi' non viene tagliato
+juce::Slider::SliderLayout SampleLabLookAndFeel::getSliderLayout (juce::Slider& sl)
+{
+    if (sl.getSliderStyle() == juce::Slider::LinearVertical && sl.getTextBoxPosition() == juce::Slider::NoTextBox)
+    {
+        juce::Slider::SliderLayout layout;
+        const float k = juce::jmax (0.6f, (float) sl.getWidth() / 44.0f);
+        layout.sliderBounds = sl.getLocalBounds().reduced (0, (int) (10.0f * k));
+        return layout;
+    }
+    return LookAndFeel_V4::getSliderLayout (sl);
+}
+
 void SampleLabLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int width, int height, float sliderPos,
                                              float, float, juce::Slider::SliderStyle style, juce::Slider& s)
 {
     using namespace theme;
+
+    if (style == juce::Slider::LinearVertical)
+    {
+        // Fader: scala in dB a sinistra, guida al centro, cursore con la tacca centrale
+        const float k = juce::jmax (0.6f, (float) s.getWidth() / 44.0f);
+        const float cx = (float) x + (float) width * 0.64f;
+        const double mn = s.getMinimum(), mx = s.getMaximum();
+        auto yOf = [&] (double v) { return (float) y + (float) height * (1.0f - (float) ((v - mn) / (mx - mn))); };
+
+        g.setFont (juce::FontOptions (juce::jmax (7.5f, 8.5f * k)));
+        for (const int db : { 12, 6, 0, -6, -12, -24, -36, -60 })
+        {
+            if (db < mn || db > mx)
+                continue;
+            const float ty = yOf ((double) db);
+            g.setColour (db == 0 ? accent : textDim.withAlpha (0.7f));
+            g.drawHorizontalLine ((int) ty, cx - 8.0f * k, cx - 5.0f * k);
+            g.drawText (db > 0 ? "+" + juce::String (db) : juce::String (db), juce::Rectangle<float> ((float) x - 2.0f * k, ty - 6.0f * k, cx - 9.0f * k - (float) x + 2.0f * k, 12.0f * k),
+                        juce::Justification::centredRight, false);
+        }
+
+        const float tw = 5.0f * k;
+        g.setColour (background);
+        g.fillRoundedRectangle (cx - tw * 0.5f, (float) y, tw, (float) height, tw * 0.5f);
+        g.setColour (accent.withAlpha (0.55f));
+        g.fillRoundedRectangle (cx - tw * 0.5f, sliderPos, tw, (float) y + (float) height - sliderPos, tw * 0.5f);
+
+        const float cw = 26.0f * k, ch = 17.0f * k;
+        const auto cap = juce::Rectangle<float> (cx - cw * 0.5f, sliderPos - ch * 0.5f, cw, ch);
+        g.setGradientFill (juce::ColourGradient (juce::Colour (0xff4a505c), 0.0f, cap.getY(), juce::Colour (0xff2a2e36), 0.0f, cap.getBottom(), false));
+        g.fillRoundedRectangle (cap, 3.0f * k);
+        g.setColour (s.isMouseOverOrDragging() ? accentSoft : border.brighter (0.35f));
+        g.drawRoundedRectangle (cap.reduced (0.5f), 3.0f * k, 1.0f);
+        g.setColour (text);
+        g.fillRect (cap.getX() + 3.0f * k, cap.getCentreY() - 0.8f, cap.getWidth() - 6.0f * k, 1.6f);
+        return;
+    }
+
     if (style != juce::Slider::LinearHorizontal)
     {
         LookAndFeel_V4::drawLinearSlider (g, x, y, width, height, sliderPos, 0, 0, style, s);
@@ -147,7 +198,15 @@ void SampleLabLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, in
     g.setColour (panelHi.brighter (0.12f));
     g.fillRoundedRectangle ((float) x, cy - th * 0.5f, (float) width, th, th * 0.5f);
     g.setColour (accent);
-    g.fillRoundedRectangle ((float) x, cy - th * 0.5f, sliderPos - (float) x, th, th * 0.5f);
+    if (s.getProperties().getWithDefault ("bipolar", false))          // dal centro (pan)
+    {
+        const float mid = (float) x + (float) width * 0.5f;
+        g.fillRoundedRectangle (juce::jmin (mid, sliderPos), cy - th * 0.5f, std::abs (sliderPos - mid), th, th * 0.5f);
+        g.setColour (textDim);
+        g.fillRect (mid - 0.5f, cy - 5.0f, 1.0f, 10.0f);
+    }
+    else
+        g.fillRoundedRectangle ((float) x, cy - th * 0.5f, sliderPos - (float) x, th, th * 0.5f);
     g.setColour (text);
     g.fillEllipse (sliderPos - 6.0f, cy - 6.0f, 12.0f, 12.0f);
 }

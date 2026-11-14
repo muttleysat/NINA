@@ -105,6 +105,8 @@ static juce::var cellToVar (const CellParams& c, const juce::String& samplePath)
     o->setProperty ("tuneCents", c.tuneCents);
     o->setProperty ("pitchSemis", c.pitchSemis);
     o->setProperty ("reverse", c.reverse);
+    o->setProperty ("mute", c.mute);
+    o->setProperty ("solo", c.solo);
     o->setProperty ("mode", (int) c.mode);
     o->setProperty ("attack", c.attack);
     o->setProperty ("hold", c.hold);
@@ -398,6 +400,8 @@ bool fromJson (const juce::String& text, const juce::File& baseDir, Kit& kit, ju
         c.tuneCents = getF (o, "tuneCents", 0.0f);
         c.pitchSemis = getF (o, "pitchSemis", 0.0f);
         c.reverse = (bool) o["reverse"];
+        c.mute = getB (o, "mute", false);
+        c.solo = getB (o, "solo", false);
         c.mode = (TriggerMode) juce::jlimit (0, 2, getI (o, "mode", 0));
         c.attack = getF (o, "attack", 0.0005f);
         c.hold = getF (o, "hold", 0.0f);

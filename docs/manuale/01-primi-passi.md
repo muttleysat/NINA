@@ -35,7 +35,7 @@ Il progetto si compila dal codice sorgente (vedi il README nella cartella princi
 ```
 
 - **Barra superiore:** nome del kit, frecce per il kit precedente/successivo, **Save**, menu **Kit**, **Play/Stop** del sequencer, **BPM** e **Size** (ingrandisce o riduce la finestra a percentuali).
-- **Schede in basso** (pulsanti con icona; quello della scheda aperta è acceso): **Main** (celle e moduli), **Seq** (sequencer), **FX** (effetti), **Song** (concatenare i pattern in un brano), **Slice** (tagliare i loop sulle celle). *Mixer* è in grigio perché non esiste ancora.
+- **Schede in basso** (pulsanti con icona; quello della scheda aperta è acceso): **Main** (celle e moduli), **Seq** (sequencer), **FX** (effetti), **Song** (concatenare i pattern in un brano), **Slice** (tagliare i loop sulle celle), **Mixer** (la console: un canale per cella con fader e meter).
 - La finestra si può **ridimensionare** trascinando i bordi: tutti gli elementi si adattano.
 
 ## Il tuo primo beat in 5 minuti

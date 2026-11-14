@@ -813,6 +813,8 @@ int SampleLabProcessor::exportSongStems (const juce::File& folder, juce::String&
         params.fillLive (eng->live);
         eng->live.bpm = bpm;
         eng->live.masterFx = sl::FxParams();
+        eng->live.mute.fill (false);                                // le tracce separate non seguono Mute/Solo del mixer
+        eng->live.solo.fill (false);
         eng->live.masterGain = 1.0f;
 
         auto audio = sl::SequencerExport::renderBounceSegments (*eng, segs, total, bpm, sr, exportTail.load());
@@ -1017,7 +1019,9 @@ int SampleLabProcessor::exportPatternStems (const juce::File& folder, int bars, 
         eng->publish (buildSnapshot());
         params.fillLive (eng->live);
         eng->live.bpm = bpm;
-        eng->live.masterFx = sl::FxParams();                        // niente effetti master negli stem: si rimixano nella DAW
+        eng->live.masterFx = sl::FxParams();
+        eng->live.mute.fill (false);                                // le tracce separate non seguono Mute/Solo del mixer
+        eng->live.solo.fill (false);                        // niente effetti master negli stem: si rimixano nella DAW
         eng->live.masterGain = 1.0f;
 
         auto audio = sl::SequencerExport::renderBounce (*eng, sl::SequencerExport::isolateLane (pattern, i), bars, bpm, sr, exportTail.load());

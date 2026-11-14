@@ -203,6 +203,16 @@ ParamSet::ParamSet()
         allParams.push_back (rev.get());
         subs[0]->addChild (std::move (rev));
 
+        auto mute = makeBool (idPrefix + ".mute", namePrefix + "Mute", false);
+        refs.mute = mute.get();
+        allParams.push_back (mute.get());
+        subs[0]->addChild (std::move (mute));
+
+        auto solo = makeBool (idPrefix + ".solo", namePrefix + "Solo", false);
+        refs.solo = solo.get();
+        allParams.push_back (solo.get());
+        subs[0]->addChild (std::move (solo));
+
         auto mode = makeChoice (idPrefix + ".mode", namePrefix + "Trigger Mode", { "One-shot", "Gate", "Loop" }, 0);
         refs.mode = mode.get();
         allParams.push_back (mode.get());
@@ -269,6 +279,8 @@ void ParamSet::fillLive (Engine::LiveParams& live) const noexcept
         d.release = r.at (CellF::Release)->get();
         d.reverse = r.reverse->get();
         d.mode = (TriggerMode) r.mode->getIndex();
+        live.mute[(size_t) c] = r.mute->get();
+        live.solo[(size_t) c] = r.solo->get();
         fillFx (r.fx, live.fx[(size_t) c]);
     }
 
@@ -297,6 +309,8 @@ void applyCell (const CellRefs& r, const CellParams& c)
     for (size_t f = 0; f < (size_t) CellF::Count; ++f)
         setValue (r.f[f], c.*kCellFM[f]);
     setValue (r.reverse, c.reverse ? 1.0f : 0.0f);
+    setValue (r.mute, c.mute ? 1.0f : 0.0f);
+    setValue (r.solo, c.solo ? 1.0f : 0.0f);
     setValue (r.mode, (float) (int) c.mode);
     applyFx (r.fx, c.fx);
 }
@@ -328,6 +342,8 @@ void ParamSet::writeToKit (Kit& kit) const
         for (size_t f = 0; f < (size_t) CellF::Count; ++f)
             out.*kCellFM[f] = r.f[f]->get();
         out.reverse = r.reverse->get();
+        out.mute = r.mute->get();
+        out.solo = r.solo->get();
         out.mode = (TriggerMode) r.mode->getIndex();
 
         for (size_t f = 0; f < (size_t) FxF::Count; ++f)

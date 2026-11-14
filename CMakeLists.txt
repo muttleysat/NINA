@@ -83,6 +83,7 @@ target_sources(SampleLab PRIVATE
     Source/ui/SampleBrowser.cpp
     Source/ui/SlicePanel.cpp
     Source/ui/SongPanel.cpp
+    Source/ui/MixerPanel.cpp
 )
 
 target_include_directories(SampleLab PRIVATE Source)

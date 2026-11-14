@@ -22,6 +22,7 @@ public:
     {
         std::array<CellDsp, kMaxCells> dsp;
         std::array<FxParams, kMaxCells> fx;
+        std::array<bool, kMaxCells> mute {}, solo {};     // mixer: Mute e Solo per cella
         FxParams masterFx;
         float masterGain = 1.0f;
         double bpm = 120.0;             // tempo corrente (DAW o interno) per gli effetti sincronizzati
@@ -52,6 +53,18 @@ public:
     std::pair<float, float> getMasterLevels() const noexcept
     {
         return { peakL.load (std::memory_order_relaxed), peakR.load (std::memory_order_relaxed) };
+    }
+
+    // Picchi accumulati dall'ultima lettura (mixer): per cella (dopo effetti, Mute e Solo) e per il master. Leggere azzera.
+    std::pair<float, float> takeCellPeaks (int cell) noexcept
+    {
+        if (cell < 0 || cell >= kMaxCells)
+            return { 0.0f, 0.0f };
+        return { cellPeakL[(size_t) cell].exchange (0.0f, std::memory_order_relaxed), cellPeakR[(size_t) cell].exchange (0.0f, std::memory_order_relaxed) };
+    }
+    std::pair<float, float> takeMasterPeaks() noexcept
+    {
+        return { masterAccL.exchange (0.0f, std::memory_order_relaxed), masterAccR.exchange (0.0f, std::memory_order_relaxed) };
     }
 
     // Numero di voci attive per cella (letto dalla UI per l'indicatore di attivita')
@@ -97,6 +110,9 @@ private:
     std::array<Voice, kMaxVoices> voices;
     std::array<std::atomic<int>, kMaxCells> activity {};
     std::atomic<float> peakL { 0.0f }, peakR { 0.0f };
+    std::array<std::atomic<float>, kMaxCells> cellPeakL {}, cellPeakR {};
+    std::atomic<float> masterAccL { 0.0f }, masterAccR { 0.0f };
+    static void raise (std::atomic<float>& a, float v) noexcept { if (v > a.load (std::memory_order_relaxed)) a.store (v, std::memory_order_relaxed); }
     std::atomic<float> previewGain { 1.0f };
     std::atomic<float> previewStart { 0.0f }, previewEnd { 1.0f };
 };
