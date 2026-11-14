@@ -34,7 +34,7 @@
 - Il rilevamento del tempo dei loop è una **stima dalla durata** (non analizza i colpi): per loop non tagliati a battute esatte il BPM va scritto a mano.
 - La sincronizzazione dei loop funziona sul campione **intero** (Start/End si riferiscono sempre all'originale): non c'è ancora un modo di allineare la griglia del loop (per esempio spostare l'inizio del primo colpo).
 - Per lo slicing: nessun allineamento dei tagli alla griglia del tempo (vedi capitolo 9). Il tempo dei brani non a tempo fisso va stimato per zone brevi (nessuna mappa dei battiti).
-- Altri effetti: EQ, chorus, flanger, phaser, stutter e altri effetti creativi.
+- Altri effetti creativi oltre a quelli del capitolo 3.
 - Aggiungere **righe e celle** oltre le 48 della griglia.
 - La versione **macOS** (il codice la prevede ma non è mai stata compilata né provata) e il formato AU.
 - Sample da ingresso audio (campionamento da scheda): escluso per ora.

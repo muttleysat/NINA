@@ -64,7 +64,7 @@ Se apri un kit e un campione non si trova (per esempio hai spostato la cartella)
 
 Quando usi il plugin, lo stato completo (kit, parametri, assegnazioni MIDI) viene salvato **dentro il progetto della DAW** e ricaricato con lui. Per condividere o riutilizzare un kit in altri progetti, salvalo anche come `.slkit`.
 
-Nello standalone lo stato dell'ultima sessione viene ripristinato all'avvio.
+Lo standalone **parte sempre vuoto**: lo stato della sessione precedente non viene ripristinato. Riapri kit, sequenze e song che ti servono con **Kit → Open...** (o da **Recent kits**).
 
 ## Dove vanno i file esportati
 

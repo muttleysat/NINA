@@ -25,7 +25,7 @@ Si usa il programma di installazione **`NINA-Setup-<versione>-win-x64.exe`** (si
 ## Prima apertura dello standalone
 
 1. Avvia l'app. Se non senti niente, apri **Options** in alto a sinistra e scegli il dispositivo audio di uscita (e, se vuoi suonare con una tastiera, il dispositivo MIDI in ingresso).
-2. Lo standalone ricorda lo stato dell'ultima sessione: all'avvio ritrovi i campioni e le impostazioni di come l'avevi lasciato.
+2. Lo standalone **parte sempre vuoto**: kit, sequenze e song non vengono ripristinati dalla sessione precedente (riaprili con **Kit**). Restano la dimensione della finestra, le impostazioni audio e l'elenco dei kit recenti.
 
 ## La finestra, in breve
 

@@ -1,3 +1,5 @@
+[English](REQUIREMENTS.md) · **Italiano**
+
 # NINA – Requisiti di prodotto
 
 Versione: 1.6 (bozza) – 2026-11-12

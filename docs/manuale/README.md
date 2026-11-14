@@ -1,3 +1,5 @@
+[English](../manual/README.md) · **Italiano**
+
 # NINA – Manuale d'uso
 
 NINA è un campionatore a celle (stile drum machine) con sequencer a step, disponibile come plugin **VST3** e come applicazione **standalone**. Questa raccolta spiega come usarlo, dal primo avvio all'esportazione nella DAW.

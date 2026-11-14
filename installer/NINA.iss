@@ -105,6 +105,7 @@ Type: files; Name: "{autocf}\VST3\NINA.vst3"; Components: vst3
 Source: "{#BuildDir}\Standalone\NINA.exe"; DestDir: "{app}"; Components: standalone; Flags: ignoreversion
 Source: "{#BuildDir}\VST3\NINA.vst3\*"; DestDir: "{autocf}\VST3\NINA.vst3"; Components: vst3; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\docs\manuale\*"; DestDir: "{app}\Docs\manuale"; Components: docs; Flags: ignoreversion
+Source: "..\docs\manual\*"; DestDir: "{app}\Docs\manual"; Components: docs; Flags: ignoreversion
 Source: "..\docs\img\*"; DestDir: "{app}\Docs\img"; Components: docs; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
@@ -112,13 +113,15 @@ Source: "..\README.md"; DestDir: "{app}"; Components: docs; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\NINA"; Filename: "{app}\NINA.exe"; Components: standalone
-Name: "{group}\{cm:ManualShortcut}"; Filename: "{app}\Docs\manuale\README.md"; Components: docs
+Name: "{group}\{cm:ManualShortcut}"; Filename: "{app}\Docs\manual\README.md"; Components: docs; Languages: english
+Name: "{group}\{cm:ManualShortcut}"; Filename: "{app}\Docs\manuale\README.md"; Components: docs; Languages: italian
 Name: "{group}\{cm:UninstallShortcut}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\NINA"; Filename: "{app}\NINA.exe"; Tasks: desktopicon; Components: standalone
 
 [Run]
 Filename: "{app}\NINA.exe"; Description: "{cm:LaunchNina}"; Flags: nowait postinstall skipifsilent; Components: standalone
-Filename: "{app}\Docs\manuale"; Description: "{cm:OpenManual}"; Flags: postinstall shellexec skipifsilent unchecked; Components: docs
+Filename: "{app}\Docs\manual"; Description: "{cm:OpenManual}"; Flags: postinstall shellexec skipifsilent unchecked; Components: docs; Languages: english
+Filename: "{app}\Docs\manuale"; Description: "{cm:OpenManual}"; Flags: postinstall shellexec skipifsilent unchecked; Components: docs; Languages: italian
 
 [Code]
 var

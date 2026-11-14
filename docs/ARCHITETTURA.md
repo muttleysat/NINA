@@ -1,3 +1,5 @@
+[English](ARCHITECTURE.md) · **Italiano**
+
 # NINA – Architettura tecnica
 
 Versione: 0.1 – riferita a `REQUISITI.md` v1.4.
