@@ -265,10 +265,10 @@ SongPanel::SongPanel (SampleLabProcessor& p) : processor (p)
     addAndMakeVisible (tailBox);
 
     rateBox.addItem ("Auto", 1);
-    rateBox.addItem ("44.1 kHz", 2);
-    rateBox.addItem ("48 kHz", 3);
-    rateBox.addItem ("88.2 kHz", 4);
-    rateBox.addItem ("96 kHz", 5);
+    rateBox.addItem ("44.1k", 2);
+    rateBox.addItem ("48k", 3);
+    rateBox.addItem ("88.2k", 4);
+    rateBox.addItem ("96k", 5);
     rateBox.setTooltip ("Sample rate of the exported audio files (same setting as in the Seq tab). Auto = the project's (the DAW's) rate.");
     rateBox.onChange = [this]
     {
@@ -374,6 +374,21 @@ void SongPanel::edited()
 
 void SongPanel::timerCallback()
 {
+    if (++rateTick % 30 == 0)
+    {
+        const auto autoText = "Auto " + SampleLabProcessor::rateText (processor.getHostSampleRate());
+        if (rateBox.getItemText (0) != autoText)                                               // la frequenza della DAW e' cambiata: si rifa l'elenco
+        {
+            const int sel = juce::jmax (1, rateBox.getSelectedId());
+            rateBox.clear (juce::dontSendNotification);
+            rateBox.addItem (autoText, 1);
+            rateBox.addItem ("44.1k", 2);
+            rateBox.addItem ("48k", 3);
+            rateBox.addItem ("88.2k", 4);
+            rateBox.addItem ("96k", 5);
+            rateBox.setSelectedId (sel, juce::dontSendNotification);
+        }
+    }
     int pb = -1;
     double frac = 0.0, pos = 0.0;
     if (processor.isSongMode() && processor.isSequencerPlaying() && ! song().empty())
@@ -765,7 +780,7 @@ void SongPanel::resized()
     groupEnd (r1);
     tailBox.setBounds (r1.removeFromLeft ((int) (112 * s)));
     r1.removeFromLeft (gGap);
-    rateBox.setBounds (r1.removeFromLeft ((int) (104 * s)));
+    rateBox.setBounds (r1.removeFromLeft ((int) (122 * s)));
     r1.removeFromLeft (gGap);
     midiButton.setBounds (r1.removeFromLeft ((int) (128 * s)));
     r1.removeFromLeft (gGap);

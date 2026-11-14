@@ -812,10 +812,10 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     addAndMakeVisible (tailBox);
 
     rateBox.addItem ("Auto", 1);
-    rateBox.addItem ("44.1 kHz", 2);
-    rateBox.addItem ("48 kHz", 3);
-    rateBox.addItem ("88.2 kHz", 4);
-    rateBox.addItem ("96 kHz", 5);
+    rateBox.addItem ("44.1k", 2);
+    rateBox.addItem ("48k", 3);
+    rateBox.addItem ("88.2k", 4);
+    rateBox.addItem ("96k", 5);
     rateBox.setTooltip ("Sample rate of the exported audio files (Bounce WAV, Export lanes, Drag audio/lanes). Auto = the project's (the DAW's) rate.\n"
                         "Pick the rate of your Cubase project if an imported file plays at the wrong speed. The audio is rendered directly at that rate.");
     rateBox.onChange = [this]
@@ -1671,6 +1671,21 @@ void SeqPanel::exportStems()
 
 void SeqPanel::timerCallback()
 {
+    if (tick % 30 == 0)
+    {
+        const auto autoText = "Auto " + SampleLabProcessor::rateText (processor.getHostSampleRate());
+        if (rateBox.getItemText (0) != autoText)                                               // la frequenza della DAW e' cambiata: si rifa l'elenco
+        {
+            const int sel = juce::jmax (1, rateBox.getSelectedId());
+            rateBox.clear (juce::dontSendNotification);
+            rateBox.addItem (autoText, 1);
+            rateBox.addItem ("44.1k", 2);
+            rateBox.addItem ("48k", 3);
+            rateBox.addItem ("88.2k", 4);
+            rateBox.addItem ("96k", 5);
+            rateBox.setSelectedId (sel, juce::dontSendNotification);
+        }
+    }
     if (recButton.getToggleState())
         captureRecorded();
 
@@ -1816,7 +1831,7 @@ void SeqPanel::resized()
 
     // Larghezze dei controlli in unita' scalate, ridotte in proporzione se la finestra e' stretta (le due righe sommano circa 1400
     // unita': sotto quella larghezza i controlli si restringono invece di uscire dal pannello o sovrapporsi)
-    const float fit = juce::jlimit (0.55f, 1.0f, (float) (getWidth() - (int) (20 * s)) / (1400.0f * s));
+    const float fit = juce::jlimit (0.55f, 1.0f, (float) (getWidth() - (int) (20 * s)) / (1350.0f * s));
     auto W = [s, fit] (float units) { return (int) (units * s * fit); };
 
     row1Rect = area.removeFromTop (rowH1);
@@ -1831,7 +1846,7 @@ void SeqPanel::resized()
     reseedButton.setBounds (r1.removeFromRight (W(44)));
     r1.removeFromRight (sGap / 2);
     {
-        const int swingW = W(150);
+        const int swingW = W(128);
         auto sw = juce::Rectangle<int> (r1.getRight() - swingW, row1Rect.getY(), swingW, rowH1 + vgap + rowH2);
         r1.removeFromRight (swingW + sGap / 2);
         separatorsX.push_back ({ sw.getX() - sGap / 4, 2 });
@@ -1844,7 +1859,7 @@ void SeqPanel::resized()
     // Sinistra: pattern
     prevPattern.setBounds (r1.removeFromLeft (W(32)));
     r1.removeFromLeft (gGap / 2);
-    patternBox.setBounds (r1.removeFromLeft (W(150)));
+    patternBox.setBounds (r1.removeFromLeft (W(122)));
     r1.removeFromLeft (gGap / 2);
     nextPattern.setBounds (r1.removeFromLeft (W(32)));
     r1.removeFromLeft (gGap);
@@ -1852,7 +1867,7 @@ void SeqPanel::resized()
     groupEnd (r1);
 
     // Celle
-    addButton.setBounds (r1.removeFromLeft (W(78)));
+    addButton.setBounds (r1.removeFromLeft (W(66)));
     r1.removeFromLeft (2);
     addAllButton.setBounds (r1.removeFromLeft (W(36)));
     groupEnd (r1);
@@ -1862,7 +1877,7 @@ void SeqPanel::resized()
     r1.removeFromLeft (gGap);
     tailBox.setBounds (r1.removeFromLeft (W(112)));
     r1.removeFromLeft (gGap);
-    rateBox.setBounds (r1.removeFromLeft (W(104)));
+    rateBox.setBounds (r1.removeFromLeft (W(122)));
     groupEnd (r1);
     midiButton.setBounds (r1.removeFromLeft (W(122)));
     r1.removeFromLeft (gGap);

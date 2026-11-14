@@ -180,6 +180,9 @@ public:
     // L'audio si renderizza direttamente a quella frequenza (nessuna conversione dopo).
     int getExportRateSetting() const { return exportRateHz.load(); }
     void setExportRateSetting (int hz) { exportRateHz.store (hz >= 8000 ? juce::jmin (192000, hz) : 0); }
+    // Frequenza con cui la DAW fa girare il plugin (la comunica alla preparazione): e' quella dell'opzione "Auto"
+    double getHostSampleRate() const { return currentSampleRate > 0.0 ? currentSampleRate : 44100.0; }
+    static juce::String rateText (double hz) { return juce::String (hz / 1000.0, std::abs (hz / 1000.0 - std::round (hz / 1000.0)) < 1.0e-6 ? 0 : 1) + "k"; }
     double getExportSampleRate() const { const int r = exportRateHz.load(); return r > 0 ? (double) r : (currentSampleRate > 0.0 ? currentSampleRate : 44100.0); }
     void setExportBpmOverride (double bpm) { exportBpmOverride.store (bpm >= 20.0 ? juce::jmin (400.0, bpm) : 0.0); }
     void logExport (const juce::String& what) const;           // riga nel diario dell'interfaccia: tempo e frequenza usati

@@ -67,6 +67,7 @@ private:
     double playFraction = 0.0;         // avanzamento dentro il blocco (0..1)
     double playPos = 0.0;              // posizione nella song, in quarti
     int selected = -1;
+    int rateTick = 0;
 
     std::unique_ptr<juce::FileChooser> chooser;
 };
