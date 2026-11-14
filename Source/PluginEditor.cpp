@@ -601,10 +601,10 @@ void SampleLabEditor::showTab (int tab)
     const bool seq = tab == 1, slice = tab == 4, song = tab == 5, mixer = tab == 2;
 
     // Le schede Seq e Song occupano lo spazio di griglia, forma d'onda e moduli
-    browser.setVisible (! seq && ! song && ! mixer);
-    cellPanel.setVisible (! seq && ! slice && ! song && ! mixer);
+    browser.setVisible (! seq && ! song && ! mixer && tab != 3);
+    cellPanel.setVisible (! seq && ! slice && ! song && ! mixer && tab != 3);
     grid.setVisible (! seq && ! slice && ! song && ! mixer);
-    waveStrip.setVisible (! seq && ! slice && ! song && ! mixer);
+    waveStrip.setVisible (! seq && ! slice && ! song && ! mixer && tab != 3);
     mixerPanel.setVisible (mixer);
     if (mixer)
     {
@@ -623,6 +623,7 @@ void SampleLabEditor::showTab (int tab)
     if (seq)
         seqPanel.refresh();
     theme::noButtonFocus (*this);
+    resized();                                                  // la griglia cambia dimensione nella scheda FX
     repaint (tabBar);
 }
 
@@ -1005,7 +1006,6 @@ void SampleLabEditor::resized()
     // Fila dei moduli, a tutta larghezza: altezza proporzionale (limiti espressi in unita' scalate)
     const auto bottomArea = area.removeFromBottom (juce::jlimit ((int) (150 * s), (int) (250 * s), (int) ((float) area.getHeight() * 0.30f)));
     modules.setBounds (bottomArea);
-    fxPanel.setBounds (bottomArea);
     area.removeFromBottom (m);
     const int bottomAreaTop = bottomArea.getY();
 
@@ -1020,7 +1020,10 @@ void SampleLabEditor::resized()
     const int waveH = juce::jlimit ((int) (70 * s), (int) (150 * s), (int) ((float) area.getHeight() * 0.28f));
     waveStrip.setBounds (area.removeFromBottom (waveH));
     area.removeFromBottom (m);
-    grid.setBounds (area);
+    // Scheda FX: la griglia occupa tutta la larghezza (browser e pannello della cella sono nascosti) e sotto ci sono le due righe di effetti
+    grid.setBounds (currentTab == 3 ? juce::Rectangle<int> (fullArea.getX(), fullArea.getY(), fullArea.getWidth(), waveStrip.getY() - m - fullArea.getY()) : area);
+    // La scheda FX usa lo spazio dei moduli e quello della forma d'onda (nascosta in questa scheda): due righe di effetti
+    fxPanel.setBounds (bottomArea.getX(), waveStrip.getY(), bottomArea.getWidth(), bottomArea.getBottom() - waveStrip.getY());
 
     // Scheda Slice: tra il browser e il bordo destro, da sopra la griglia fino al fondo dei moduli
     slicePanel.setBounds (browserRight, fullArea.getY(), fullArea.getRight() - browserRight, bottomArea.getBottom() - fullArea.getY());

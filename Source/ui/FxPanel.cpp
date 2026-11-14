@@ -316,16 +316,49 @@ void FxPanel::resized()
     masterButton.setBounds (hb.removeFromLeft ((int) (90 * s)));
     area.removeFromTop ((int) (6 * s));
 
+    // Due righe bilanciate: le schede restano nell'ordine della catena e si divide nel punto che rende le due righe piu' simili
+    const int count = (int) cards.size();
     float total = 0.0f;
     for (auto& c : cards) total += c->units;
-    const float perUnit = (float) (area.getWidth() - gap * ((int) cards.size() - 1)) / total;
-
-    int x = area.getX();
-    for (size_t i = 0; i < cards.size(); ++i)
+    int split = count;
     {
-        auto& c = *cards[i];
-        const int w = i + 1 == cards.size() ? area.getRight() - x : (int) (c.units * perUnit);
-        c.bounds = { x, area.getY(), w, area.getHeight() };
+        float best = 1.0e9f, acc = 0.0f;
+        for (int k = 1; k < count; ++k)
+        {
+            acc += cards[(size_t) k - 1]->units;
+            const float worst = juce::jmax (acc, total - acc);
+            if (worst < best)
+            {
+                best = worst;
+                split = k;
+            }
+        }
+    }
+    const int rows = count > 1 ? 2 : 1;
+    const int rowGap = juce::jmax (6, (int) (8 * s));
+    const int rowH = (area.getHeight() - (rows - 1) * rowGap) / rows;
+
+    int x = area.getX(), y = area.getY();
+    float rowUnits = 0.0f;
+    int rowStart = 0;
+    for (int i = 0; i < count; ++i)
+    {
+        if (i == 0 || i == split)
+        {
+            x = area.getX();
+            y = area.getY() + (i == 0 ? 0 : rowH + rowGap);
+            rowStart = i;
+            const int rowEnd = i == 0 ? split : count;
+            rowUnits = 0.0f;
+            for (int j = i; j < rowEnd; ++j) rowUnits += cards[(size_t) j]->units;
+        }
+        const int rowEnd = rowStart == 0 ? split : count;
+        const int inRow = rowEnd - rowStart;
+        const float perUnit = (float) (area.getWidth() - gap * (inRow - 1)) / rowUnits;
+
+        auto& c = *cards[(size_t) i];
+        const int w = i + 1 == rowEnd ? area.getRight() - x : (int) (c.units * perUnit);
+        c.bounds = { x, y, w, rowH };
         x += w + gap;
 
         auto inner = c.bounds.reduced ((int) (6 * s), 0).withTrimmedTop ((int) (24 * s)).withTrimmedBottom ((int) (6 * s));
