@@ -34,7 +34,7 @@ Il progetto si compila dal codice sorgente (vedi il README nella cartella princi
 └────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Barra superiore:** nome del kit, frecce per il kit precedente/successivo, **Save**, menu **Kit**, **Play/Stop** del sequencer, **BPM**, **Size** (ingrandisce o riduce la finestra a percentuali) e il pulsante **i**: apre la finestra **Info** con il logo, la versione, il copyright e il logo ASIO.
+- **Barra superiore:** nome del kit, frecce per il kit precedente/successivo, **Save**, menu **Kit**, **Play/Stop** del sequencer, **BPM**, **Size** (ingrandisce o riduce la finestra a percentuali) e il pulsante **i**: apre la finestra **Info** con il logo, la versione, il copyright, il logo ASIO e il pulsante **Support NINA (PayPal)**: NINA è gratuito e uguale per tutti, e la donazione è **libera e volontaria** (apre PayPal nel browser; non cambia nulla nel programma).
 - **Schede in basso** (pulsanti con icona; quello della scheda aperta è acceso): **Main** (celle e moduli), **Seq** (sequencer), **FX** (effetti), **Song** (concatenare i pattern in un brano), **Slice** (tagliare i loop sulle celle), **Mixer** (la console: un canale per cella con fader e meter).
 - La finestra si può **ridimensionare** trascinando i bordi: tutti gli elementi si adattano.
 

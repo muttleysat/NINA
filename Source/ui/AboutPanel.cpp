@@ -6,12 +6,16 @@ AboutPanel::AboutPanel (float scale) : s (scale)
     logo = juce::ImageCache::getFromMemory (BinaryData::nina_logo_png, BinaryData::nina_logo_pngSize);
     asio = juce::ImageCache::getFromMemory (BinaryData::asio_logo_jpg, BinaryData::asio_logo_jpgSize);
     addAndMakeVisible (closeButton);
+    addAndMakeVisible (supportButton);
+    supportButton.setPrimary (true);
+    supportButton.setTooltip ("Opens PayPal in your browser. Donations are voluntary: NINA is the same for everyone.");
+    supportButton.onClick = [] { juce::URL (AboutPanel::donateUrl()).launchInDefaultBrowser(); };
     closeButton.onClick = [this]
     {
         if (auto* dw = findParentComponentOfClass<juce::DialogWindow>())
             dw->exitModalState (0);
     };
-    setSize ((int) (460 * s), (int) (500 * s));
+    setSize ((int) (460 * s), (int) (590 * s));
 }
 
 void AboutPanel::paint (juce::Graphics& g)
@@ -39,6 +43,10 @@ void AboutPanel::paint (juce::Graphics& g)
     g.setColour (theme::textDim);
     g.setFont (juce::FontOptions (juce::jmax (9.0f, 11.0f * s)));
     g.drawText ("ASIO audio drivers (standalone)", asioTextRect, juce::Justification::centred);
+
+    g.setColour (theme::textDim);
+    g.drawFittedText ("NINA is free. If you like it, a voluntary donation is welcome:\nno obligation, and nothing changes for anyone.",
+                      supportTextRect, juce::Justification::centred, 2);
 }
 
 void AboutPanel::resized()
@@ -51,6 +59,9 @@ void AboutPanel::resized()
     r.removeFromTop ((int) (18 * s));
     asioRect = r.removeFromTop ((int) (130 * s));
     asioTextRect = r.removeFromTop ((int) (22 * s));
+    r.removeFromTop ((int) (14 * s));
+    supportTextRect = r.removeFromTop ((int) (34 * s));
+    supportButton.setBounds (r.removeFromTop ((int) (36 * s)).withSizeKeepingCentre ((int) (260 * s), (int) (38 * s)));
     closeButton.setBounds (r.removeFromBottom ((int) (34 * s)).withSizeKeepingCentre ((int) (110 * s), (int) (34 * s)));
 }
 
