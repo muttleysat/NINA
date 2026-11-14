@@ -395,7 +395,7 @@ void SongPanel::timerCallback()
 juce::String SongPanel::lengthText() const
 {
     const double beats = processor.songTotalBeats();
-    const double bpm = juce::jmax (1.0, processor.getCurrentBpm());
+    const double bpm = juce::jmax (1.0, processor.getExportBpm());
     const double secs = beats * 60.0 / bpm;
     return "Length: " + juce::String (beats / 4.0, 1) + " bars  -  " + juce::String ((int) secs / 60) + ":"
            + juce::String ((int) secs % 60).paddedLeft ('0', 2) + " at " + juce::String (juce::roundToInt (bpm)) + " BPM  -  "
@@ -504,7 +504,7 @@ juce::File SongPanel::dragFolder() const
 
 juce::String SongPanel::baseName() const
 {
-    return sl::KitIO::sanitiseName (processor.getKit().name + "_" + processor.song().name + "_" + juce::String (juce::roundToInt (processor.getCurrentBpm()))
+    return sl::KitIO::sanitiseName (processor.getKit().name + "_" + processor.song().name + "_" + juce::String (juce::roundToInt (processor.getExportBpm()))
                                     + "bpm");
 }
 
@@ -606,7 +606,7 @@ void SongPanel::bounceWav()
                                   f = f.withFileExtension ("wav");
                               juce::String err;
                               if (processor.bounceSongWav (f, err))
-                                  showMessage ("Audio bounced:\n" + f.getFullPathName() + "\n\nRendered at " + juce::String (processor.getCurrentBpm(), 2) + " BPM, "
+                                  showMessage ("Audio bounced:\n" + f.getFullPathName() + "\n\nRendered at " + juce::String (processor.getExportBpm(), 2) + " BPM, "
                                            + juce::String (processor.getSampleRate(), 0) + " Hz.");
                               else
                                   showMessage (err.isEmpty() ? juce::String ("Bounce failed") : err);

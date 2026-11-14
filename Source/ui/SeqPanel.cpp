@@ -635,7 +635,7 @@ juce::File SeqPanel::dragFolder() const
 juce::String SeqPanel::dragBaseName() const
 {
     const auto& kit = processor.getKit();
-    return sl::KitIO::sanitiseName (kit.name + "_" + pat().name + "_" + juce::String (juce::roundToInt (processor.getCurrentBpm()))
+    return sl::KitIO::sanitiseName (kit.name + "_" + pat().name + "_" + juce::String (juce::roundToInt (processor.getExportBpm()))
                                     + "bpm_" + juce::String (bars()) + "bar");
 }
 
@@ -1570,7 +1570,7 @@ juce::File SeqPanel::defaultExportFile (const juce::String& extension) const
     const auto dir = kit.file.getFullPathName().isNotEmpty() ? kit.file.getSiblingFile ("Bounces")
                                                              : juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
     dir.createDirectory();
-    const auto name = sl::KitIO::sanitiseName (kit.name + "_" + pat().name + "_" + juce::String (juce::roundToInt (processor.getCurrentBpm()))
+    const auto name = sl::KitIO::sanitiseName (kit.name + "_" + pat().name + "_" + juce::String (juce::roundToInt (processor.getExportBpm()))
                                                + "bpm_" + juce::String (bars()) + "bar");
     return dir.getChildFile (name + extension);
 }
@@ -1610,7 +1610,7 @@ void SeqPanel::bounceWav()
                                   f = f.withFileExtension ("wav");
                               juce::String err;
                               if (processor.bouncePatternWav (f, bars(), err))
-                                  showMessage ("Audio bounced:\n" + f.getFullPathName() + "\n\nRendered at " + juce::String (processor.getCurrentBpm(), 2) + " BPM, "
+                                  showMessage ("Audio bounced:\n" + f.getFullPathName() + "\n\nRendered at " + juce::String (processor.getExportBpm(), 2) + " BPM, "
                                            + juce::String (processor.getSampleRate(), 0) + " Hz.");
                               else
                                   showMessage (err.isEmpty() ? juce::String ("Bounce failed") : err);
@@ -1635,7 +1635,7 @@ void SeqPanel::exportStems()
                                   return;
 
                               const auto folderName = sl::KitIO::sanitiseName (processor.getKit().name + "_" + pat().name + "_"
-                                                                              + juce::String (juce::roundToInt (processor.getCurrentBpm())) + "bpm_"
+                                                                              + juce::String (juce::roundToInt (processor.getExportBpm())) + "bpm_"
                                                                               + juce::String (bars()) + "bar_lanes");
                               const auto folder = parent.getChildFile (folderName);
                               juce::String err;
@@ -1643,7 +1643,7 @@ void SeqPanel::exportStems()
                               if (n >= 0)
                                   showMessage (juce::String (n) + " lane file(s) written to:\n" + folder.getFullPathName()
                                                + "\n\nAll files have the same length: place them at the start of the same bar in your DAW. "
-                                                 "They include each cell's effects and the delay synced to " + juce::String (processor.getCurrentBpm(), 1)
+                                                 "They include each cell's effects and the delay synced to " + juce::String (processor.getExportBpm(), 1)
                                                + " BPM, but not the master effects.");
                               else
                                   showMessage (err.isEmpty() ? juce::String ("Export failed") : err);

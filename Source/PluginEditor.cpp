@@ -62,7 +62,11 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
     bpmLabel.setColour (juce::TextEditor::backgroundColourId, theme::panelHi);
     bpmLabel.onTextChange = [this]
     {
-        processor.setInternalBpmByUser (bpmLabel.getText().retainCharacters ("0123456789.").getDoubleValue());
+        const double v = bpmLabel.getText().retainCharacters ("0123456789.").getDoubleValue();
+        if (processor.isHostTempo())
+            processor.setExportBpmOverride (v);                  // nel plugin il tempo di riproduzione e' della DAW: qui si sceglie quello delle esportazioni
+        else
+            processor.setInternalBpmByUser (v);
     };
     addAndMakeVisible (bpmLabel);
 
@@ -296,6 +300,37 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
             uiLog (t);
         });
 
+    // Solo per prove: SAMPLELAB_BOUNCEDIAG scrive in ui.log i dati della song e la durata del WAV esportato a 126 BPM (non modifica il kit)
+    if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_BOUNCEDIAG", {}).isNotEmpty())
+        juce::Timer::callAfterDelay (2500, [this]
+        {
+            const auto& k = processor.getKit();
+            juce::String t = "BOUNCEDIAG song blocks:";
+            for (const auto& b : k.song.blocks)
+                t << " [p" << (b.pattern + 1) << " x" << b.repeats << " beats=" << juce::String (k.patterns[(size_t) b.pattern].lengthBeats(), 2) << "]";
+            t << " total=" << juce::String (processor.songTotalBeats(), 3);
+            for (int i = 0; i < (int) k.patterns.size(); ++i)
+                for (const auto& l : k.patterns[(size_t) i].lanes)
+                    if (l.length != 16 || l.division != 10)
+                        t << " | p" << (i + 1) << " lane cell" << l.cell << " len=" << l.length << " div=" << sl::kDivisionNames[l.division];
+            t << " | sync cells:";
+            for (int i = 0; i < k.numCells(); ++i)
+                if (k.cells[(size_t) i].hasSample() && k.cells[(size_t) i].tempoSync)
+                    t << " " << i << "(loopBpm " << juce::String (k.cells[(size_t) i].loopBpm, 1) << ")";
+            processor.setInternalBpmByUser (126.0);
+            juce::Timer::callAfterDelay (600, [this, t] () mutable {
+            juce::String err;
+            const auto wav = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("bouncediag.wav");
+            const bool ok = processor.bounceSongWav (wav, err);
+            juce::WavAudioFormat fmt;
+            std::unique_ptr<juce::AudioFormatReader> rd (fmt.createReaderFor (wav.createInputStream().release(), true));
+            const double secs = rd != nullptr ? (double) rd->lengthInSamples / rd->sampleRate : 0.0;
+            t << " | bounce ok=" << (int) ok << " bpm=" << juce::String (processor.getCurrentBpm(), 2) << " sr=" << processor.getSampleRate()
+              << " fileSecs=" << juce::String (secs, 3) << " expectedSecs=" << juce::String (processor.songTotalBeats() * 60.0 / 126.0, 3) << " err=" << err;
+            uiLog (t);
+            });
+        });
+
     // Solo per prove: SAMPLELAB_ABOUT apre la finestra Info all'avvio
     if (juce::SystemStats::getEnvironmentVariable ("SAMPLELAB_ABOUT", {}).isNotEmpty())
     {
@@ -495,13 +530,18 @@ void SampleLabEditor::timerCallback()
     transportButton.setTooltip (processor.isHostPlaying() ? "The host transport is running: the sequencer follows it"
                                                           : "Start/stop the sequencer (Space)");
 
-    // BPM: dalla DAW (non modificabile) oppure interno (si modifica con doppio clic)
+    // BPM: interno (standalone: si modifica con doppio clic) oppure dalla DAW. Nel plugin il doppio clic imposta il "tempo di esportazione"
+    // (usato da MIDI e audio esportati), utile se la DAW manda un tempo diverso da quello del brano; 0 o vuoto torna all'automatico.
     const bool host = processor.isHostTempo();
-    bpmLabel.setEditable (! host, ! host, false);
-    bpmLabel.setTooltip (host ? "Tempo from the host (the last one received)"
-                              : "Internal tempo (double-click to edit). In a DAW, NINA takes the tempo from the project once the transport has run.");
+    const double ov = processor.getExportBpmOverride();
+    bpmLabel.setEditable (true, true, false);
+    bpmLabel.setColour (juce::Label::textColourId, ov > 0.0 && host ? theme::accent : theme::accentSoft);
+    bpmLabel.setTooltip (host ? (ov > 0.0 ? "Export tempo set by hand (orange). The DAW tempo is " + juce::String (processor.getCurrentBpm(), 2)
+                                                + " BPM. Double-click and type 0 to go back to automatic."
+                                          : "Tempo from the host (the last one received). Double-click to set a different tempo for the exports.")
+                         : "Internal tempo (double-click to edit). In a DAW, NINA takes the tempo from the project once the transport has run.");
     if (! bpmLabel.isBeingEdited())
-        bpmLabel.setText (juce::String (processor.getCurrentBpm(), 1) + " BPM", juce::dontSendNotification);
+        bpmLabel.setText (juce::String (host && ov > 0.0 ? ov : processor.getCurrentBpm(), 1) + (host && ov > 0.0 ? " BPM *" : " BPM"), juce::dontSendNotification);
 }
 
 SampleLabEditor::~SampleLabEditor()

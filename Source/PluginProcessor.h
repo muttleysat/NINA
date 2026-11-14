@@ -168,7 +168,16 @@ public:
     void setInternalBpmByUser (double bpm) { setInternalBpm (bpm); bpmEdited.store (true); }   // scritto a mano nel riquadro BPM
     // Le esportazioni audio hanno bisogno del tempo del progetto. Nel plugin lo si conosce solo dopo che la DAW lo ha mandato (di solito
     // quando parte il trasporto) o se e' stato scritto a mano: altrimenti si esporterebbe al tempo interno predefinito (120), sbagliato.
-    bool exportTempoKnown() const { return wrapperType == juce::AudioProcessor::wrapperType_Standalone || lastHostBpm.load() > 0.0 || bpmEdited.load(); }
+    bool exportTempoKnown() const
+    {
+        return wrapperType == juce::AudioProcessor::wrapperType_Standalone || lastHostBpm.load() > 0.0 || bpmEdited.load() || exportBpmOverride.load() > 0.0;
+    }
+    // Tempo usato dalle esportazioni (audio, MIDI): quello scelto a mano ("tempo di esportazione", 0 = automatico) oppure il tempo corrente
+    // (DAW o interno). Nel plugin serve se la DAW manda un tempo diverso da quello del brano.
+    double getExportBpm() const { const double o = exportBpmOverride.load(); return o > 0.0 ? o : currentBpm.load(); }
+    double getExportBpmOverride() const { return exportBpmOverride.load(); }
+    void setExportBpmOverride (double bpm) { exportBpmOverride.store (bpm >= 20.0 ? juce::jmin (400.0, bpm) : 0.0); }
+    void logExport (const juce::String& what) const;           // riga nel diario dell'interfaccia: tempo e frequenza usati
     static juce::String tempoUnknownMessage()
     {
         return "NINA hasn't received the project tempo from your DAW yet, so the audio would be rendered at the wrong speed.\n\n"
@@ -309,6 +318,7 @@ private:
     std::atomic<bool> hostTempo { false };
     std::atomic<double> lastHostBpm { 0.0 };                 // ultimo tempo ricevuto dalla DAW (0 = mai)
     std::atomic<bool> bpmEdited { false };
+    std::atomic<double> exportBpmOverride { 0.0 };
     int generation = 0;
 
     mutable std::unique_ptr<juce::ApplicationProperties> appProps;
