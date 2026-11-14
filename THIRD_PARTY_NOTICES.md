@@ -50,5 +50,11 @@ their own licences and copyrights.
 
 ## NINA
 
-- Copyright (C) 2026 Vinz Trombetta. The NINA name, logo and icon are not covered by the
+- NINA - Drumbox Sequencer Powerhouse. Copyright (C) 2026 Vinz Trombetta.
+- NINA is free software: you can redistribute it and/or modify it under the terms of the GNU
+  Affero General Public License as published by the Free Software Foundation, version 3 (see the
+  `LICENSE` file). It is distributed in the hope that it will be useful, but WITHOUT ANY
+  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+  PURPOSE.
+- The NINA name, logo and icon are the property of Vinz Trombetta and are not covered by the
   AGPL licence of the source code.
