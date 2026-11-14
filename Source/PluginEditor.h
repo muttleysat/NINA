@@ -42,7 +42,7 @@ private:
     void refreshTopBar();
     void refreshAll();
     void refreshCellViews();
-    void confirmDiscard (std::function<void()> proceed);
+    void confirmDiscard (std::function<void()> proceed, bool alsoSequencesAndSong = false);
     void doNew();
     void doOpen();
     void openAnyFile (const juce::File& f);                // .slkit, .slseq o .slsong
@@ -50,7 +50,6 @@ private:
     void doOpenAdjacent (int direction);
     void doSave();
     void doSaveAs();
-    void doSaveSoundsOnly();            // salva i soli suoni (senza sequenze e song)
     void showError (const juce::String& message);
 
     // Celle

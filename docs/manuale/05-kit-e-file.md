@@ -19,26 +19,27 @@ Kits/
 - Nel file `.slkit` i campioni sono scritti con percorsi **relativi**: puoi spostare o copiare insieme file e cartella.
 - Le modifiche (Start/End, effetti, livelli…) sono salvate nel `.slkit` e **non alterano mai** i file audio.
 
-## Cosa contiene un kit, e salvare per sezione
+## Tre tipi di file: kit, sequenze e song
 
-Il salvataggio normale (**Save**, **Save as...**) scrive un **progetto completo** in un solo file `.slkit`: celle e campioni, effetti, master, MIDI learn, i **16 pattern** del sequencer e la **song**. Per tenere le parti separate ci sono tre salvataggi, uno per sezione:
+Il **kit** è il cuore del programma, e il salvataggio principale (**Save**) scrive **solo il kit**. Sequenze e song hanno ciascuna il proprio file e il proprio pulsante di salvataggio:
 
-| Sezione | Cosa salva | Dove | File |
-|---------|------------|------|------|
-| **Kit** (suoni) | Celle, campioni (copiati nella cartella), effetti, master, MIDI learn. **Senza** sequenze e song | **Kit → Save kit sounds only...** | `.slkit` |
-| **Sequenze** | I **16 pattern** (righe, step, lock, swing, nomi) e il pattern attivo | Scheda **Seq**, menu **⋯** accanto al nome del pattern → **Save all sequences...** | `.slseq` |
-| **Song** | La catena di blocchi, il Loop e il nome | Scheda **Song** → **Save song** | `.slsong` |
+| File | Cosa contiene | Come si salva | Come si apre |
+|------|---------------|---------------|--------------|
+| **`.slkit`** (kit) | Celle e campioni (copiati nella cartella), tutti i parametri, effetti per cella, master, MIDI learn. **Niente** sequenze né song | Menu **Kit → Save kit** / **Save kit as...** (o il pulsante **Save** in alto) | **Kit → Open...** | Apre un file `.slkit` (kit), `.slseq` (sequenze) o `.slsong` (song): riconosce il tipo dall'estensione |
+| **`.slseq`** (sequenze) | I **16 pattern**: righe, step, lock degli effetti, swing, nomi, pattern attivo | Pulsante **Save seq** nella scheda **Seq** (seconda riga di comandi) | **Kit → Open...** | Apre un file `.slkit` (kit), `.slseq` (sequenze) o `.slsong` (song): riconosce il tipo dall'estensione |
+| **`.slsong`** (song) | La catena di blocchi, il Loop e il nome | Pulsante **Save song** nella scheda **Song** | **Kit → Open...** | Apre un file `.slkit` (kit), `.slseq` (sequenze) o `.slsong` (song): riconosce il tipo dall'estensione |
 
-**Per aprirli c'è un solo comando: Kit → Open...** Sceglie da solo cosa fare in base al tipo di file:
-
-- **`.slkit`** (kit): apre il kit. Se il file contiene **sequenze o una song** (salvataggio normale) sostituisce tutto come prima; se invece è un kit **dei soli suoni** (senza pattern né song, per esempio salvato con *Save kit sounds only*) cambia i suoni e **mantiene le sequenze e la song che hai ora**. Se hai modifiche non salvate, chiede conferma.
-- **`.slseq`** (sequenze): sostituisce **tutti i 16 pattern** con quelli del file (chiede conferma, si annulla con Ctrl+Z).
-- **`.slsong`** (song): carica la catena di blocchi al posto di quella attuale.
+**Open** è uno solo e riconosce il tipo dall'estensione:
+- scegliendo un **`.slkit`** si cambiano i suoni (se hai modifiche non salvate al kit, chiede conferma) e le **sequenze e la song che stai usando restano** quelle di prima;
+- scegliendo un **`.slseq`** i 16 pattern vengono sostituiti da quelli del file (chiede conferma, si annulla con Ctrl+Z);
+- scegliendo un **`.slsong`** la catena viene sostituita da quella del file.
 
 Cose da sapere:
-- **Save kit sounds only** salva una **copia**: il kit su cui stai lavorando non cambia (nome, percorso e asterisco restano come sono). I campioni vengono copiati nella cartella accanto al file, come per il salvataggio normale.
-- Aprendo un kit dei soli suoni, il kit risulta **modificato** (asterisco): contiene le sequenze di prima, che non sono nel file aperto. Un **Save** normale lo sovrascriverebbe con tutto. Un kit senza nessuna riga nei pattern e senza song è considerato «dei soli suoni»: per ripartire da zero usa **Kit → New kit**.
+- **L'asterisco** vicino al nome del kit riguarda **solo il kit**. Le modifiche a sequenze e song non salvate nei loro file non lo accendono, ma se stai per perderle (per esempio con **New kit**) l'app **chiede conferma** e te lo dice.
+- **New kit** crea un progetto vuoto: azzera **anche** le sequenze e la song (dopo la conferma, se non erano salvate).
+- I **vecchi kit** salvati con le versioni precedenti, che contengono anche i pattern e la song, si aprono ancora **per intero** (con tutto il loro contenuto); risalvandoli con **Save kit** i pattern e la song non vengono più scritti nel file: salvali prima con **Save seq** e **Save song** se ti servono.
 - Le righe dei pattern e i blocchi della song richiamano le celle e i pattern **per numero** (A1 è la cella 0...): funzionano con qualunque kit, ma suonano ciò che c'è in quelle celle.
+- Il **progetto della DAW** (il plugin dentro Cubase) salva invece **tutto insieme** (kit, sequenze e song) nel progetto, come prima: i tre file servono per riusare le parti tra progetti diversi.
 
 ## Il menu Kit e i pulsanti in alto
 
@@ -46,11 +47,10 @@ Cose da sapere:
 |---------|---------|
 | Nome del kit | Mostra il nome. Un asterisco (`*`) significa modifiche non salvate. "Untitled" = non ancora salvato |
 | **< >** | Passa al kit precedente/successivo **nella stessa cartella** del kit corrente (attive solo se ce n'è un altro) |
-| **Save** | Salva il kit (la prima volta chiede il nome) |
+| **Save** | Salva il **kit** (solo il kit: la prima volta chiede il nome) |
 | **Kit → New kit** | Crea un kit vuoto |
 | **Kit → Open...** | Apre un file `.slkit` (kit), `.slseq` (sequenze) o `.slsong` (song): riconosce il tipo dall'estensione |
-| **Kit → Save** / **Save as...** | Salva / salva con un altro nome (progetto completo) |
-| **Kit → Save kit sounds only...** | Salva i soli suoni (senza sequenze e song) in un `.slkit` |
+| **Kit → Save kit** / **Save kit as...** | Salva / salva con un altro nome (solo il kit) |
 | **Kit → Normalize all cells** | Normalizza il Level di tutte le celle (picco a −1 dBFS) |
 | **Kit → Recent kits** | Gli **ultimi 5 kit** aperti o salvati, con **Clear recent** per svuotare l'elenco |
 

@@ -811,6 +811,10 @@ SeqPanel::SeqPanel (SampleLabProcessor& p) : processor (p)
     tailBox.onChange = [this] { processor.setExportTail ((SampleLabProcessor::ExportTail) (tailBox.getSelectedId() - 1)); };
     addAndMakeVisible (tailBox);
 
+    addAndMakeVisible (saveSeqButton);
+    saveSeqButton.setTooltip ("Save all 16 patterns to a .slseq file (open it later with Kit > Open...). The kit file does not contain the sequences.");
+    saveSeqButton.onClick = [this] { saveSequences(); };
+
     rateBox.addItem ("Auto", 1);
     rateBox.addItem ("44.1k", 2);
     rateBox.addItem ("48k", 3);
@@ -1464,8 +1468,6 @@ void SeqPanel::showPatternMenu()
     m.addSeparator();
     m.addItem (5, "Rename...");
     m.addSeparator();
-    m.addItem (20, "Save all sequences (16 patterns) to a file...");
-    m.addSeparator();
     {
         const bool has = ! pat().lanes.empty();
         juce::PopupMenu steps, res;
@@ -1497,8 +1499,6 @@ void SeqPanel::showPatternMenu()
                 juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "NINA",
                                                         "There is no empty pattern left to duplicate into.\nClear a pattern first, or use Copy and Paste.");
         }
-        else if (r == 20)
-            safe->saveSequences();
         else if (r >= 100 && r < 107)
         {
             static const int lens[] = { 8, 12, 16, 24, 32, 48, 64 };
@@ -1888,7 +1888,7 @@ void SeqPanel::resized()
     // Sinistra: pattern
     prevPattern.setBounds (r1.removeFromLeft (W(32)));
     r1.removeFromLeft (gGap / 2);
-    patternBox.setBounds (r1.removeFromLeft (W(122)));
+    patternBox.setBounds (r1.removeFromLeft (W(124)));
     r1.removeFromLeft (gGap / 2);
     nextPattern.setBounds (r1.removeFromLeft (W(32)));
     r1.removeFromLeft (gGap);
@@ -1937,12 +1937,16 @@ void SeqPanel::resized()
         recButton.setBounds (d.removeFromLeft (W(56)));
         d.removeFromLeft (gGap);
         quantButton.setBounds (d.removeFromLeft (W(128)));
+        d.removeFromLeft (gGap);
+        separatorsX.push_back ({ d.getX() + gGap / 2, 1 });
+        d.removeFromLeft (gGap * 2);
+        saveSeqButton.setBounds (d.removeFromLeft (W(108)));
     }
 
     // Modo del trasporto della DAW (solo plugin): sta nello spazio libero tra i comandi di sinistra e il blocco dello swing,
     // senza mai sovrapporsi a nessuno dei due (si restringe se la finestra e' stretta e sparisce se non c'e' posto)
     {
-        const int leftEnd = quantButton.getRight() + gGap * 2;
+        const int leftEnd = saveSeqButton.getRight() + gGap * 2;
         const int rightEdge = swingRect.getX() - sGap / 2 - gGap;
         const int avail = rightEdge - leftEnd;
         const int w = juce::jmin (avail, (int) (232 * s));

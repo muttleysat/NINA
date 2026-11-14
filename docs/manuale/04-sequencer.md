@@ -52,6 +52,10 @@ La scheda Seq usa tutta la larghezza della finestra (browser e pannello della ce
 
 Sullo step acceso, piccoli segni indicano: un **pallino** = ha dei lock sugli effetti; **x2/x3/x4** = ratchet; **%** = probabilità sotto il 100%.
 
+### Salvare le sequenze
+
+Il file del kit non contiene i pattern. Per salvarli (tutti e 16 insieme) usa il pulsante **Save seq**, nella seconda riga di comandi della scheda Seq: scrive un file `.slseq` (propone la cartella `Sequences` accanto al kit). Per riaprirli usa **Kit → Open...** e scegli il file `.slseq` (sostituisce tutti i pattern, con conferma). Dettagli nel capitolo 5.
+
 ### Copiare e incollare step e righe
 
 - **Step singolo:** seleziona uno step (tasto destro o Maiusc+clic lo seleziona senza cambiarlo) e premi **Ctrl+C**; seleziona un altro step e premi **Ctrl+V**. Si copia tutto lo step: acceso/spento, velocity, probabilità, ratchet, nudge, gate, pitch, reverse, modalità e **lock** degli effetti. Si può incollare anche su un'altra riga o in un altro pattern.

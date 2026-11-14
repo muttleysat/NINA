@@ -151,9 +151,11 @@ public:
     void newKit();
     bool openKit (const juce::File& file, juce::String& error);
     bool saveKit (const juce::File& file, juce::String& error);
-    // Salvataggi per sezione: i suoni (celle, master, effetti, MIDI learn) senza sequenze e song (non cambia il kit corrente), e le sole
-    // sequenze (16 pattern). La song ha il suo file (.slsong). Aprendo i soli suoni si tengono le sequenze e la song correnti.
-    bool saveKitSoundsOnly (const juce::File& file, juce::String& error);
+    // Il file del kit (.slkit) contiene SOLO il kit: celle, campioni, effetti, master, MIDI learn. Le sequenze (16 pattern) e la song hanno
+    // i loro file (.slseq, .slsong). Aprendo un kit le sequenze e la song correnti restano (a meno che il file sia un vecchio progetto che le contiene).
+    // Le modifiche non salvate di sequenze e song si seguono a parte: l'asterisco del kit riguarda solo il kit.
+    bool hasUnsavedSequences() const { return seqDirty.load(); }
+    bool hasUnsavedSong() const { return songDirty.load(); }
     bool openKitKeepSequences (const juce::File& file, juce::String& error);
     static bool kitFileHasSequences (const juce::File& file);          // il file .slkit contiene righe nei pattern o una song? (altrimenti sono i soli suoni)
     bool saveSequencesFile (const juce::File& file, juce::String& error) const;
@@ -332,6 +334,7 @@ private:
     DirtyListener dirtyListener { dirty };
     std::atomic<double> internalBpm { 120.0 }, currentBpm { 120.0 };
     std::atomic<bool> hostTempo { false };
+    mutable std::atomic<bool> seqDirty { false }, songDirty { false };     // sequenze / song modificate dopo l'ultimo salvataggio del loro file
     std::atomic<double> lastHostBpm { 0.0 };                 // ultimo tempo ricevuto dalla DAW (0 = mai)
     std::atomic<bool> bpmEdited { false };
     std::atomic<double> exportBpmOverride { 0.0 };

@@ -18,7 +18,7 @@ I **pattern restano nel kit** e si modificano nella scheda Seq: se cambi un patt
 4. Sotto i blocchi, la **mappa della song** mostra tutta la catena in scala: ogni blocco è colorato come il suo pattern, con numero del pattern e ripetizioni, e c'è la **lunghezza totale** (battute, minuti:secondi al BPM corrente).
 5. Il pulsante **⋯** accanto a **+ Block** offre **Add every pattern that has notes** (un blocco per ogni pattern con righe, in ordine) e **Clear the song**.
 
-Il **nome** della song (campo accanto a Open/Save) si usa per i nomi dei file esportati.
+Il **nome** della song (campo accanto a Save song) si usa per i nomi dei file esportati.
 
 ## Suonare la song
 
@@ -34,7 +34,7 @@ Il **nome** della song (campo accanto a Open/Save) si usa per i nomi dei file es
 
 - **Save song** scrive un file **.slsong** (testo leggibile) con la sola catena di blocchi, il nome e il Loop. Il file propone la cartella `Songs` accanto al kit.
 - Per **aprire** una song usa **Kit → Open...** e scegli il file `.slsong`: la catena sostituisce quella attuale.
-- La song è **salvata anche dentro il kit**: con **Save** del kit non perdi la catena. Il file .slsong serve per tenere più versioni o scambiare catene tra kit: i blocchi richiamano i pattern per numero (1–16), quindi funzionano con i pattern del kit in cui li apri.
+- La song **non è nel file del kit** (il kit contiene solo i suoni): è il suo file `.slsong`. Serve per tenere più versioni o scambiare catene tra progetti: i blocchi richiamano i pattern per numero (1–16), quindi funzionano con i pattern che hai caricato (file `.slseq`, vedi capitolo 5).
 - La song si annulla con **Ctrl+Z** come il resto (aggiungere, spostare, togliere blocchi, ripetizioni, Loop).
 
 ## Esportare la song

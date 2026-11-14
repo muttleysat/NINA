@@ -82,6 +82,7 @@ private:
     juce::TextButton recButton { "Rec" }, clickButton { "Click" };
     juce::Slider clickVolume;
     IconButton quantButton { "Rec options", IconButton::Icon::Grid };
+    IconButton saveSeqButton { "Save seq", IconButton::Icon::Layers };
     std::optional<sl::Step> stepClip;
     std::optional<sl::Lane> laneClip;
     int recSnap = 100;                 // % di quantizzazione delle note registrate (100 = sulla griglia, 0 = micro-timing libero)

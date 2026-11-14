@@ -737,7 +737,7 @@ void SampleLabProcessor::publishSong()
 
 void SampleLabProcessor::songEdited()
 {
-    dirty = true;
+    songDirty = true;
     publishSong();
 }
 
@@ -755,6 +755,7 @@ bool SampleLabProcessor::saveSongFile (const juce::File& file, juce::String& err
         error = "Impossibile scrivere " + file.getFullPathName();
         return false;
     }
+    songDirty = false;
     return true;
 }
 
@@ -770,6 +771,7 @@ bool SampleLabProcessor::loadSongFile (const juce::File& file, juce::String& err
     noteUserInput();
     kit.song = s;
     songEdited();
+    songDirty = false;
     return true;
 }
 
@@ -921,14 +923,14 @@ void SampleLabProcessor::logExport (const juce::String& what) const
 
 void SampleLabProcessor::patternEdited()
 {
-    dirty = true;
+    seqDirty = true;
     publishPattern();
 }
 
 void SampleLabProcessor::setActivePattern (int index)
 {
     kit.activePattern = juce::jlimit (0, sl::kNumPatterns - 1, index);
-    dirty = true;
+    seqDirty = true;
     publishPattern();
 }
 
@@ -953,7 +955,7 @@ bool SampleLabProcessor::duplicateActivePattern()
         {
             copyPatternContent (activePattern(), kit.patterns[(size_t) target]);
             kit.activePattern = target;
-            dirty = true;
+            seqDirty = true;
             publishPattern();
             return true;
         }
@@ -971,7 +973,7 @@ void SampleLabProcessor::pasteIntoActivePattern()
     if (! patternClipboard.has_value())
         return;
     copyPatternContent (*patternClipboard, activePattern());
-    dirty = true;
+    seqDirty = true;
     publishPattern();
 }
 
@@ -981,7 +983,7 @@ void SampleLabProcessor::clearActivePattern()
     const auto name = p.name;
     p = sl::Pattern();
     p.name = name;
-    dirty = true;
+    seqDirty = true;
     publishPattern();
 }
 
@@ -990,7 +992,7 @@ void SampleLabProcessor::renamePattern (int index, const juce::String& name)
     if (index < 0 || index >= sl::kNumPatterns)
         return;
     kit.patterns[(size_t) index].name = name.trim().isEmpty() ? juce::String ("Pattern " + juce::String (index + 1)) : name.trim();
-    dirty = true;
+    seqDirty = true;
 }
 
 bool SampleLabProcessor::addLaneForCell (int cell)
@@ -1512,6 +1514,7 @@ void SampleLabProcessor::newKit()
     params.readFromKit (kit);
     midiLearn.setMappings (kit.midiMap);
     dirty = false;          // dopo readFromKit: impostare i parametri li marca come modificati
+    seqDirty = songDirty = false;
     resetUndo();
 }
 
@@ -1527,6 +1530,7 @@ bool SampleLabProcessor::openKit (const juce::File& file, juce::String& error)
     params.readFromKit (kit);
     midiLearn.setMappings (kit.midiMap);
     dirty = false;
+    seqDirty = songDirty = false;
     resetUndo();
     addRecentKit (file);
     return true;
@@ -1536,7 +1540,19 @@ bool SampleLabProcessor::saveKit (const juce::File& file, juce::String& error)
 {
     params.writeToKit (kit);        // i valori automatizzabili vivono nei parametri: si copiano nel kit prima di scrivere
     kit.midiMap = midiLearn.mappings();
-    if (! sl::KitIO::save (kit, file, error))
+
+    // Il file contiene solo il kit: sequenze e song restano in memoria ma non si scrivono
+    auto pats = std::move (kit.patterns);
+    const auto song = kit.song;
+    const int active = kit.activePattern;
+    kit.patterns = sl::Kit::makeDefault (kit.rows, kit.cols).patterns;
+    kit.song = sl::Song();
+    kit.activePattern = 0;
+    const bool saved = sl::KitIO::save (kit, file, error);
+    kit.patterns = std::move (pats);
+    kit.song = song;
+    kit.activePattern = active;
+    if (! saved)
         return false;
 
     // I percorsi dei sample ora puntano alla copia nella cartella del kit: si riallinea la cache
@@ -1552,17 +1568,6 @@ bool SampleLabProcessor::saveKit (const juce::File& file, juce::String& error)
     return true;
 }
 
-bool SampleLabProcessor::saveKitSoundsOnly (const juce::File& file, juce::String& error)
-{
-    params.writeToKit (kit);
-    kit.midiMap = midiLearn.mappings();
-    sl::Kit k = kit;                                                   // si salva una copia: il kit in uso non cambia (file, percorsi, modificato)
-    k.patterns = sl::Kit::makeDefault (k.rows, k.cols).patterns;       // pattern vuoti
-    k.activePattern = 0;
-    k.song = sl::Song();
-    return sl::KitIO::save (k, file, error);
-}
-
 bool SampleLabProcessor::openKitKeepSequences (const juce::File& file, juce::String& error)
 {
     const auto pats = kit.patterns;
@@ -1576,7 +1581,6 @@ bool SampleLabProcessor::openKitKeepSequences (const juce::File& file, juce::Str
     publishPattern();
     if (songMode.load())
         publishSong();
-    dirty = true;
     return true;
 }
 
@@ -1601,6 +1605,7 @@ bool SampleLabProcessor::saveSequencesFile (const juce::File& file, juce::String
         error = "Impossibile scrivere " + file.getFullPathName();
         return false;
     }
+    seqDirty = false;
     return true;
 }
 
@@ -1617,6 +1622,7 @@ bool SampleLabProcessor::loadSequencesFile (const juce::File& file, juce::String
     kit.patterns = k.patterns;
     kit.activePattern = k.activePattern;
     patternEdited();
+    seqDirty = false;
     return true;
 }
 

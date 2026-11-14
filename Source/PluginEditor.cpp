@@ -346,7 +346,7 @@ SampleLabEditor::SampleLabEditor (SampleLabProcessor& p)
             juce::String err;
             const int lanesBefore = [&] { int n = 0; for (auto& p : processor.getKit().patterns) n += (int) p.lanes.size(); return n; }();
             const int blocksBefore = (int) processor.getKit().song.blocks.size();
-            const bool ok = processor.saveKitSoundsOnly (dir.getChildFile ("sounds.slkit"), err);
+            const bool ok = processor.saveKit (dir.getChildFile ("sounds.slkit"), err);          // ATTENZIONE: cambia il percorso del kit in memoria (solo per prove, con le impostazioni salvate ripristinate)
             sl::Kit loaded;
             const bool ok2 = sl::KitIO::load (dir.getChildFile ("sounds.slkit"), loaded, err);
             int lanesFile = 0, samplesFile = 0;
@@ -723,9 +723,10 @@ void SampleLabEditor::showError (const juce::String& message)
     juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, "NINA", message);
 }
 
-void SampleLabEditor::confirmDiscard (std::function<void()> proceed)
+void SampleLabEditor::confirmDiscard (std::function<void()> proceed, bool alsoSequencesAndSong)
 {
-    if (! processor.isDirty())
+    const bool seqLoss = alsoSequencesAndSong && (processor.hasUnsavedSequences() || processor.hasUnsavedSong());
+    if (! processor.isDirty() && ! seqLoss)
     {
         proceed();
         return;
@@ -735,7 +736,9 @@ void SampleLabEditor::confirmDiscard (std::function<void()> proceed)
     juce::AlertWindow::showAsync (juce::MessageBoxOptions()
                                       .withIconType (juce::MessageBoxIconType::QuestionIcon)
                                       .withTitle ("Unsaved changes")
-                                      .withMessage ("The current kit has unsaved changes. Discard them?")
+                                      .withMessage (processor.isDirty() ? juce::String ("The current kit has unsaved changes")
+                                                                           + (seqLoss ? " (and the sequences or song, which are saved in their own files)" : "") + ". Discard them?"
+                                                                        : juce::String ("The sequences or the song have changes that are not saved in their own files (Save seq in the Seq tab, Save song in the Song tab). Discard them?"))
                                       .withButton ("Discard")
                                       .withButton ("Cancel")
                                       .withAssociatedComponent (this),
@@ -755,9 +758,8 @@ void SampleLabEditor::showKitMenu()
     m.addSeparator();
     m.addItem (1, "New kit");
     m.addItem (2, "Open...  (kit, sequences or song)");
-    m.addItem (3, "Save");
-    m.addItem (4, "Save as...");
-    m.addItem (9, "Save kit sounds only (no sequences or song)...");
+    m.addItem (3, "Save kit");
+    m.addItem (4, "Save kit as...");
     m.addSeparator();
     m.addItem (6, "Normalize all cells (peak -1 dBFS)");
     m.addSeparator();
@@ -786,11 +788,10 @@ void SampleLabEditor::showKitMenu()
                      {
                          if (r == 30) doUndoRedo (false);
                          else if (r == 31) doUndoRedo (true);
-                         else if (r == 1) confirmDiscard ([this] { doNew(); });
+                         else if (r == 1) confirmDiscard ([this] { doNew(); }, true);
                          else if (r == 2) doOpen();
                          else if (r == 3) doSave();
                          else if (r == 4) doSaveAs();
-                         else if (r == 9) doSaveSoundsOnly();
                          else if (r == 5) processor.clearRecentKits();
                          else if (r == 6)
                          {
@@ -876,7 +877,7 @@ void SampleLabEditor::openAnyFile (const juce::File& f)
             showError (err);
     }
     else
-        confirmDiscard ([this, f] { doOpenFile (f); });                // un kit sostituisce quello corrente: chiede conferma se ci sono modifiche
+        confirmDiscard ([this, f] { doOpenFile (f); }, SampleLabProcessor::kitFileHasSequences (f));   // un kit sostituisce quello corrente (e, se e' un vecchio progetto con sequenze, anche quelle)
 }
 
 void SampleLabEditor::doOpenFile (const juce::File& f)
@@ -927,30 +928,6 @@ void SampleLabEditor::doSave()
     if (! processor.saveKit (kit.file, err))
         showError (err);
     refreshAll();
-}
-
-void SampleLabEditor::doSaveSoundsOnly()
-{
-    const auto& kit = processor.getKit();
-    const auto dir = kit.file.getFullPathName().isNotEmpty() ? kit.file.getParentDirectory() : juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
-    chooser = std::make_unique<juce::FileChooser> ("Save kit sounds only", dir.getChildFile (sl::KitIO::sanitiseName (kit.name) + "_sounds.slkit"), "*.slkit");
-    chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles
-                              | juce::FileBrowserComponent::warnAboutOverwriting,
-                          [this] (const juce::FileChooser& fc)
-                          {
-                              auto f = fc.getResult();
-                              if (f == juce::File())
-                                  return;
-                              if (! f.hasFileExtension ("slkit"))
-                                  f = f.withFileExtension ("slkit");
-                              juce::String err;
-                              if (processor.saveKitSoundsOnly (f, err))
-                                  juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon, "NINA",
-                                      "Kit saved (sounds, effects and MIDI learn only):\n" + f.getFullPathName()
-                                      + "\n\nNo sequences or song inside. The kit you are working on is unchanged.");
-                              else
-                                  showError (err);
-                          });
 }
 
 void SampleLabEditor::doSaveAs()
