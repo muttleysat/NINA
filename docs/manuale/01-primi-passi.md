@@ -4,14 +4,23 @@
 
 - Windows 10/11 (la versione per macOS è prevista ma non ancora provata).
 - Per il plugin: una DAW che carichi i VST3, come Cubase.
-- Per lo standalone: una scheda audio (anche quella del computer). Con driver ASIO è possibile solo se hai compilato l'app con l'SDK ASIO (vedi il README del progetto).
+- Per lo standalone: una scheda audio (anche quella del computer). Lo standalone supporta i driver **ASIO** della tua scheda, oltre a WASAPI e DirectSound.
 
 ## Installazione
 
-Il progetto si compila dal codice sorgente (vedi il README nella cartella principale). Dopo la compilazione trovi:
+Si usa il programma di installazione **`NINA-Setup-<versione>.exe`** (si scarica dalle *Release* di GitHub). Contiene **tutto il necessario**: non devi scaricare nient'altro (nemmeno il «Visual C++ Redistributable»), e il supporto ASIO è già dentro lo standalone.
 
-- **Standalone:** `build\Nina_artefacts\Release\Standalone\NINA.exe`: si avvia con un doppio clic.
-- **Plugin VST3:** la cartella `build\Nina_artefacts\Release\VST3\NINA.vst3`. Per farlo vedere a Cubase copiala in `C:\Program Files\Common Files\VST3` (servono i permessi di amministratore) e riavvia la scansione dei plugin della DAW.
+1. Avvia l'installer. Si apre nella lingua di Windows (italiano o inglese; si può cambiare dal menu iniziale).
+2. Scegli i **componenti**: **NINA Standalone**, **NINA VST3** (per Cubase e le altre DAW), **manuale e licenze**. Per impostazione predefinita sono tutti selezionati.
+3. L'installer chiede i permessi di amministratore: servono per mettere il plugin nella cartella dei VST3 di sistema (`C:\Program Files\Common Files\VST3\NINA.vst3`). Se scegli l'installazione **per il solo utente corrente** (senza amministratore) il plugin va in `%LOCALAPPDATA%\Programs\Common\VST3\NINA.vst3`.
+4. Lo standalone si installa in `C:\Program Files\NINA`, con il collegamento nel **menu Start** (e, se vuoi, sul desktop).
+5. In **Cubase**: riavvia la scansione dei plugin (*Studio → Gestione plugin VST → Aggiorna*): NINA compare tra gli strumenti.
+
+**Aggiornare**: scarica il nuovo installer e avvialo: **sostituisce** la versione precedente, mantenendo le impostazioni e i kit. **Disinstallare**: *Impostazioni → App → NINA*, oppure il collegamento «Disinstalla NINA» nel menu Start; non tocca i tuoi kit, sequenze e song.
+
+**ASIO e i driver.** NINA può usare il driver ASIO della tua scheda audio, ma i driver li fornisce il produttore della scheda. Senza un driver ASIO NINA suona tramite l'audio di Windows (WASAPI).
+
+**Per sviluppatori**: l'installer si costruisce con `installer\build-installer.ps1` (vedi il README).
 
 ## Prima apertura dello standalone
 

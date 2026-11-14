@@ -1,0 +1,14 @@
+﻿NINA - Drumbox Sequencer Powerhouse
+
+This installer contains everything you need: the stand-alone application (with ASIO,
+WASAPI and DirectSound audio support), the VST3 plug-in for Cubase and other DAWs, the user
+manual and the licences. You do not need to download anything else.
+
+- ASIO: NINA can use the ASIO driver of your audio interface. The drivers themselves come
+  from your audio hardware maker; without one, NINA plays through Windows audio (WASAPI).
+- NINA is free software, released under the GNU Affero General Public License v3.
+  The source code is available at https://github.com/muttleysat/NINA
+- NINA is free and the same for everyone. If you like it, a voluntary donation is welcome
+  (button "Support my work" in the Info window of the program).
+- VST is a trademark of Steinberg Media Technologies GmbH.
+  ASIO is a registered trademark and software of Steinberg Media Technologies GmbH.

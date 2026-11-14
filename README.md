@@ -15,6 +15,10 @@ cmake --build build --config Release
 
 Output in `build/Nina_artefacts/Release/` (cartelle `VST3` e `Standalone`).
 
+## Installer (Windows)
+
+`installer\build-installer.ps1` costruisce `installer\Output\NINA-Setup-<versione>.exe` con [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`winget install JRSoftware.InnoSetup`). Prima compila il progetto in Release. L'installer contiene lo standalone (con ASIO), il plugin VST3, il manuale e le licenze; il runtime di Visual C++ è collegato staticamente, quindi non servono altre installazioni. La versione si legge da `CMakeLists.txt`. Le immagini della procedura guidata si rigenerano con `python installer/make_wizard_images.py`.
+
 ## Licenza
 
 NINA è software libero sotto licenza **GNU AGPL-3.0** (vedi il file [LICENSE](LICENSE)); le librerie di terzi e i loro riconoscimenti sono in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Il nome, il logo e l'icona di NINA non sono coperti dalla licenza del codice. VST è un marchio di Steinberg Media Technologies GmbH.
