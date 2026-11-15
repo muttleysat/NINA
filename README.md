@@ -2,7 +2,7 @@
 
 # NINA – Drumbox Sequencer Powerhouse
 
-Sampler / drum machine as a **VST3 plug-in** and a **standalone application** for Windows, inspired by Native Instruments Battery, with a step sequencer. Free software for personal use.
+Sampler / drum machine as a **VST3 plug-in** and a **standalone application** for Windows and macOS, inspired by Native Instruments Battery, with a step sequencer. Free software for personal use.
 
 - **User manual:** [docs/manual/README.md](docs/manual/README.md) (getting started, cells, effects, sequencer, kits, automation, exporting). Italian version: [docs/manuale/README.md](docs/manuale/README.md)
 - Requirements: [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md)
@@ -22,7 +22,30 @@ Sampler / drum machine as a **VST3 plug-in** and a **standalone application** fo
 
 ## Download
 
-From the latest [Release](https://github.com/muttleysat/NINA/releases/latest): `NINA-Setup-<version>-win-x64.exe` (Standalone with ASIO, VST3, manual).
+From the latest [Release](https://github.com/muttleysat/NINA/releases/latest): `NINA-Setup-<version>-win-x64.exe` (Standalone with ASIO, VST3, manual) for Windows, and `NINA-<version>-mac-universal.dmg` (Standalone, VST3, Audio Unit; Intel + Apple Silicon) for macOS.
+
+### macOS installation
+
+The macOS build is **not signed or notarized** (free project, no Apple Developer account), so Gatekeeper blocks it on first launch.
+
+1. Open the `.dmg` and copy `NINA.app` to `/Applications`, `NINA.vst3` to `~/Library/Audio/Plug-Ins/VST3` and `NINA.component` to `~/Library/Audio/Plug-Ins/Components`.
+2. Remove the quarantine flag (once):
+   ```bash
+   xattr -cr /Applications/NINA.app ~/Library/Audio/Plug-Ins/VST3/NINA.vst3 ~/Library/Audio/Plug-Ins/Components/NINA.component
+   ```
+   Alternatively, try to open the app, then go to System Settings > Privacy & Security > **Open Anyway**.
+3. Restart your DAW and rescan plug-ins.
+
+## Build (macOS)
+
+Requires Xcode and CMake (`brew install cmake`). Build **outside** iCloud-synced folders (Documents, Desktop), otherwise code signing fails with "detritus not allowed":
+
+```bash
+cmake -S . -B ~/nina-build -G Xcode
+cmake --build ~/nina-build --config Release
+```
+
+Output in `~/nina-build/Nina_artefacts/Release/` (`Standalone`, `VST3`, `AU`; universal arm64 + x86_64). `installer/build-dmg.sh` creates the `.dmg`; if you have a Developer ID, set `SIGN_ID` and `NOTARY_PROFILE` to sign and notarize it.
 
 ## Build (Windows)
 
@@ -72,4 +95,4 @@ Version 1.0.0. Main features:
 - **Sequencer:** **Seq** tab with one row per added cell (right click on a cell > "Add to sequencer"), steps with velocity, probability, ratchet, nudge, gate, pitch and parameter locks on the effects; MIDI export and WAV bounce. MIDI learn on the parameters (right click on a control) and BPM-synced delay.
 - **Song and Mixer:** chain patterns into a song (`.slsong`) and a mixing console with one channel per cell (fader, meter, Mute/Solo, pan, sends, outputs).
 
-Still missing: verification of every feature in Cubase 16 (including the multiple outputs per cell, done in the engine), macOS build.
+Still missing: verification of every feature in Cubase 16 (including the multiple outputs per cell, done in the engine), macOS build (compiled and passing tests, not yet verified in a DAW).

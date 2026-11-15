@@ -48,7 +48,7 @@ juce_add_plugin(Nina
     BUNDLE_ID "com.vinztrombetta.nina"
     PLUGIN_MANUFACTURER_CODE SmpL
     PLUGIN_CODE SLab
-    FORMATS VST3 Standalone
+    FORMATS VST3 AU Standalone
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT FALSE

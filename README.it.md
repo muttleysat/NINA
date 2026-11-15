@@ -22,7 +22,30 @@ Sampler/drum machine VST3 + standalone (Windows e macOS), ispirato a Native Inst
 
 ## Download
 
-Dall'ultima [Release](https://github.com/muttleysat/NINA/releases/latest): `NINA-Setup-<versione>-win-x64.exe` (Standalone con ASIO, VST3, manuale).
+Dall'ultima [Release](https://github.com/muttleysat/NINA/releases/latest): `NINA-Setup-<versione>-win-x64.exe` (Standalone con ASIO, VST3, manuale) per Windows e `NINA-<versione>-mac-universal.dmg` (Standalone, VST3, Audio Unit; Intel + Apple Silicon) per macOS.
+
+### Installazione su macOS
+
+La build per macOS **non è firmata né notarizzata** (progetto gratuito, senza account Apple Developer), quindi Gatekeeper la blocca al primo avvio.
+
+1. Apri il `.dmg` e copia `NINA.app` in `/Applications`, `NINA.vst3` in `~/Library/Audio/Plug-Ins/VST3` e `NINA.component` in `~/Library/Audio/Plug-Ins/Components`.
+2. Rimuovi il flag di quarantena (una volta sola):
+   ```bash
+   xattr -cr /Applications/NINA.app ~/Library/Audio/Plug-Ins/VST3/NINA.vst3 ~/Library/Audio/Plug-Ins/Components/NINA.component
+   ```
+   In alternativa, prova ad aprire l'app e poi vai in Impostazioni di Sistema > Privacy e sicurezza > **Apri comunque**.
+3. Riavvia il DAW e ripeti la scansione dei plug-in.
+
+## Build (macOS)
+
+Servono Xcode e CMake (`brew install cmake`). Compila **fuori** dalle cartelle sincronizzate con iCloud (Documenti, Scrivania), altrimenti il codesign fallisce con "detritus not allowed":
+
+```bash
+cmake -S . -B ~/nina-build -G Xcode
+cmake --build ~/nina-build --config Release
+```
+
+Output in `~/nina-build/Nina_artefacts/Release/` (`Standalone`, `VST3`, `AU`; universale arm64 + x86_64). `installer/build-dmg.sh` crea il `.dmg`; con un Developer ID, imposta `SIGN_ID` e `NOTARY_PROFILE` per firmarlo e notarizzarlo.
 
 ## Build (Windows)
 
